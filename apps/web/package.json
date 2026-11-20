@@ -1,0 +1,24 @@
+{
+  "name": "@family-hub/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Family Hub in the browser, served by the Family Hub server",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json",
+    "e2e": "vite build && node e2e/smoke.mjs",
+    "screenshots": "vite build && SCREENSHOTS=1 node e2e/smoke.mjs"
+  },
+  "dependencies": {
+    "@family-hub/ui": "*",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.3.0",
+    "playwright": "^1.65.1",
+    "vite": "^8.3.8"
+  }
+}
