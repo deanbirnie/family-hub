@@ -1,0 +1,144 @@
+/**
+ * The database: one SQLite file in the data folder, through Node's built-in
+ * node:sqlite. Schema changes are numbered migrations that run once, in
+ * order, at start-up; a database written by a newer server is refused rather
+ * than guessed at.
+ */
+import { DatabaseSync } from 'node:sqlite'
+
+export type Db = DatabaseSync
+
+const MIGRATIONS: string[] = [
+  // 1: accounts, sign-in, devices, invites, audit log
+  `
+  CREATE TABLE settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
+  CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    display_name TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
+    password_hash TEXT NOT NULL,
+    -- base32; NULL until two-factor sign-in is set up
+    totp_secret TEXT,
+    -- offered during setup, kept until it is confirmed with a code
+    totp_pending_secret TEXT,
+    -- the last time step whose code was accepted, so no code works twice
+    totp_last_counter INTEGER,
+    disabled INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    password_changed_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE recovery_codes (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL,
+    used_at INTEGER,
+    PRIMARY KEY (user_id, code_hash)
+  );
+
+  -- Phones that sign in with a key kept in their hardware keystore, which
+  -- only a fingerprint or face can unlock.
+  CREATE TABLE devices (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    -- ECDSA P-256 public key, SubjectPublicKeyInfo DER, base64
+    public_key TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_used_at INTEGER
+  );
+
+  CREATE TABLE device_challenges (
+    id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    challenge TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE sessions (
+    id TEXT PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    -- what the session may do: 'totp' and 'enroll' only finish signing in,
+    -- 'device' only registers a phone, 'full' is signed in
+    stage TEXT NOT NULL CHECK (stage IN ('totp', 'enroll', 'device', 'full')),
+    transport TEXT NOT NULL CHECK (transport IN ('cookie', 'bearer')),
+    device_id TEXT REFERENCES devices(id) ON DELETE CASCADE,
+    failed_attempts INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    last_seen_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    idle_seconds INTEGER NOT NULL,
+    user_agent TEXT NOT NULL DEFAULT '',
+    ip TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX sessions_user ON sessions(user_id);
+
+  CREATE TABLE invites (
+    id TEXT PRIMARY KEY,
+    token_hash TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
+    created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    used_at INTEGER
+  );
+
+  CREATE TABLE audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at INTEGER NOT NULL,
+    user_id TEXT,
+    event TEXT NOT NULL,
+    ip TEXT NOT NULL DEFAULT '',
+    detail TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX audit_log_user ON audit_log(user_id, at);
+  `,
+]
+
+export const SCHEMA_VERSION = MIGRATIONS.length
+
+export function openDb(path: string): Db {
+  const db = new DatabaseSync(path)
+  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;')
+  migrate(db)
+  return db
+}
+
+function migrate(db: Db): void {
+  const current = Number((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version)
+  if (current > SCHEMA_VERSION) {
+    throw new Error(
+      `The database was written by a newer Family Hub (schema ${current}, this server knows ${SCHEMA_VERSION}). Run that version or newer.`,
+    )
+  }
+  for (let v = current; v < SCHEMA_VERSION; v++) {
+    db.exec('BEGIN')
+    try {
+      db.exec(MIGRATIONS[v]!)
+      db.exec(`PRAGMA user_version = ${v + 1}`)
+      db.exec('COMMIT')
+    } catch (e) {
+      db.exec('ROLLBACK')
+      throw e
+    }
+  }
+}
+
+/** Runs `fn` in a transaction. */
+export function tx<T>(db: Db, fn: () => T): T {
+  db.exec('BEGIN IMMEDIATE')
+  try {
+    const out = fn()
+    db.exec('COMMIT')
+    return out
+  } catch (e) {
+    db.exec('ROLLBACK')
+    throw e
+  }
+}

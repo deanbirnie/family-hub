@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // The server runs from its TypeScript source through Node's type
+    // stripping, which only accepts syntax it can erase.
+    "erasableSyntaxOnly": true
+  },
+  "include": ["src", "test"]
+}
