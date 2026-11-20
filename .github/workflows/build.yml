@@ -1,0 +1,211 @@
+name: Build
+
+# Checks every pull request and every push to main. The slow jobs run only
+# when their code, or shared code they depend on, has changed. Pushes to main
+# that touch the image also publish it as `edge`. Versioned releases, which
+# always build everything, are made by release.yml.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer run for the same branch or pull request replaces an older one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Decides which parts this change can affect. Manual runs check everything.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.areas.outputs.image }}
+      mobile: ${{ steps.areas.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: areas
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then BASE=""; fi
+          .github/scripts/changed-areas.sh "$BASE" | tee -a "$GITHUB_OUTPUT"
+
+  # Fast checks across the whole repository: always run.
+  test:
+    name: Typecheck and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - run: npm run typecheck
+      - run: npm test
+      # Known vulnerabilities in anything npm installs (the build tools
+      # included); the server itself has no dependencies.
+      - run: npm audit --audit-level=high
+
+  # The workflows and scripts themselves, including those only a release runs.
+  workflow-checks:
+    name: Workflow and script checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          file="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$file" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/$file"
+          echo "$ACTIONLINT_SHA256  $RUNNER_TEMP/$file" | sha256sum --check --quiet
+          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+      - name: shellcheck
+        run: shellcheck .github/scripts/*.sh
+      - name: Release version rules
+        run: .github/scripts/test-release-version.sh
+      - name: APK check (with stand-in Android tools)
+        run: .github/scripts/test-check-apk.sh
+
+  # The image: built, started on a root-owned bind mount, driven end to end
+  # through the web app, and scanned. Pushes to main publish it as `edge`.
+  image:
+    name: Server image and web app
+    needs: changes
+    if: needs.changes.outputs.image == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      # GitHub's runners ship Chrome, so no browser needs downloading.
+      - name: Web end-to-end test
+        run: |
+          CHROME_PATH="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
+          export CHROME_PATH
+          test -n "$CHROME_PATH"
+          npm run e2e -w @family-hub/web
+      - run: docker build -t family-hub .
+      - name: Start the container and check it responds
+        run: |
+          # A bind mount Docker creates is owned by root: the server must
+          # still be able to open its database, as PUID.
+          docker run -d --name family-hub -p 8080:8080 -e PUID=99 -e PGID=100 \
+            -v "$RUNNER_TEMP/family-hub-data:/data" family-hub
+          for _ in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:8080/api/health; then
+              echo
+              docker exec family-hub sh -c 'test "$(stat -c %u /proc/1)" = 99'
+              test "$(stat -c %u "$RUNNER_TEMP/family-hub-data/family-hub.db")" = 99
+              curl -fsS http://127.0.0.1:8080/ | grep -q '<div id="root">'
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs family-hub
+          exit 1
+      # Known vulnerabilities in the image, its OS packages included.
+      - name: Scan the image
+        run: .github/scripts/scan-dependencies.sh image family-hub
+      - name: Upload e2e screenshots
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-e2e-screenshots
+          path: apps/web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+      # Everything below runs only for pushes to main.
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the edge image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          build-args: VERSION=edge-${{ github.sha }}
+          tags: ghcr.io/${{ github.repository_owner }}/family-hub:edge
+
+  android:
+    name: Android app
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      - name: Mobile web end-to-end test
+        run: |
+          CHROME_PATH="$(command -v google-chrome || command -v chromium-browser || command -v chromium)"
+          export CHROME_PATH
+          test -n "$CHROME_PATH"
+          npm run e2e -w @family-hub/mobile
+      - name: Build debug APK
+        run: npm run apk -w @family-hub/mobile
+      # The release workflow's APK check, on this debug build (its own
+      # throwaway key, so no certificate check), so a broken check shows up here first.
+      - name: Check the APK
+        run: |
+          apk="$(ls apps/mobile/android/app/build/outputs/apk/debug/*.apk)"
+          name="$(node -p "require('./apps/mobile/package.json').version")-debug"
+          .github/scripts/check-apk.sh "$apk" "$name"
+      # Known vulnerabilities in the Maven libraries the app ships (npm audit does not see them).
+      - name: Scan the Android libraries
+        run: .github/scripts/scan-dependencies.sh android apps/mobile/android
+      # A debug build, signed with a throwaway key: for trying out, not for
+      # keeping. It installs next to the release app, not over it.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: family-hub-android-debug
+          path: apps/mobile/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload e2e screenshots
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mobile-e2e-screenshots
+          path: apps/mobile/test-results
+          if-no-files-found: ignore
+          retention-days: 7
