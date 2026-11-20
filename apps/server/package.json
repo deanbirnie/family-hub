@@ -1,0 +1,12 @@
+{
+  "name": "@family-hub/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Family Hub server: the API and the web app, with no runtime dependencies",
+  "scripts": {
+    "start": "node src/main.ts",
+    "dev": "FAMILY_HUB_DATA=../../data FAMILY_HUB_ALLOW_HTTP=true node --watch src/main.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

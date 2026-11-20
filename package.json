@@ -1,0 +1,30 @@
+{
+  "name": "family-hub",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "A private, self-hosted hub for coordinating family life",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @family-hub/web",
+    "dev:server": "npm run dev -w @family-hub/server",
+    "build": "npm run build -w @family-hub/web",
+    "server": "npm run start -w @family-hub/server",
+    "test": "vitest run",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "e2e": "npm run e2e -w @family-hub/web",
+    "e2e:mobile": "npm run e2e -w @family-hub/mobile",
+    "dev:mobile": "npm run dev -w @family-hub/mobile"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1"
+  },
+  "engines": {
+    "node": ">=24.7"
+  }
+}
