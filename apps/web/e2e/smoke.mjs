@@ -157,7 +157,7 @@ try {
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)
   await page.getByRole('heading', { name: 'Where you’re signed in' }).waitFor()
-  await page.getByText('This one').waitFor()
+  await page.getByText('This one', { exact: true }).waitFor()
   await shot(page, '07-settings')
   await page.getByRole('button', { name: 'Sign out' }).first().click()
   await page.getByRole('heading', { name: 'Sign in' }).waitFor()

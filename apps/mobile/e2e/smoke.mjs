@@ -131,7 +131,7 @@ try {
 
   // Lock, then unlock with the key again.
   await page.getByRole('link', { name: 'Settings' }).click()
-  await page.getByText('This phone').waitFor()
+  await page.getByText('This phone', { exact: true }).waitFor()
   await page.getByRole('button', { name: 'Lock now' }).click()
   await page.getByRole('heading', { name: 'Family Hub is locked' }).waitFor()
   await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
