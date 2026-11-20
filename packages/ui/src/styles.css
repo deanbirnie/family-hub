@@ -1251,3 +1251,19 @@ progress {
     padding-left: 56px;
   }
 }
+
+/* ---- the phone's lock screen ---- */
+
+.unlock {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  text-align: center;
+}
+
+.unlock-icon {
+  align-self: center;
+  color: var(--primary);
+  margin: 12px 0;
+}

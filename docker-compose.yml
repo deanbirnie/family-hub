@@ -1,0 +1,33 @@
+# Family Hub, from the image this repository's releases publish.
+#
+#   docker compose up -d
+#
+# It listens on 127.0.0.1:8080. Put a TLS-terminating reverse proxy in front
+# of it (Caddy, Traefik, nginx, or a Cloudflare tunnel) and open that https://
+# address in a browser and in the Android app. Sign-in needs https.
+#
+# To update:  docker compose pull && docker compose up -d
+# To pin a version, replace "latest" with e.g. "0.2.0" (or "0.2" for patch updates).
+# To build from this checkout instead:  docker compose up -d --build
+services:
+  family-hub:
+    image: ghcr.io/deanbirnie/family-hub:latest
+    build:
+      context: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      # The user and group the server runs as, and that own the data files.
+      # Match the owner of a bind-mounted data folder (Unraid: 99 and 100).
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      # How many reverse proxies sit in front (their X-Forwarded-* headers are
+      # trusted for the client address and https). 1 for a single proxy.
+      FAMILY_HUB_TRUST_PROXY: "1"
+    volumes:
+      # The database (and, from phase 1, the family's files). Back this up.
+      - family-hub-data:/data
+
+volumes:
+  family-hub-data:

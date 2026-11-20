@@ -150,7 +150,6 @@ export function useLoad<T>(fn: () => Promise<T>, deps: unknown[] = []) {
     return () => {
       live = false
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tick])
   return { data, error, reload: () => setTick((t) => t + 1) }
 }
