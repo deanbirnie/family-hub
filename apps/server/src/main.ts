@@ -7,11 +7,13 @@ import { createApp } from './app.ts'
 import { loadConfig } from './config.ts'
 import { openDb } from './db.ts'
 import { prepareDataDir } from './privileges.ts'
+import { maintainFiles } from './file-maintenance.ts'
 
 const config = loadConfig()
 prepareDataDir(config.dataDir)
 const db = openDb(join(config.dataDir, 'family-hub.db'))
-const { server } = createApp({ db, config })
+const { server, services } = createApp({ db, config })
+await maintainFiles(services)
 
 server.listen(config.port, config.host, () => {
   console.log(`Family Hub ${config.version} listening on ${config.host}:${config.port}`)

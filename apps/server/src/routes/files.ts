@@ -7,6 +7,8 @@ import { pipeline } from 'node:stream/promises'
 import { presentedToken, type Api, type AuthedCtx, type Services } from '../app.ts'
 import { HttpError, readJson } from '../http.ts'
 import { findSession, getUser } from '../sessions.ts'
+import { tx } from '../db.ts'
+import { TRASH_MS } from '../file-maintenance.ts'
 
 export interface FileRow {
   id: string
@@ -18,6 +20,8 @@ export interface FileRow {
   created_by: string
   created_at: number
   updated_at: number
+  deleted_at: number | null
+  trash_root: string | null
 }
 
 export const fileInfo = (f: FileRow) => ({
@@ -48,7 +52,7 @@ export function fileRoutes(api: Api, s: Services): void {
   const root = join(s.config.dataDir, 'files')
   mkdirSync(root, { recursive: true, mode: 0o700 })
   const find = (id: string): FileRow => {
-    const row = s.db.prepare('SELECT * FROM files WHERE id = ?').get(id) as unknown as FileRow | undefined
+    const row = s.db.prepare('SELECT * FROM files WHERE id = ? AND deleted_at IS NULL').get(id) as unknown as FileRow | undefined
     if (!row) throw new HttpError(404, 'That document is no longer here.', 'not_found')
     return row
   }
@@ -56,7 +60,7 @@ export function fileRoutes(api: Api, s: Services): void {
     if (id !== null && find(id).kind !== 'folder') throw new HttpError(400, 'Choose a folder.', 'invalid')
   }
   const unique = (parentId: string | null, name: string, except = '') => {
-    if (s.db.prepare('SELECT id FROM files WHERE parent_id IS ? AND name = ? AND id != ?').get(parentId, name, except)) {
+    if (s.db.prepare('SELECT id FROM files WHERE parent_id IS ? AND name = ? AND id != ? AND deleted_at IS NULL').get(parentId, name, except)) {
       throw new HttpError(409, 'A document or folder with that name already exists here.', 'name_conflict')
     }
   }
@@ -85,9 +89,48 @@ export function fileRoutes(api: Api, s: Services): void {
     const q = (ctx.url.searchParams.get('q') || '').trim()
     if (q.length > 240) throw new HttpError(400, 'Search by a shorter name.', 'invalid')
     const items = (q
-      ? s.db.prepare("SELECT * FROM files WHERE instr(lower(name), lower(?)) > 0 ORDER BY kind DESC, name COLLATE NOCASE, id").all(q)
-      : s.db.prepare("SELECT * FROM files WHERE parent_id IS ? ORDER BY kind DESC, name COLLATE NOCASE, id").all(parentId)) as unknown as FileRow[]
+      ? s.db.prepare("SELECT * FROM files WHERE deleted_at IS NULL AND instr(lower(name), lower(?)) > 0 ORDER BY kind DESC, name COLLATE NOCASE, id").all(q)
+      : s.db.prepare("SELECT * FROM files WHERE deleted_at IS NULL AND parent_id IS ? ORDER BY kind DESC, name COLLATE NOCASE, id").all(parentId)) as unknown as FileRow[]
     return { items: items.map(fileInfo), ancestors: ancestors(parentId), parentId, query: q, maxFileBytes: s.config.maxFileBytes }
+  })
+
+  api.authed('GET', '/api/files/trash', {}, () => {
+    const items = s.db.prepare('SELECT * FROM files WHERE id = trash_root AND deleted_at > ? ORDER BY deleted_at DESC, name COLLATE NOCASE').all(s.now() - TRASH_MS) as unknown as FileRow[]
+    return { items: items.map((f) => ({ ...fileInfo(f), deletedAt: f.deleted_at!, expiresAt: f.deleted_at! + TRASH_MS })) }
+  })
+
+  api.authed('DELETE', '/api/files/:id', {}, (ctx) => {
+    const item = find(ctx.params.id!)
+    tx(s.db, () => {
+      s.db.prepare(`WITH RECURSIVE tree(id) AS (SELECT ? UNION ALL SELECT f.id FROM files f JOIN tree t ON f.parent_id = t.id WHERE f.deleted_at IS NULL)
+        UPDATE files SET deleted_at = ?, trash_root = ? WHERE id IN tree AND deleted_at IS NULL`).run(item.id, s.now(), item.id)
+    })
+    s.audit('files.deleted', ctx, ctx.user.id, item.id)
+  })
+
+  api.authed('POST', '/api/files/:id/restore', {}, (ctx) => {
+    const item = s.db.prepare('SELECT * FROM files WHERE id = ? AND id = trash_root AND deleted_at > ?').get(ctx.params.id!, s.now() - TRASH_MS) as unknown as FileRow | undefined
+    if (!item) throw new HttpError(404, 'That item is no longer in the recycle bin.', 'not_found')
+    // Restore to the old parent when it still exists, otherwise to Family.
+    const oldParent = item.parent_id && s.db.prepare('SELECT id FROM files WHERE id = ? AND deleted_at IS NULL').get(item.parent_id)
+    const parentId = oldParent ? item.parent_id : null
+    let name = item.name, attempt = 0
+    while (s.db.prepare('SELECT id FROM files WHERE parent_id IS ? AND name = ? AND deleted_at IS NULL').get(parentId, name)) {
+      attempt++
+      const dot = item.name.lastIndexOf('.')
+      const split = item.kind === 'file' && dot > 0 && item.name.length - dot <= 20 ? dot : item.name.length
+      const ext = item.name.slice(split)
+      const base = Array.from(item.name.slice(0, split))
+      const suffix = ` (restored${attempt === 1 ? '' : ` ${attempt}`})${ext}`
+      while (Buffer.byteLength(base.join('') + suffix) > 240) base.pop()
+      name = base.join('') + suffix
+    }
+    tx(s.db, () => {
+      s.db.prepare('UPDATE files SET parent_id = ?, name = ? WHERE id = ?').run(parentId, name, item.id)
+      s.db.prepare('UPDATE files SET deleted_at = NULL, trash_root = NULL, updated_at = ? WHERE trash_root = ?').run(s.now(), item.id)
+    })
+    s.audit('files.restored', ctx, ctx.user.id, item.id)
+    return { item: fileInfo(find(item.id)), restoredToFamily: !oldParent && item.parent_id !== null }
   })
 
   api.authed('POST', '/api/files/folders', {}, async (ctx) => {

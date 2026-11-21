@@ -45,9 +45,9 @@ To update: `docker compose pull && docker compose up -d`. Images are
 `ghcr.io/deanbirnie/family-hub` with tags `latest`, `X.Y` (patch updates
 only), `X.Y.Z`, and `edge` (the newest commit on `main`; for testing).
 
-**Back up the data volume.** It holds the database (and, from phase 1, the
-family's files). Stop the container or use `sqlite3 .backup` for a
-consistent copy of `family-hub.db`.
+**Back up the whole data volume.** Stop the hub during the copy so its
+database and documents stay consistent. See [backup and restore](docs/BACKUPS.md)
+for commands and verification.
 
 ### Settings
 
@@ -77,6 +77,13 @@ folder by filename. PDFs, PNG, JPEG, GIF and WebP images preview inside the
 app on both platforms. Other formats download; Android also offers **Open**
 with a chosen installed app. PDF rendering and its fonts ship with Family
 Hub; documents are never sent to an outside viewer service.
+
+All members can rename, move, delete and restore shared documents. Deleted
+documents and folders stay in the **Recycle bin** for 30 days. A restored
+folder brings back the items deleted with it; earlier independent deletions
+stay in the bin. If the original parent is unavailable, restoration uses
+Family. Name conflicts receive a ` (restored)` suffix without replacing
+anything. Expired items are purged at startup and during regular cleanup.
 
 ## The Android app
 
