@@ -47,32 +47,21 @@ Decisions worth knowing before changing things:
 - [x] Releases by label: signed APK on GitHub releases + image on ghcr.io; in-app update notification and install
 - [x] Maintenance: Dependabot, weekly cleanup, weekly Claude maintenance run (`docs/MAINTENANCE.md`)
 
-## Phase 1 — Shared file storage ← next
+## Phase 1 — Shared family documents ← next
 
-The family's documents and photos on the home server, reachable from any
-browser and the phone.
+One shared folder on the home server gives every signed-in family member
+quick access to important documents, PDFs and occasional reference images
+such as scans or photos of paperwork. Immich handles family photo and media
+libraries and backups.
 
-- [ ] **Storage model:** files on disk under `/data/files` in content-addressed
-      blobs, with names, folders and owners in SQLite (so renames and moves
-      are instant and names can never escape the folder). Configurable quota.
-- [ ] **Spaces:** a shared *Family* space everyone can use, and a *Private*
-      space per person that only they can see (admins included).
-- [ ] **Upload:** streaming uploads (no size-limited buffering), several at
-      once with progress, drag-and-drop on the web, resumable chunks for
-      large videos; size limit per file set by the admin.
-- [ ] **Browse:** folders, breadcrumbs, list and grid views, sort, search by
-      name; create, rename, move and delete.
-- [ ] **Preview:** images (with thumbnails made in the browser at upload),
-      PDFs, video and audio in the page; everything else downloads. Files
-      served with `Content-Disposition: attachment` unless they are a known
-      safe type, from a separate path with a sandboxing CSP.
-- [ ] **Recycle bin:** deleted files kept 30 days, restorable.
-- [ ] **Android:** "Share to Family Hub" from the gallery and other apps;
-      upload from the camera; open and save downloads.
-- [ ] **Backups:** documented backup and restore of `/data` (database and
-      files), and a CI check that a backup restores into a new container.
-- [ ] Optional later in the phase: per-folder sharing with chosen members;
-      version history for replaced files.
+- [ ] **Shared access:** one Family folder for all members, available in the
+      browser and Android app. All members can browse, upload and download.
+- [ ] **Organise:** create subfolders, search by filename, and rename, move
+      or delete files.
+- [ ] **View:** preview PDFs and common image formats in the app, and
+      download other documents to open them.
+- [ ] **Recover:** keep deleted documents for 30 days and document how to
+      back up and restore the shared folder alongside the hub database.
 
 ## Phase 2 — Quick info (the family's reference card)
 
@@ -160,7 +149,8 @@ always to hand, never in plain text.
       for; birthday reminders link to them.
 - [ ] **"I'm home safe" check-ins:** one tap to tell the family you arrived
       (no location tracking).
-- [ ] **Memories:** photo albums from Files, "on this day" on the home page.
+- [ ] **Memories:** explore showing an "on this day" view from Immich on the
+      home page. Immich remains the family photo library.
 - [ ] **In case of emergency:** instructions and where things are kept, for a
       trusted person, released after a waiting period an admin can cancel.
 
