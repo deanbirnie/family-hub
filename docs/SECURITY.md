@@ -87,7 +87,10 @@ recent-apps list), backups are off, and plain-http traffic is refused.
   authentication step for file operations, and no public file links or
   bearer tokens in URLs. Uploads are streamed with a per-file limit; disk
   names are server-generated IDs. Downloads are attachments with a sandbox
-  policy and no caching.
+  policy and no caching. Preview eligibility is checked against the file's
+  byte signature, not the supplied MIME type or filename. Only PDFs and
+  raster images are previewed, using a local PDF renderer or an image element;
+  HTML and SVG remain downloads. PDF scripts and forms are not executed.
 
 - The container starts as root only to take ownership of `/data`, then runs
   as `PUID:PGID`. The image has no npm, npx, yarn or corepack.
