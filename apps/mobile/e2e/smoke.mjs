@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os'
 import { dirname, extname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
+import { documentChecks } from '../../web/e2e/documents.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const app = resolve(here, '..')
@@ -138,6 +139,8 @@ try {
   await page.getByText('1 document uploaded.').waitFor()
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download Phone.txt', exact: true }).click()])
   if (download.suggestedFilename() !== 'Phone.txt' || challenges !== 0) throw new Error('file access requested an extra unlock or lost its filename')
+  await documentChecks(page, shot)
+  if (challenges !== 0) throw new Error('document operations requested an extra device unlock')
 
   // Lock, then unlock with the key again.
   await page.getByRole('link', { name: 'Settings' }).click()

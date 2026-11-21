@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
+import { pdfAssets } from '../../packages/ui/pdf-assets.ts'
 
 const root = import.meta.dirname
 const { version } = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as { version: string }
@@ -31,6 +32,6 @@ export default defineConfig({
   base: './',
   define: { __APP_VERSION__: JSON.stringify(version), __FAKE_DEVICE__: JSON.stringify(fakeDevice) },
   resolve: { alias: { '@family-hub/ui': resolve(root, '../../packages/ui/src/index.tsx') } },
-  plugins: [react(), csp()],
+  plugins: [react(), csp(), pdfAssets()],
   build: { outDir: fakeDevice ? 'dist-e2e' : 'dist', target: 'es2022' },
 })

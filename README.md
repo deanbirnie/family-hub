@@ -72,6 +72,12 @@ hub database. Choose several documents at once or drop them onto the Files
 page. Documents with the same name in the same folder are refused rather
 than overwritten.
 
+Create subfolders, rename or move documents, and search across the Family
+folder by filename. PDFs, PNG, JPEG, GIF and WebP images preview inside the
+app on both platforms. Other formats download; Android also offers **Open**
+with a chosen installed app. PDF rendering and its fonts ship with Family
+Hub; documents are never sent to an outside viewer service.
+
 ## The Android app
 
 Download `family-hub-X.Y.Z.apk` from the [latest release](https://github.com/deanbirnie/family-hub/releases/latest)

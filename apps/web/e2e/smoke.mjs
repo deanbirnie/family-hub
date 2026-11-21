@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
+import { documentChecks } from './documents.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repo = resolve(here, '../../..')
@@ -125,6 +126,7 @@ try {
   await page.getByText('1 document uploaded.').waitFor()
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download Policy.txt', exact: true }).click()])
   if (download.suggestedFilename() !== 'Policy.txt') throw new Error('wrong document name')
+  await documentChecks(page, (name) => shot(page, name))
   await shot(page, '05-files')
 
   // Invite a member.
@@ -156,6 +158,11 @@ try {
   // Members cannot invite.
   await sam.goto(`${base}/files`)
   await sam.getByText('Policy.txt', { exact: true }).waitFor()
+  await sam.getByRole('button', { name: 'Rename Policy.txt', exact: true }).click()
+  await sam.getByLabel('Name', { exact: true }).fill('Shared policy.txt')
+  await sam.getByRole('button', { name: 'Save', exact: true }).click()
+  await sam.getByRole('dialog').waitFor({ state: 'hidden' })
+  await sam.getByRole('button', { name: 'Shared policy.txt', exact: true }).waitFor()
   await sam.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Family' }).click()
   await sam.getByText('Alex Tester').waitFor()
   if (await sam.getByRole('button', { name: 'Invite someone' }).count()) throw new Error('a member can see the invite button')
