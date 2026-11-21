@@ -25,6 +25,7 @@ services:
       # How many reverse proxies sit in front (their X-Forwarded-* headers are
       # trusted for the client address and https). 1 for a single proxy.
       FAMILY_HUB_TRUST_PROXY: "1"
+      FAMILY_HUB_MAX_FILE_BYTES: "${FAMILY_HUB_MAX_FILE_BYTES:-104857600}"
     volumes:
       # The database (and, from phase 1, the family's files). Back this up.
       - family-hub-data:/data

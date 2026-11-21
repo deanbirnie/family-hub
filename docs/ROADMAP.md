@@ -47,7 +47,7 @@ Decisions worth knowing before changing things:
 - [x] Releases by label: signed APK on GitHub releases + image on ghcr.io; in-app update notification and install
 - [x] Maintenance: Dependabot, weekly cleanup, weekly Claude maintenance run (`docs/MAINTENANCE.md`)
 
-## Phase 1 — Shared family documents ← next
+## Phase 1 — Shared family documents ✅
 
 One shared folder on the home server gives every signed-in family member
 quick access to important documents, PDFs and occasional reference images
@@ -56,14 +56,14 @@ libraries and backups.
 
 - [x] **Shared access:** one Family folder for all members, available in the
       browser and Android app. All members can browse, upload and download.
-- [ ] **Organise:** create subfolders, search by filename, and rename, move
+- [x] **Organise:** create subfolders, search by filename, and rename, move
       or delete files.
 - [x] **View:** preview PDFs and common image formats in the app, and
       download other documents to open them.
-- [ ] **Recover:** keep deleted documents for 30 days and document how to
+- [x] **Recover:** keep deleted documents for 30 days and document how to
       back up and restore the shared folder alongside the hub database.
 
-## Phase 2 — Quick info (the family's reference card)
+## Phase 2 — Quick info (the family's reference card) ← next
 
 ID and passport numbers, medical aid, policy numbers, Wi-Fi passwords:
 always to hand, never in plain text.
@@ -180,19 +180,25 @@ Automated on every relevant change (`.github/workflows/build.yml`):
 - `npm test`: server unit and integration tests over real HTTP (setup, sign-in
   stages, TOTP vectors and replay, recovery codes, lockout, invites, roles,
   device keys and challenges, session lifetimes, CSRF and CORS rules, static
-  serving and path traversal) and the Android updater's release parsing.
+  serving and path traversal), document uploads/downloads, shared access,
+  folder operations, preview type checks, recycle-bin restoration and expiry,
+  backup restoration, and the Android updater's release parsing.
 - `npm run e2e`: the web app in Chromium against a real server: setup,
   two-factor set-up with recovery codes, inviting a member who joins and sets
   up their own two-factor, member restrictions, sign out, wrong password,
-  sign-in with a fresh code, phone-sized layout.
+  sign-in with a fresh code, phone-sized layout; document upload/download,
+  PDF and image previews, folders, search, rename, move, delete and restore.
 - `npm run e2e:mobile`: the Android app's web layer in a phone-sized browser:
   connect (http refused), password and code, device registration, unlock by
   signed challenge, lock, reload, signing the phone out. The keystore is a
   WebCrypto stand-in here.
 - The Docker image is built, started on a root-owned bind mount as PUID 99,
-  health-checked and scanned.
+  health-checked and scanned. A stopped-volume archive is restored into a
+  fresh container with a changed PUID; accounts, folders, document bytes,
+  recycle-bin recovery and SQLite integrity are checked.
 - The debug APK is built and its version checked; its libraries are scanned.
 
 Not yet verified on a real phone (to do after the first release with a
 signing key): the native biometric prompt and keystore key on a physical
-device, `FLAG_SECURE`, and updating from one release to the next.
+device, `FLAG_SECURE`, updating from one release to the next, and native
+document save/open through Android's picker and installed viewer apps.

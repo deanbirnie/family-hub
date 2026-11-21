@@ -1,8 +1,10 @@
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync, utimesSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { request } from 'node:http'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createSession } from '../src/sessions.ts'
+import { maintainFiles, TRASH_MS } from '../src/file-maintenance.ts'
 import { Client, enrollTotp, PASSWORD, setUpAdmin, startServer, type TestServer } from './helpers.ts'
 
 let server: TestServer
@@ -20,6 +22,64 @@ async function add(client: Client, name = 'policy.txt', contents = 'important pa
 }
 
 describe('shared documents', () => {
+  it('restores documents without overwriting newer files with the same name', async () => {
+    server = await startServer()
+    const { client } = await setUpAdmin(server)
+    const original = await add(client, 'policy.txt', 'old policy')
+    expect((await client.del(`/api/files/${original.id}`)).status).toBe(204)
+    expect((await client.get(`/api/files/${original.id}/content`)).status).toBe(404)
+    expect((await client.get<{ items: Item[] }>('/api/files?q=policy')).body.items).toHaveLength(0)
+    const newer = await add(client, 'policy.txt', 'new policy')
+    const restored = await client.post<{ item: Item }>(`/api/files/${original.id}/restore`)
+    expect(restored.body.item.name).toBe('policy (restored).txt')
+    expect((await client.get<{ items: Item[] }>('/api/files/trash')).body.items).toHaveLength(0)
+    for (const [id, text] of [[original.id, 'old policy'], [newer.id, 'new policy']]) {
+      const res = await fetch(`${server.url}/api/files/${id}/content`, { headers: { cookie: client.cookie } })
+      expect(await res.text()).toBe(text)
+    }
+  })
+
+  it('restores a folder as one group and keeps earlier independent deletions separate', async () => {
+    server = await startServer()
+    const { client } = await setUpAdmin(server)
+    const folder = (await client.post<{ item: Item }>('/api/files/folders', { name: 'Policies' })).body.item
+    const original = await add(client, 'original.txt')
+    const earlier = await add(client, 'earlier.txt')
+    for (const f of [original, earlier]) await client.patch(`/api/files/${f.id}`, { parentId: folder.id })
+    await client.del(`/api/files/${earlier.id}`)
+    await client.del(`/api/files/${folder.id}`)
+    expect((await client.get(`/api/files?parent=${folder.id}`)).status).toBe(404)
+    expect((await upload(client, 'blocked', 'contents', folder.id)).status).toBe(404)
+    expect((await client.patch(`/api/files/${original.id}`, { name: 'blocked' })).status).toBe(404)
+    const trash = await client.get<{ items: Item[] }>('/api/files/trash')
+    expect(trash.body.items.map((f) => f.id).sort()).toEqual([folder.id, earlier.id].sort())
+    const fallback = await client.post<{ item: { parentId: string | null }; restoredToFamily: boolean }>(`/api/files/${earlier.id}/restore`)
+    expect(fallback.body.restoredToFamily).toBe(true)
+    expect(fallback.body.item.parentId).toBeNull()
+    await client.post(`/api/files/${folder.id}/restore`)
+    expect((await client.get<{ items: Item[] }>(`/api/files?parent=${folder.id}`)).body.items.map((f) => f.id)).toEqual([original.id])
+  })
+
+  it('expires trash after 30 days, preserves active blobs and cleans stale upload parts', async () => {
+    server = await startServer()
+    const { client } = await setUpAdmin(server)
+    const gone = await add(client)
+    const kept = await add(client, 'keep.txt')
+    const folder = (await client.post<{ item: Item }>('/api/files/folders', { name: 'Expired folder' })).body.item
+    await client.patch(`/api/files/${gone.id}`, { parentId: folder.id })
+    await client.del(`/api/files/${folder.id}`)
+    const root = join(server.services.config.dataDir, 'files')
+    const part = join(root, `${randomUUID()}.part`), orphan = join(root, randomUUID())
+    writeFileSync(part, 'partial'); writeFileSync(orphan, 'orphan')
+    for (const path of [part, orphan, join(root, kept.id)]) utimesSync(path, new Date(server.clock.now - 2 * 86400000), new Date(server.clock.now - 2 * 86400000))
+    server.clock.now += TRASH_MS
+    server.services.db.prepare('UPDATE sessions SET expires_at = ?, last_seen_at = ?').run(server.clock.now + 86400000, server.clock.now)
+    expect((await client.post(`/api/files/${gone.id}/restore`)).status).toBe(404)
+    await maintainFiles(server.services)
+    expect(readdirSync(root)).toEqual([kept.id])
+    expect((await client.get<{ items: Item[] }>('/api/files/trash')).body.items).toHaveLength(0)
+  })
+
   it('creates folders, searches literal names, renames and moves without changing file contents', async () => {
     server = await startServer()
     const { client } = await setUpAdmin(server)

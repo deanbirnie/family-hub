@@ -125,6 +125,8 @@ jobs:
           done
           docker logs family-hub
           exit 1
+      - name: Backup and restore in a fresh container
+        run: node .github/scripts/test-backup.mjs family-hub
       # Known vulnerabilities in the image, its OS packages included.
       - name: Scan the image
         run: .github/scripts/scan-dependencies.sh image family-hub
