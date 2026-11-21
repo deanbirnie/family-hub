@@ -20,6 +20,52 @@ async function add(client: Client, name = 'policy.txt', contents = 'important pa
 }
 
 describe('shared documents', () => {
+  it('creates folders, searches literal names, renames and moves without changing file contents', async () => {
+    server = await startServer()
+    const { client } = await setUpAdmin(server)
+    const folder = (await client.post<{ item: Item }>('/api/files/folders', { name: 'Policies' })).body.item
+    const nested = (await client.post<{ item: Item }>('/api/files/folders', { name: '2026', parentId: folder.id })).body.item
+    const item = await add(client, '100% covered.txt')
+    expect((await client.patch(`/api/files/${item.id}`, { parentId: nested.id, name: '100% insured.txt' })).status).toBe(200)
+    const listing = await client.get<{ items: Item[]; ancestors: { name: string }[] }>(`/api/files?parent=${nested.id}`)
+    expect(listing.body.items[0]?.id).toBe(item.id)
+    expect(listing.body.ancestors.map((f) => f.name)).toEqual(['Policies', '2026'])
+    expect((await client.get<{ items: Item[] }>('/api/files?q=%25')).body.items).toHaveLength(1)
+    expect((await client.get<{ items: Item[] }>('/api/files?q=_')).body.items).toHaveLength(0)
+    const res = await fetch(`${server.url}/api/files/${item.id}/content`, { headers: { cookie: client.cookie } })
+    expect(await res.text()).toBe('important paperwork')
+    expect((await client.patch(`/api/files/${folder.id}`, { parentId: nested.id })).body).toMatchObject({ error: 'folder_cycle' })
+    expect((await client.patch(`/api/files/${folder.id}`, { parentId: folder.id })).status).toBe(400)
+    expect((await client.post('/api/files/folders', { name: 'POLICIES' })).status).toBe(409)
+    expect((await client.post('/api/files/folders', { name: 'bad', parentId: item.id })).status).toBe(400)
+    expect((await client.patch(`/api/files/${item.id}`, { name: '../bad' })).status).toBe(400)
+    expect((await client.get(`/api/files/${folder.id}/content`)).status).toBe(400)
+  })
+
+  it('previews only verified PDF/raster signatures and never renders HTML or SVG inline', async () => {
+    server = await startServer()
+    const { client } = await setUpAdmin(server)
+    for (const [name, body, type] of [
+      ['scan.pdf', '%PDF-1.7\npaperwork', 'application/pdf'],
+      ['scan.gif', 'GIF89a' + 'data', 'image/gif'],
+      ['scan.webp', 'RIFF1234WEBPdata', 'image/webp'],
+    ]) {
+      const item = await add(client, name!, body!)
+      const res = await fetch(`${server.url}/api/files/${item.id}/content?preview=1`, { headers: { cookie: client.cookie } })
+      expect(res.headers.get('content-type')).toBe(type)
+      expect(res.headers.get('content-security-policy')).toContain('sandbox')
+      expect(res.headers.get('content-disposition')).toContain('attachment')
+      expect(await res.text()).toBe(body)
+    }
+    for (const name of ['fake.pdf', 'script.svg', 'page.html']) {
+      const item = await add(client, name, '<script>alert(1)</script>')
+      expect((await client.get(`/api/files/${item.id}/content?preview=1`)).status).toBe(415)
+      const download = await fetch(`${server.url}/api/files/${item.id}/content`, { headers: { cookie: client.cookie } })
+      expect(download.headers.get('content-type')).toBe('application/octet-stream')
+      await download.arrayBuffer()
+    }
+  })
+
   it('uploads, lists and repeatedly downloads with the existing cookie session', async () => {
     server = await startServer()
     const { client } = await setUpAdmin(server)

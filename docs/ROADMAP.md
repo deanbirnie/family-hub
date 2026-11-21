@@ -58,7 +58,7 @@ libraries and backups.
       browser and Android app. All members can browse, upload and download.
 - [ ] **Organise:** create subfolders, search by filename, and rename, move
       or delete files.
-- [ ] **View:** preview PDFs and common image formats in the app, and
+- [x] **View:** preview PDFs and common image formats in the app, and
       download other documents to open them.
 - [ ] **Recover:** keep deleted documents for 30 days and document how to
       back up and restore the shared folder alongside the hub database.
