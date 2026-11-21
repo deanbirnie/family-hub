@@ -106,6 +106,31 @@ describe('phone sign-in with a biometric-bound key', () => {
     expect((await asCookie.get('/api/account')).status).toBe(401)
   })
 
+  it('changing the password removes the other phones, but not the one making the change', async () => {
+    server = await startServer()
+    const { client, secret } = await setUpAdmin(server)
+    const mine = await registerPhone(secret)
+    const other = await registerPhone(secret)
+    await unlock(other.client, other.deviceId, other.privateKey)
+    // From a browser: every phone must sign in again.
+    expect((await client.post('/api/account/password', { currentPassword: PASSWORD, newPassword: 'a brand new passphrase' })).status).toBe(204)
+    expect((await other.client.get('/api/account')).status).toBe(401)
+    expect((await other.client.post('/api/devices/challenge', { deviceId: other.deviceId })).body).toMatchObject({ error: 'device_removed' })
+    expect((await mine.client.post('/api/devices/challenge', { deviceId: mine.deviceId })).body).toMatchObject({ error: 'device_removed' })
+  })
+
+  it('a phone changing the password keeps itself', async () => {
+    server = await startServer()
+    const { secret } = await setUpAdmin(server)
+    const mine = await registerPhone(secret)
+    const other = await registerPhone(secret)
+    await unlock(mine.client, mine.deviceId, mine.privateKey)
+    expect((await mine.client.post('/api/account/password', { currentPassword: PASSWORD, newPassword: 'a brand new passphrase' })).status).toBe(204)
+    expect((await mine.client.get('/api/account')).status).toBe(200)
+    expect((await unlock(mine.client, mine.deviceId, mine.privateKey)).status).toBe(200)
+    expect((await other.client.post('/api/devices/challenge', { deviceId: other.deviceId })).body).toMatchObject({ error: 'device_removed' })
+  })
+
   it('removing the phone signs it out and stops it unlocking', async () => {
     server = await startServer()
     const { client, secret } = await setUpAdmin(server)

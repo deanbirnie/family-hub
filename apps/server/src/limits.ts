@@ -75,4 +75,22 @@ export class AccountLockout {
   succeed(account: string): void {
     this.state.delete(account.toLowerCase())
   }
+
+  /**
+   * Forgets accounts with no recent failure and no lock in force, so trying
+   * endless made-up usernames cannot grow this without limit. A forgotten
+   * account's next lock starts again at the base length.
+   */
+  prune(now = Date.now()): void {
+    for (const [key, s] of this.state) {
+      const recent = s.failures.some((t) => now - t < this.windowMs)
+      // Keep the doubling history for a day after a lock ends.
+      if (!recent && s.lockedUntil + 24 * 60 * 60_000 <= now) this.state.delete(key)
+    }
+  }
+
+  /** How many accounts are being tracked (for tests). */
+  get size(): number {
+    return this.state.size
+  }
 }

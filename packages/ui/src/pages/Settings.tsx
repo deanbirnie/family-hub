@@ -78,7 +78,7 @@ function PasswordCard({ ctx }: { ctx: HubContext }) {
         <Field label="New password" type="password" hint="At least 12 characters." value={form.next} onChange={set('next')} required minLength={12} autoComplete="new-password" />
         <Field label="New password again" type="password" value={form.confirm} onChange={set('confirm')} required autoComplete="new-password" />
         {save.error && <Banner kind="error">{save.error}</Banner>}
-        {saved && <Banner kind="success">Password changed. You were signed out everywhere else.</Banner>}
+        {saved && <Banner kind="success">Password changed. You were signed out everywhere else, and your other phones must sign in again.</Banner>}
         <div>
           <Button type="submit" variant="secondary" busy={save.busy}>
             Change password

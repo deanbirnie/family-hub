@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { IDLE_TIMEOUT_MS } from '../src/app.ts'
+import { AUDIT_DAYS, pruneSessions } from '../src/sessions.ts'
 import { totpAt } from '../src/totp.ts'
 import { Client, nextStep, PASSWORD, setUpAdmin, signIn, startServer, type TestServer } from './helpers.ts'
 
@@ -155,6 +157,32 @@ describe('request rules', () => {
     expect((await client.get('/api/setup')).status).toBe(403)
     const preflight = await fetch(`${server.url}/api/setup`, { method: 'OPTIONS', headers: { origin: 'https://evil.example' } })
     expect(preflight.status).toBe(403)
+  })
+
+  it('refuses other services on the same domain, but not the page itself', async () => {
+    server = await startServer()
+    const sibling = new Client(server.url, { 'sec-fetch-site': 'same-site', origin: 'https://photos.example.com' })
+    expect((await sibling.get('/api/setup')).status).toBe(403)
+    expect((await new Client(server.url, { 'sec-fetch-site': 'same-origin' }).get('/api/setup')).status).toBe(200)
+    expect((await new Client(server.url, { 'sec-fetch-site': 'none' }).get('/api/setup')).status).toBe(200)
+  })
+
+  it('lets large uploads take their time, but closes idle connections', async () => {
+    server = await startServer()
+    expect(server.server.requestTimeout).toBe(0)
+    expect(server.server.timeout).toBe(IDLE_TIMEOUT_MS)
+    expect(server.server.headersTimeout).toBeGreaterThan(0)
+  })
+
+  it('keeps a year of security history', async () => {
+    server = await startServer()
+    const { db } = server.services
+    db.prepare("INSERT INTO audit_log (at, event) VALUES (?, 'old'), (?, 'recent')").run(
+      server.clock.now - (AUDIT_DAYS + 1) * 86_400_000,
+      server.clock.now - 86_400_000,
+    )
+    pruneSessions(db, server.clock.now)
+    expect((db.prepare('SELECT event FROM audit_log').all() as { event: string }[]).map((r) => r.event)).toEqual(['recent'])
   })
 
   it('lets the Android app call with a bearer token', async () => {

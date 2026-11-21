@@ -58,6 +58,9 @@ export type Api = {
   authed(method: string, path: string, guard: Guard, handler: (ctx: AuthedCtx) => unknown): void
 }
 
+/** A connection is closed after this long without receiving or sending anything. */
+export const IDLE_TIMEOUT_MS = 2 * 60_000
+
 export const CSRF_HEADER = 'x-requested-with'
 export const CSRF_VALUE = 'family-hub'
 
@@ -107,13 +110,18 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   const server = createServer(handle)
   // Slow clients must not hold connections open forever.
   server.headersTimeout = 20_000
-  server.requestTimeout = 60_000
+  // No limit on the whole request: a large document upload from a phone can
+  // take many minutes. A connection that sends nothing for two minutes is
+  // closed instead, so idle and stalled clients still cannot linger.
+  server.requestTimeout = 0
+  server.timeout = IDLE_TIMEOUT_MS
 
   const prune = setInterval(() => {
     try {
       pruneSessions(db, services.now())
       services.limits.signIn.prune()
       services.limits.open.prune()
+      services.limits.accounts.prune()
     } catch {
       // the next run will try again
     }
@@ -165,8 +173,12 @@ async function dispatch(services: Services, router: Router, req: IncomingMessage
     // changes something must also carry a header a cross-site form or
     // simple request cannot add (and a cross-origin script cannot either,
     // because the preflight above refuses unknown origins).
+    // Other services on the same domain (same-site, e.g. another app on a
+    // sibling subdomain of the home server) are refused too.
     const site = req.headers['sec-fetch-site']
-    if (site === 'cross-site' && !appOrigin) throw new HttpError(403, 'Not allowed.', 'forbidden')
+    if (site !== undefined && site !== 'same-origin' && site !== 'none' && !appOrigin) {
+      throw new HttpError(403, 'Not allowed.', 'forbidden')
+    }
     if (method !== 'GET' && method !== 'HEAD' && req.headers[CSRF_HEADER] !== CSRF_VALUE) {
       throw new HttpError(403, 'Missing request header.', 'csrf')
     }
