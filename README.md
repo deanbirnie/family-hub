@@ -58,6 +58,19 @@ consistent copy of `family-hub.db`.
 | `FAMILY_HUB_ALLOW_HTTP` | `false` | Allow browser sign-in over plain http. Only for a quick test on a home network. |
 | `FAMILY_HUB_APP_ORIGINS` | `https://localhost` | Origins allowed to call the API with a bearer token (the Android app's). |
 | `PORT` | `8080` | |
+| `FAMILY_HUB_MAX_FILE_BYTES` | `104857600` (100 MiB) | Maximum size of one document upload; up to 2 GiB. Set a matching or larger request limit on your reverse proxy. |
+
+### Shared documents
+
+Open **Files** to upload and download documents from the shared Family folder.
+Every signed-in family member has access. File requests use the current
+session: opening or downloading a document never asks for another code or
+fingerprint. The Android app's normal lock rules still apply.
+
+Uploads are streamed to `/data/files`; names and folders are stored in the
+hub database. Choose several documents at once or drop them onto the Files
+page. Documents with the same name in the same folder are refused rather
+than overwritten.
 
 ## The Android app
 

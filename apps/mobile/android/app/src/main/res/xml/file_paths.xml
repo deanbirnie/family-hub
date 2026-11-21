@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only downloaded updates are ever shared, with Android's installer. -->
+<!-- Only update APKs and explicitly opened document downloads are shared. -->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="updates" path="updates/" />
+    <cache-path name="documents" path="documents/" />
 </paths>

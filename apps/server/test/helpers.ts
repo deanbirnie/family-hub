@@ -1,4 +1,7 @@
 import { request } from 'node:http'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { createApp, type Services } from '../src/app.ts'
 import type { Config } from '../src/config.ts'
@@ -19,12 +22,13 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Test
   const config: Config = {
     port: 0,
     host: '127.0.0.1',
-    dataDir: '',
+    dataDir: mkdtempSync(join(tmpdir(), 'family-hub-test-')),
     webDir: '',
     version: 'test',
     trustProxyHops: 0,
     allowHttp: false,
     appOrigins: ['https://localhost'],
+    maxFileBytes: 100 * 1024 * 1024,
     ...overrides,
   }
   const db = openDb(':memory:')
@@ -43,7 +47,11 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Test
     close: () =>
       new Promise((resolve) => {
         server.closeAllConnections()
-        server.close(() => resolve())
+        server.close(() => {
+          db.close()
+          rmSync(config.dataDir, { recursive: true, force: true })
+          resolve()
+        })
       }),
   }
 }

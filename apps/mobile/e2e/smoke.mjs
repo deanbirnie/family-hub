@@ -23,7 +23,7 @@ const repo = resolve(app, '../..')
 const out = resolve(app, 'test-results')
 mkdirSync(out, { recursive: true })
 
-const build = spawnSync('npx', ['vite', 'build'], { cwd: app, env: { ...process.env, FAMILY_HUB_FAKE_DEVICE: '1' }, stdio: 'inherit' })
+const build = spawnSync(process.execPath, [join(repo, 'node_modules/vite/bin/vite.js'), 'build'], { cwd: app, env: { ...process.env, FAMILY_HUB_FAKE_DEVICE: '1' }, stdio: 'inherit' })
 if (build.status !== 0) process.exit(1)
 
 function totp(secret) {
@@ -129,6 +129,16 @@ try {
   await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
   await shot('02-home')
 
+  // File operations reuse this unlocked session; no extra device challenge.
+  await page.getByRole('link', { name: 'Files', exact: true }).click()
+  await page.getByRole('heading', { name: 'No documents yet' }).waitFor()
+  let challenges = 0
+  page.on('request', (req) => { if (req.url().endsWith('/api/devices/challenge')) challenges++ })
+  await page.getByLabel('Choose documents').setInputFiles({ name: 'Phone.txt', mimeType: 'text/plain', buffer: Buffer.from('From the phone') })
+  await page.getByText('1 document uploaded.').waitFor()
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download Phone.txt', exact: true }).click()])
+  if (download.suggestedFilename() !== 'Phone.txt' || challenges !== 0) throw new Error('file access requested an extra unlock or lost its filename')
+
   // Lock, then unlock with the key again.
   await page.getByRole('link', { name: 'Settings' }).click()
   await page.getByText('This phone', { exact: true }).waitFor()
@@ -156,8 +166,8 @@ try {
   }
 } finally {
   await browser.close()
-  server.kill()
+  await new Promise((resolve) => { server.once('exit', resolve); server.kill() })
   files.close()
-  rmSync(data, { recursive: true, force: true })
+  rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 }
 process.exit(failed ? 1 : 0)

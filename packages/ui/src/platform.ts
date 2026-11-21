@@ -34,4 +34,6 @@ export interface Platform {
   forgetDevice?: () => Promise<void>
   /** Android: locks the app now (biometric unlock needed again). */
   lock?: () => void
+  /** Native Android save/open, using the already-unlocked session. */
+  downloadFile?: (file: { id: string; name: string; mediaType: string }, action: 'save' | 'open') => Promise<void>
 }

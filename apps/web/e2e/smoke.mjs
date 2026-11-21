@@ -117,10 +117,14 @@ try {
 
   // The hub.
   await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
-  await page.getByText('Coming next').first().waitFor()
+  await page.getByText('Important family documents, stored on your own server.').waitFor()
   await shot(page, '04-home')
   await page.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Files' }).click()
-  await page.getByRole('heading', { name: 'Shared file storage is being built' }).waitFor()
+  await page.getByRole('heading', { name: 'No documents yet' }).waitFor()
+  await page.getByLabel('Choose documents').setInputFiles({ name: 'Policy.txt', mimeType: 'text/plain', buffer: Buffer.from('Family paperwork') })
+  await page.getByText('1 document uploaded.').waitFor()
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download Policy.txt', exact: true }).click()])
+  if (download.suggestedFilename() !== 'Policy.txt') throw new Error('wrong document name')
   await shot(page, '05-files')
 
   // Invite a member.
@@ -150,6 +154,8 @@ try {
   await sam.getByRole('button', { name: 'Continue' }).click()
   await sam.getByRole('heading', { name: /Good (morning|afternoon|evening), Sam/ }).waitFor()
   // Members cannot invite.
+  await sam.goto(`${base}/files`)
+  await sam.getByText('Policy.txt', { exact: true }).waitFor()
   await sam.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Family' }).click()
   await sam.getByText('Alex Tester').waitFor()
   if (await sam.getByRole('button', { name: 'Invite someone' }).count()) throw new Error('a member can see the invite button')
@@ -191,7 +197,7 @@ try {
   }
 } finally {
   await browser.close()
-  server.kill()
-  rmSync(data, { recursive: true, force: true })
+  await new Promise((resolve) => { server.once('exit', resolve); server.kill() })
+  rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 }
 process.exit(failed ? 1 : 0)

@@ -14,6 +14,7 @@ import { accountRoutes } from './routes/account.ts'
 import { authRoutes } from './routes/auth.ts'
 import { deviceRoutes } from './routes/devices.ts'
 import { memberRoutes } from './routes/members.ts'
+import { fileRoutes } from './routes/files.ts'
 
 export interface AppOptions {
   db: Db
@@ -98,6 +99,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   accountRoutes(api, services)
   memberRoutes(api, services)
   deviceRoutes(api, services)
+  fileRoutes(api, services)
 
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     void dispatch(services, router, req, res)

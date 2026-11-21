@@ -54,7 +54,7 @@ quick access to important documents, PDFs and occasional reference images
 such as scans or photos of paperwork. Immich handles family photo and media
 libraries and backups.
 
-- [ ] **Shared access:** one Family folder for all members, available in the
+- [x] **Shared access:** one Family folder for all members, available in the
       browser and Android app. All members can browse, upload and download.
 - [ ] **Organise:** create subfolders, search by filename, and rename, move
       or delete files.

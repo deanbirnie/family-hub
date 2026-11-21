@@ -104,6 +104,46 @@ export class Api {
   patch = <T>(path: string, body: unknown = {}) => this.request<T>('PATCH', path, body)
   del = <T>(path: string) => this.request<T>('DELETE', path)
 
+  /** Send file bytes directly; XHR exposes upload progress on web and Android. */
+  upload(file: File, parentId: string, progress: (percent: number) => void, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${this.baseUrl}/api/files/upload?${new URLSearchParams({ name: file.name, parent: parentId })}`)
+      xhr.setRequestHeader('X-Requested-With', 'family-hub')
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream')
+      if (this.client === 'app') xhr.setRequestHeader('Authorization', `Bearer ${this.token}`)
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) progress(Math.round(e.loaded * 100 / e.total)) }
+      const abort = () => xhr.abort()
+      const clean = () => signal?.removeEventListener('abort', abort)
+      xhr.onload = () => {
+        clean()
+        if (xhr.status >= 200 && xhr.status < 300) { resolve(); return }
+        if (xhr.status === 401) this.onSignedOut?.()
+        let message = 'The upload failed. Please try again.'
+        try { message = JSON.parse(xhr.responseText).message ?? message } catch { /* non-JSON proxy error */ }
+        reject(new ApiError(xhr.status, 'upload_failed', message))
+      }
+      xhr.onerror = () => { clean(); reject(new Error('Could not upload. Check your connection.')) }
+      xhr.onabort = () => { clean(); reject(new Error('Upload cancelled.')) }
+      signal?.addEventListener('abort', abort, { once: true })
+      if (signal?.aborted) { clean(); reject(new Error('Upload cancelled.')); return }
+      xhr.send(file)
+    })
+  }
+
+  async fileBlob(id: string, preview = false, signal?: AbortSignal): Promise<Blob> {
+    const res = await fetch(`${this.baseUrl}/api/files/${encodeURIComponent(id)}/content${preview ? '?preview=1' : ''}`, {
+      headers: this.client === 'app' ? { Authorization: `Bearer ${this.token}` } : {},
+      credentials: this.client === 'web' ? 'same-origin' : 'omit', cache: 'no-store', signal,
+    })
+    if (!res.ok) {
+      if (res.status === 401) this.onSignedOut?.()
+      const data = await res.json().catch(() => ({})) as { message?: string }
+      throw new ApiError(res.status, 'download_failed', data.message ?? 'Could not download this document.')
+    }
+    return res.blob()
+  }
+
   // ---- signing in ----------------------------------------------------------------
 
   setupState = () => this.get<{ needed: boolean; familyName: string }>('/api/setup')

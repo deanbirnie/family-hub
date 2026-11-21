@@ -33,6 +33,7 @@ import { Fingerprint, Server } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CANCELLED, DeviceAuth, INVALIDATED, toBase64, type DeviceStatus } from './device-auth.ts'
 import { createUpdates } from './updates.ts'
+import { fileDownload, clearDocumentCache } from './files.ts'
 
 const SERVER_KEY = 'familyhub.server'
 const DEVICE_KEY = 'familyhub.deviceId'
@@ -76,6 +77,7 @@ export function MobileGate({ version }: { version: string }) {
   const lock = useCallback(
     (notice?: string) => {
       api.token = ''
+      clearDocumentCache()
       navigate('/', true)
       setState(read(DEVICE_KEY) ? { kind: 'locked', notice } : { kind: 'signin', notice })
     },
@@ -123,6 +125,7 @@ export function MobileGate({ version }: { version: string }) {
   }
 
   const forgetDevice = async () => {
+    clearDocumentCache()
     await api.logout().catch(() => undefined)
     await DeviceAuth.deleteKey().catch(() => undefined)
     write(DEVICE_KEY, '')
@@ -194,7 +197,7 @@ export function MobileGate({ version }: { version: string }) {
         />
       )
     case 'app': {
-      const platform: Platform = { kind: 'android', version, api, updates, serverUrl: server, lock: () => lock(), forgetDevice }
+      const platform: Platform = { kind: 'android', version, api, updates, serverUrl: server, lock: () => lock(), forgetDevice, downloadFile: fileDownload(api) }
       return <Shell platform={platform} session={state.session} onSignOut={() => lock()} />
     }
   }
