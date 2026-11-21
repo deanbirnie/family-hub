@@ -82,6 +82,13 @@ recent-apps list), backups are off, and plain-http traffic is refused.
 
 ## The server and its data
 
+- Shared documents require an existing full session on every request. All
+  members have equal access to the shared Family folder. There is no extra
+  authentication step for file operations, and no public file links or
+  bearer tokens in URLs. Uploads are streamed with a per-file limit; disk
+  names are server-generated IDs. Downloads are attachments with a sandbox
+  policy and no caching.
+
 - The container starts as root only to take ownership of `/data`, then runs
   as `PUID:PGID`. The image has no npm, npx, yarn or corepack.
 - `/data/family-hub.db` (SQLite) holds account data, password hashes, TOTP

@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
     // Plugins that live in this app (rather than in an npm package) are registered by hand.
     registerPlugin(DeviceAuthPlugin.class);
     registerPlugin(AppUpdatePlugin.class);
+    registerPlugin(DocumentsPlugin.class);
     super.onCreate(savedInstanceState);
     // Family information (and later ID numbers) must not show in the recent-apps
     // preview or in screenshots and screen recordings taken by other apps.

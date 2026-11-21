@@ -21,6 +21,8 @@ export interface Config {
   allowHttp: boolean
   /** Origins allowed to call the API with a bearer token (the Android app). */
   appOrigins: string[]
+  /** Maximum bytes accepted for one shared document. */
+  maxFileBytes: number
 }
 
 function int(name: string, fallback: number, min: number, max: number): number {
@@ -50,6 +52,7 @@ export function loadConfig(): Config {
     version: process.env.FAMILY_HUB_VERSION || 'dev',
     trustProxyHops: int('FAMILY_HUB_TRUST_PROXY', 0, 0, 10),
     allowHttp: bool('FAMILY_HUB_ALLOW_HTTP', false),
+    maxFileBytes: int('FAMILY_HUB_MAX_FILE_BYTES', 100 * 1024 * 1024, 1, 2 * 1024 * 1024 * 1024),
     // Capacitor serves the Android app from https://localhost.
     appOrigins: (process.env.FAMILY_HUB_APP_ORIGINS || 'https://localhost')
       .split(',')

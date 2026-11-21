@@ -99,6 +99,22 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX audit_log_user ON audit_log(user_id, at);
   `,
+  // 2: shared documents. Disk paths use server-generated IDs, never names.
+  `
+  CREATE TABLE files (
+    id TEXT PRIMARY KEY,
+    parent_id TEXT REFERENCES files(id),
+    name TEXT NOT NULL COLLATE NOCASE,
+    kind TEXT NOT NULL CHECK (kind IN ('file', 'folder')),
+    size INTEGER NOT NULL DEFAULT 0,
+    media_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+    created_by TEXT NOT NULL REFERENCES users(id),
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE UNIQUE INDEX files_name ON files(COALESCE(parent_id, ''), name);
+  CREATE INDEX files_parent ON files(parent_id);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

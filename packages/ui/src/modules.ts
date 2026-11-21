@@ -32,8 +32,8 @@ export const MODULES: HubModule[] = [
     name: 'Files',
     path: '/files',
     icon: FolderOpen,
-    description: 'Shared family documents and photos, in folders, on your own server.',
-    status: 'next',
+    description: 'Important family documents, stored on your own server.',
+    status: 'ready',
     phase: 1,
   },
   {
