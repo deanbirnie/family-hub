@@ -185,6 +185,20 @@ const MIGRATIONS: string[] = [
   CREATE UNIQUE INDEX quick_info_single ON quick_info(COALESCE(profile_id, ''), kind) WHERE kind IN ('personal', 'medical', 'passport', 'household');
   CREATE INDEX quick_info_profile ON quick_info(profile_id);
   `,
+  // 7: Family Contacts (server key; see routes/contacts.ts). Each contact's
+  // details are one value sealed with the server key; emergency contacts for
+  // a person are sealed on their profile.
+  `
+  CREATE TABLE contacts (
+    id TEXT PRIMARY KEY,
+    sealed TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
+  );
+  ALTER TABLE family_profiles ADD COLUMN emergency TEXT;
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

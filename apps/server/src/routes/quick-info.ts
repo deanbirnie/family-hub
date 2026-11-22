@@ -15,6 +15,7 @@
 import type { Api, Services } from '../app.ts'
 import { HttpError, readJson, str } from '../http.ts'
 import { newId } from '../secrets.ts'
+import { openEmergency } from './contacts.ts'
 
 export const RECORD_KINDS = ['personal', 'medical', 'passport', 'vehicle', 'policy', 'household'] as const
 type Kind = (typeof RECORD_KINDS)[number]
@@ -29,6 +30,8 @@ interface ProfileRow {
   display_name: string
   user_id: string | null
   created_at: number
+  /** Emergency contacts, sealed with the server key (routes/contacts.ts). */
+  emergency: string | null
 }
 
 interface RecordRow {
@@ -82,7 +85,10 @@ export function quickInfoRoutes(api: Api, s: Services): void {
   }
 
   api.authed('GET', '/api/quick-info', parents, () => ({
-    profiles: (db.prepare('SELECT * FROM family_profiles ORDER BY created_at, id').all() as unknown as ProfileRow[]).map(profileInfo),
+    profiles: (db.prepare('SELECT * FROM family_profiles ORDER BY created_at, id').all() as unknown as ProfileRow[]).map((p) => ({
+      ...profileInfo(p),
+      emergency: openEmergency(s, p.id, p.emergency),
+    })),
     records: (db.prepare('SELECT * FROM quick_info ORDER BY created_at, id').all() as unknown as RecordRow[]).map(recordInfo),
   }))
 

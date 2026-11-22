@@ -47,6 +47,8 @@ export interface Platform {
   }
   /** A name for this device in lists, e.g. "Pixel 8" or "Chrome on Windows". */
   deviceLabel?: string
+  /** Native Android: saves an export from the API (e.g. a vCard file) where the person chooses. */
+  saveExport?: (path: string, name: string) => Promise<void>
   /** Native Android save/open, using the already-unlocked session. */
   downloadFile?: (file: { id: string; name: string; mediaType: string }, action: 'save' | 'open') => Promise<void>
 }

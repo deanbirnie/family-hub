@@ -134,6 +134,18 @@ The vault holds Quick Info, end-to-end encrypted: the server cannot read it.
       them from the record's Edit screen. Files are visible to every family
       member, so only upload what everyone may see.
 
+## 8. Add the family's contacts (after the Contacts pull request is merged and deployed)
+
+- [ ] 1. Open **Contacts** (parents only) and **Add contact** for the people
+      and places you call: family and friends, school, GP and dentist,
+      medical aid, insurers, trades.
+- [ ] 2. In **Quick Info**, on each person's card, **Choose emergency
+      contacts** (first call, and who to try if there is no answer).
+- [ ] 3. Optional: link the medical aid scheme and insurers from their
+      Quick Info records (Edit → Scheme contact / Insurer or broker contact).
+- [ ] 4. Optional: **Export** saves a `.vcf` file your phone's contacts app
+      can import. Notes are left out unless you tick the box.
+
 ## Later steps (added as features land)
 
 - Notifications (phase 2, part 4): installing ntfy on each phone.

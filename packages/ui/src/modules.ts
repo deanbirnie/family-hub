@@ -4,6 +4,7 @@
  * what is planned.
  */
 import {
+  BookUser,
   CalendarDays,
   ChefHat,
   FolderOpen,
@@ -44,6 +45,16 @@ export const MODULES: HubModule[] = [
     path: '/info',
     icon: IdCard,
     description: 'ID and passport numbers, medical aid, vehicles and policies, end-to-end encrypted, to hand when you need them.',
+    status: 'ready',
+    phase: 2,
+    parentsOnly: true,
+  },
+  {
+    id: 'contacts',
+    name: 'Contacts',
+    path: '/contacts',
+    icon: BookUser,
+    description: 'The family address book: family and friends, school, doctors, insurers and trades, with emergency contacts.',
     status: 'ready',
     phase: 2,
     parentsOnly: true,

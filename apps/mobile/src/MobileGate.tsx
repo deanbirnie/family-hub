@@ -35,7 +35,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CANCELLED, DeviceAuth, INVALIDATED, toBase64, type DeviceStatus } from './device-auth.ts'
 import { createUpdates } from './updates.ts'
 import { vaultDevice } from './vault-key.ts'
-import { fileDownload, clearDocumentCache } from './files.ts'
+import { clearDocumentCache, exportDownload, fileDownload } from './files.ts'
 
 const SERVER_KEY = 'familyhub.server'
 const DEVICE_KEY = 'familyhub.deviceId'
@@ -212,6 +212,7 @@ export function MobileGate({ version }: { version: string }) {
         lock: () => lock(),
         forgetDevice,
         downloadFile: fileDownload(api),
+        saveExport: exportDownload(api),
         vaultDevice,
         deviceLabel: read(DEVICE_NAME_KEY) || 'This phone',
       }

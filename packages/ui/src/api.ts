@@ -131,8 +131,13 @@ export class Api {
     })
   }
 
-  async fileBlob(id: string, preview = false, signal?: AbortSignal): Promise<Blob> {
-    const res = await fetch(`${this.baseUrl}/api/files/${encodeURIComponent(id)}/content${preview ? '?preview=1' : ''}`, {
+  fileBlob(id: string, preview = false, signal?: AbortSignal): Promise<Blob> {
+    return this.blob(`/api/files/${encodeURIComponent(id)}/content${preview ? '?preview=1' : ''}`, signal)
+  }
+
+  /** Any download from the API (a document, a vCard export) as a Blob. */
+  async blob(path: string, signal?: AbortSignal): Promise<Blob> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
       headers: this.client === 'app' ? { Authorization: `Bearer ${this.token}` } : {},
       credentials: this.client === 'web' ? 'same-origin' : 'omit', cache: 'no-store', signal,
     })

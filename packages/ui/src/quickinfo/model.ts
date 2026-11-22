@@ -15,7 +15,8 @@ export interface FieldDef {
   label: string
   /** Masked until tapped; copied values clear from the clipboard. */
   sensitive?: boolean
-  type?: 'text' | 'date' | 'idNumber' | 'multiline'
+  /** 'contact' holds a Family Contacts ID, shown as that contact. */
+  type?: 'text' | 'date' | 'idNumber' | 'multiline' | 'contact'
   placeholder?: string
   hint?: string
 }
@@ -53,6 +54,7 @@ export const SECTIONS: Record<Kind, SectionDef> = {
       { key: 'membershipNumber', label: 'Membership number', sensitive: true },
       { key: 'mainMember', label: 'Main member' },
       { key: 'dependantCode', label: 'Dependant code', placeholder: 'e.g. 00, 01, 02' },
+      { key: 'schemeContact', label: 'Scheme contact', type: 'contact', hint: 'From Contacts: the scheme’s call centre or broker.' },
     ],
   },
   passport: {
@@ -88,6 +90,7 @@ export const SECTIONS: Record<Kind, SectionDef> = {
       { key: 'insurer', label: 'Insurer', placeholder: 'e.g. Old Mutual' },
       { key: 'type', label: 'Type of cover', placeholder: 'e.g. Life, car, household' },
       { key: 'policyNumber', label: 'Policy number', sensitive: true },
+      { key: 'insurerContact', label: 'Insurer or broker contact', type: 'contact', hint: 'From Contacts.' },
     ],
   },
   household: {

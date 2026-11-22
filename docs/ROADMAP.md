@@ -181,13 +181,12 @@ when filling in forms or handling family paperwork, all end-to-end encrypted.
 - [x] **Personal details:** full legal name, South African ID number and date
       of birth. Optional SARS income tax reference number for each adult.
 - [x] **Medical aid:** scheme, plan, membership number, main member and each
-      person's dependant code. (Linking the scheme's contact comes with Family
-      Contacts.)
+      person's dependant code, and the scheme's contact from Family Contacts.
 - [x] **Household details:** street address, including suburb and postal code,
       and postal address if different.
 - [x] **Optional details:** passport number and expiry, vehicle registration
-      and licence renewal date, and insurance policy number. (Linking insurer
-      or accountant contacts comes with Family Contacts.)
+      and licence renewal date, and insurance policy number, with the insurer
+      or broker from Family Contacts.
 - [x] **Documents:** link scans and certificates from Shared Family Documents
       when suitable for everyone who can access the shared folder.
 - [x] **Masked fields** with tap-to-show and copy that clears after 30 seconds.
@@ -198,14 +197,15 @@ One shared address book for people and organisations the parents need to
 reach, including family and friends, schools, healthcare practices, insurers
 and tradespeople. Encrypted at rest with the server key.
 
-- [ ] **Contact cards:** name, organisation, role, phone numbers, email,
+- [x] **Contact cards:** name, organisation, role, phone numbers, email,
       address and a short shared note.
-- [ ] **Reusable links:** link records from Quick Info, Health and Calendar
-      so contact edits appear everywhere the record is used. Reuse these
+- [x] **Reusable links:** Quick Info records link contacts (Health and
+      Calendar will too when they are built), so contact edits appear
+      everywhere the record is used. Reuse these
       contacts in Household Admin when that phase is built.
-- [ ] **Emergency contacts:** designate a primary and backup contact for
+- [x] **Emergency contacts:** designate a primary and backup contact for
       each family member.
-- [ ] **vCard export:** export one contact or the whole address book as a
+- [x] **vCard export:** export one contact or the whole address book as a
       `.vcf` file. Include standard contact fields and omit internal notes
       by default.
 - [ ] Later (not phase 2): **CardDAV**, so phones' own contacts apps sync
