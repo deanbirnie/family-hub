@@ -115,13 +115,19 @@ manager.
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Personal details: legal name, SA ID number, date of birth, SARS tax number | Quick Info records | E2E | 🔜 |
-| Medical aid: scheme, plan, membership number, main member, dependant codes | Quick Info records | E2E | 🔜 |
-| Household street and postal addresses | Quick Info records | E2E | 🔜 |
-| Passport numbers, vehicle registrations, insurance policy numbers | Quick Info records | E2E | 🔜 |
-| Which person a record belongs to, its type, when it changed | Record metadata | P (the server needs it to list and sync) | 🔜 |
-| Links to documents and contacts | Record contents | E2E | 🔜 |
-| Family profiles without accounts (children): name | Profiles | P (names appear across the hub) | 🔜 |
+| Personal details: legal name, SA ID number, date of birth, SARS tax number | `quick_info.ciphertext` | E2E (family key; bound to the record's kind and person) | ✅ |
+| Medical aid: scheme, plan, membership number, main member, dependant code | `quick_info.ciphertext` | E2E | ✅ |
+| Household street and postal addresses | `quick_info.ciphertext` | E2E | ✅ |
+| Passport numbers and expiry, vehicles (registration, VIN, licence expiry), insurance policies | `quick_info.ciphertext` | E2E | ✅ |
+| Links to documents (file IDs and names) | `quick_info.ciphertext` | E2E | ✅ |
+| Which person a record belongs to, its kind, version, when and by whom it changed | `quick_info` columns | P (the server needs it to list, sync and refuse clashing edits) | ✅ |
+| People in Quick Info (names; a link to their account if they have one), including children without accounts | `family_profiles` | P (names appear across the hub) | ✅ |
+| Quick Info events (person added or removed, record added, updated or deleted; never values) | `audit_log` | P | ✅ |
+| Values shown or copied on a device | Screen and clipboard only | Masked until tapped; copied sensitive values cleared from the clipboard after 30 s | ✅ |
+
+Linked documents themselves live in shared Files (tier S), which every
+family member can open; the link, not the document, is E2E. The page says so
+when linking.
 
 ### Family Contacts (phase 2)
 

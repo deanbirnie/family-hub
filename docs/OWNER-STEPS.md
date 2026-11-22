@@ -120,6 +120,20 @@ The vault holds Quick Info, end-to-end encrypted: the server cannot read it.
       both screens, and approve.
 - [ ] 5. Repeat 4 for any other browser or phone either of you uses.
 
+## 7. Fill in Quick Info (after the Quick Info pull request is merged and deployed)
+
+- [ ] 1. Open **Quick Info** (parents only). If the vault is locked, open it
+      first (fingerprint on the phone, passkey in a browser).
+- [ ] 2. **Add a person** for each of you (pick your names to link your
+      accounts) and for each child (type their name).
+- [ ] 3. Fill in **Personal details**, **Medical aid**, **Passport**,
+      **Vehicles** and **Policies**, and the **Household** address. ID
+      numbers are checked as you type, and the date of birth fills in from
+      them.
+- [ ] 4. Optional: upload scans (ID, passport) to **Files** first, then link
+      them from the record's Edit screen. Files are visible to every family
+      member, so only upload what everyone may see.
+
 ## Later steps (added as features land)
 
 - Notifications (phase 2, part 4): installing ntfy on each phone.

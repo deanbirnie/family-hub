@@ -1313,3 +1313,71 @@ progress {
   border-radius: var(--radius-sm);
   color: var(--accent);
 }
+
+/* ---- Quick Info ---- */
+
+.qi-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.qi-section h3 {
+  font-size: 0.95rem;
+}
+
+.qi-record {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0 4px;
+  border-top: 1px solid var(--border);
+}
+
+.qi-facts {
+  gap: 6px 16px;
+}
+
+.qi-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.qi-value .icon-btn {
+  width: 30px;
+  height: 30px;
+}
+
+.qi-masked {
+  font-family: var(--mono);
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.qi-text {
+  font-family: var(--font);
+}
+
+.qi-search {
+  flex: 1;
+  min-width: 180px;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+@media (max-width: 600px) {
+  .qi-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .qi-facts dt {
+    margin-top: 6px;
+  }
+}
