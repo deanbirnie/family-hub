@@ -115,6 +115,14 @@ const MIGRATIONS: string[] = [
   CREATE UNIQUE INDEX files_name ON files(COALESCE(parent_id, ''), name);
   CREATE INDEX files_parent ON files(parent_id);
   `,
+  // 3: recoverable deletion; an operation's root identifies its whole subtree.
+  `
+  ALTER TABLE files ADD COLUMN deleted_at INTEGER;
+  ALTER TABLE files ADD COLUMN trash_root TEXT;
+  DROP INDEX files_name;
+  CREATE UNIQUE INDEX files_name ON files(COALESCE(parent_id, ''), name) WHERE deleted_at IS NULL;
+  CREATE INDEX files_trash ON files(trash_root, deleted_at);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
