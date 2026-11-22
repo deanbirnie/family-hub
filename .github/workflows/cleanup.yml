@@ -73,4 +73,13 @@ jobs:
           exclude-tags: latest,edge
           keep-n-tagged: ${{ env.KEEP_IMAGE_VERSIONS }}
           delete-untagged: true
+          # Multi-architecture images whose platform layers have gone
+          # (all or some), and signatures or attestations left without
+          # the image they belonged to: storage that serves nothing.
+          delete-ghost-images: true
+          delete-partial-images: true
+          delete-orphaned-images: true
+          # Afterwards, check every remaining multi-architecture image still
+          # has all its layers, so a bad clean-up shows up as a failed run.
+          validate: true
           dry-run: ${{ env.DRY_RUN }}
