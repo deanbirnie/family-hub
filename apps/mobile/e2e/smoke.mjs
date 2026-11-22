@@ -153,6 +153,22 @@ try {
   await page.reload()
   await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
 
+  // The family vault, set up on the phone: its keystore key (a WebCrypto
+  // stand-in here) holds the family key.
+  await page.getByRole('link', { name: 'Settings' }).click()
+  const vaultCard = page.locator('section', { has: page.getByRole('heading', { name: 'Family vault' }) })
+  await vaultCard.getByRole('button', { name: 'Set up the family vault' }).click()
+  await page.getByLabel('I have saved the recovery key in my password manager').check()
+  await vaultCard.getByRole('button', { name: 'Create the vault on this phone' }).click()
+  await vaultCard.getByText('Open on this device').waitFor()
+  await vaultCard.getByText('This phone', { exact: true }).waitFor()
+  await shot('03-vault')
+  // Locking the app locks the vault; the unlock that opens the app opens it again.
+  await page.getByRole('button', { name: 'Lock now' }).last().click()
+  await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
+  await page.getByRole('link', { name: 'Settings' }).click()
+  await vaultCard.getByText('Open on this device').waitFor()
+
   // Signing the phone out removes it.
   await page.getByRole('link', { name: 'Settings' }).click()
   page.once('dialog', (d) => d.accept())

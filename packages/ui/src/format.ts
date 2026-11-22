@@ -93,4 +93,13 @@ export const EVENT_NAMES: Record<string, string> = {
   'server_key.revealed': 'Showed the server key',
   'server_key.reveal_failed': 'Wrong code when showing the server key',
   'server_key.saved': 'Confirmed the server key is saved',
+  'vault.created': 'Set up the family vault',
+  'vault.unlocked': 'Opened the family vault',
+  'vault.method_added': 'Added a way to open the family vault',
+  'vault.method_removed': 'Removed a way to open the family vault',
+  'vault.recovery_used': 'Opened the family vault with the recovery key',
+  'vault.recovery_failed': 'Wrong code when using the recovery key',
+  'vault.pairing_requested': 'Asked for vault access on a new device',
+  'vault.pairing_approved': 'Gave a new device access to the family vault',
+  'vault.pairing_approved_for_you': 'Your new device was given access to the family vault',
 }

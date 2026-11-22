@@ -19,6 +19,9 @@ enforced by the server through a key in the phone's hardware keystore. See
 
 ## Running it at home
 
+**Setting it up yourself?** Follow [docs/OWNER-STEPS.md](docs/OWNER-STEPS.md):
+every step only you can do, in order, with exact commands.
+
 You need Docker, and an **https** address for the server: sign-in refuses
 plain http, and the Android app only talks to https. A reverse proxy you
 already run (Caddy, Traefik, nginx, Nginx Proxy Manager, or a Cloudflare

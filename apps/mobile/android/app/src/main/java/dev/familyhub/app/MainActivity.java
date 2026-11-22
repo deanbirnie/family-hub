@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
   public void onCreate(Bundle savedInstanceState) {
     // Plugins that live in this app (rather than in an npm package) are registered by hand.
     registerPlugin(DeviceAuthPlugin.class);
+    registerPlugin(VaultKeyPlugin.class);
     registerPlugin(AppUpdatePlugin.class);
     registerPlugin(DocumentsPlugin.class);
     super.onCreate(savedInstanceState);

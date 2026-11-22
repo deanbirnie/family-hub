@@ -128,6 +128,38 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE files ADD COLUMN encrypted INTEGER NOT NULL DEFAULT 0;
   `,
+  // 5: the family vault (end-to-end; see routes/vault.ts). The server keeps
+  // only wrapped copies of the family key, which it cannot open, and relays
+  // pairing messages encrypted between two parent devices.
+  `
+  CREATE TABLE vault_keys (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL CHECK (kind IN ('recovery', 'passkey', 'device')),
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    device_id TEXT REFERENCES devices(id) ON DELETE CASCADE,
+    credential_id TEXT,
+    prf_salt TEXT,
+    label TEXT NOT NULL DEFAULT '',
+    wrapped TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_used_at INTEGER
+  );
+  CREATE UNIQUE INDEX vault_keys_recovery ON vault_keys(kind) WHERE kind = 'recovery';
+  CREATE UNIQUE INDEX vault_keys_device ON vault_keys(device_id) WHERE device_id IS NOT NULL;
+  CREATE INDEX vault_keys_user ON vault_keys(user_id);
+
+  CREATE TABLE vault_pairings (
+    id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL UNIQUE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    public_key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    approved_by TEXT REFERENCES users(id) ON DELETE CASCADE,
+    payload TEXT
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

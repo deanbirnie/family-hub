@@ -163,12 +163,14 @@ family address book) needs the server to read them.
       chunked encryption for uploads, downloads and previews, and a
       resumable migration of existing files; backup and restore steps
       updated to include the key. (May land as its own pull request.)
-- [ ] Family key creation, the recovery kit, and sharing with the second
+- [x] Family key creation, the recovery kit, and sharing with the second
       parent.
-- [ ] Android: family key unwrapped by the same biometric check that opens
+- [x] Android: family key unwrapped by the same biometric check that opens
       the app.
-- [ ] Browser: passkey (WebAuthn PRF) unlock, and approve-with-your-phone.
-- [ ] Vault lock after 15 minutes unused; unlocks in the audit log.
+- [x] Browser: passkey (WebAuthn PRF) unlock, and approval from another
+      unlocked device (a code plus six check words, in place of a QR code,
+      so it needs no camera and works phone↔browser either way).
+- [x] Vault lock after 15 minutes unused; unlocks in the audit log.
 
 **2. Quick Info**
 
@@ -322,6 +324,9 @@ records end to end with the family key from phase 2. Show medical aid details fr
 - [ ] **Data export** of everything a person owns, as plain files.
 - [ ] **Accessibility pass** (keyboard, screen readers, large text) and
       **translations** if the family wants them.
+- [ ] **Family key rotation:** make a new family key and re-encrypt the vault
+      (for example after removing a parent or losing a device), and a new
+      recovery key.
 - [ ] **Security hardening backlog:** session list showing approximate location, e-mail or
       push alert on a new sign-in, admin view of the family's security activity.
 

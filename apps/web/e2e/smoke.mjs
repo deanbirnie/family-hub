@@ -186,6 +186,70 @@ try {
   await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
   if (await page.getByText('Save the server key to your password manager.').count()) throw new Error('the server key reminder is still shown after saving')
 
+  // The family vault. Chromium's virtual authenticator stands in for a passkey
+  // (with the PRF extension, which is what unwraps the family key).
+  const authenticator = async (p) => {
+    const cdp = await p.context().newCDPSession(p)
+    await cdp.send('WebAuthn.enable')
+    await cdp.send('WebAuthn.addVirtualAuthenticator', {
+      options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, hasPrf: true, automaticPresenceSimulation: true },
+    })
+  }
+  await authenticator(page)
+  await page.goto(`${base}/settings`)
+  const vaultCard = page.locator('section', { has: page.getByRole('heading', { name: 'Family vault' }) })
+  await vaultCard.getByRole('button', { name: 'Set up the family vault' }).click()
+  const recoveryKey = (await page.getByLabel('Recovery key', { exact: true }).textContent()).trim()
+  if (!/^FH1-([A-Z2-7]{4}-){12}[A-Z2-7]{4}$/.test(recoveryKey)) throw new Error(`unexpected recovery key ${recoveryKey}`)
+  await shot(page, '07b-vault-setup')
+  // Not until the recovery key is confirmed saved.
+  if (await vaultCard.getByRole('button', { name: 'Create the vault and add a passkey' }).isEnabled()) throw new Error('the vault can be created before saving the recovery key')
+  await page.getByLabel('I have saved the recovery key in my password manager').check()
+  await vaultCard.getByRole('button', { name: 'Create the vault and add a passkey' }).click()
+  await vaultCard.getByText('Open on this device').waitFor()
+  await vaultCard.getByText(/^Passkey: /).waitFor()
+  await vaultCard.getByRole('button', { name: 'Lock now' }).click()
+  await vaultCard.getByRole('button', { name: 'Open with your passkey' }).click()
+  await vaultCard.getByText('Open on this device').waitFor()
+  await shot(page, '07c-vault-open')
+
+  // A second browser for the same parent gets access by pairing: a code and
+  // six words that must match on both screens.
+  const second = await (await browser.newContext({ viewport: { width: 1280, height: 860 }, storageState: await context.storageState() })).newPage()
+  second.on('pageerror', (e) => errors.push(e.message))
+  await second.goto(`${base}/settings`)
+  const secondVault = second.locator('section', { has: second.getByRole('heading', { name: 'Family vault' }) })
+  await secondVault.getByText('Locked', { exact: true }).waitFor()
+  await secondVault.getByRole('button', { name: 'Get access from another device' }).click()
+  const pairingCode = (await second.getByLabel('Pairing code').textContent()).trim()
+  const newDeviceWords = (await second.getByLabel('Check words').textContent()).trim()
+  await shot(second, '07d-vault-pair-request')
+  await vaultCard.getByRole('button', { name: 'Approve a new device' }).click()
+  await page.getByLabel('Code shown on the new device').fill(pairingCode.toLowerCase())
+  await vaultCard.getByRole('button', { name: 'Continue' }).click()
+  const approverWords = (await page.getByLabel('Check words').textContent()).trim()
+  if (approverWords !== newDeviceWords) throw new Error(`check words differ: ${approverWords} / ${newDeviceWords}`)
+  await shot(page, '07e-vault-approve')
+  await vaultCard.getByRole('button', { name: 'The words match: approve' }).click()
+  await vaultCard.getByText('Approved. The other device can now open the family vault.').waitFor()
+  await vaultCard.getByRole('button', { name: 'Done' }).click()
+  await secondVault.getByText('Open on this device').waitFor({ timeout: 15000 })
+
+  // Locked again, the second browser opens the vault with the recovery key
+  // (and a fresh authenticator code).
+  await secondVault.getByRole('button', { name: 'Lock now' }).click()
+  await secondVault.getByRole('button', { name: 'Use the recovery key' }).click()
+  await secondVault.getByLabel('Recovery key', { exact: true }).fill(recoveryKey.toLowerCase())
+  await secondVault.getByLabel('Code from your authenticator app').fill(await nextCode(secret))
+  await secondVault.getByRole('button', { name: 'Open the vault' }).click()
+  await secondVault.getByText('Open on this device').waitFor()
+  await second.context().close()
+
+  // Members never see the vault.
+  await sam.goto(`${base}/settings`)
+  await sam.getByRole('heading', { name: 'Where you’re signed in' }).waitFor()
+  if (await sam.getByRole('heading', { name: 'Family vault' }).count()) throw new Error('a member sees the family vault')
+
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)
   await page.getByRole('heading', { name: 'Where you’re signed in' }).waitFor()
