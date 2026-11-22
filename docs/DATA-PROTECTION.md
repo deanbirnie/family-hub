@@ -133,8 +133,12 @@ when linking.
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Names, organisations, roles, phone numbers, emails, addresses, notes | Contact cards | S (allows CardDAV sync later) | 🔜 |
-| Emergency-contact designations | Contact links | S | 🔜 |
+| Names, organisations, roles, categories, phone numbers, emails, addresses, notes | `contacts.sealed` (one value per contact, bound to its ID) | S (allows CardDAV sync later) | ✅ |
+| Contact IDs, versions, when and by whom changed | `contacts` columns | P | ✅ |
+| Emergency contacts (first call, if no answer) for each person | `family_profiles.emergency` (bound to the person) | S | ✅ |
+| Links from Quick Info records to contacts (scheme, insurer) | Inside the Quick Info record | E2E | ✅ |
+| vCard exports | Downloaded to the parent's device; notes left out unless chosen | Plain file on the device | ✅ |
+| Contact events (added, updated, removed, exported, emergency contacts set; never details) | `audit_log` | P | ✅ |
 
 ### Notifications (phase 2)
 

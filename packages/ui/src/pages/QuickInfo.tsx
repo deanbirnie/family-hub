@@ -3,8 +3,8 @@
  * is decrypted on this device from the family vault; the server only ever
  * has ciphertext (docs/DATA-PROTECTION.md, "Quick Info").
  */
-import { Copy, Eye, EyeOff, FileText, Home, Pencil, Plus, Trash2, UserPlus } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { Copy, Eye, EyeOff, FileText, Home, Pencil, Phone, Plus, Siren, Trash2, UserPlus } from 'lucide-react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { ApiError } from '../api.ts'
 import { formatDate } from '../format.ts'
 import {
@@ -21,6 +21,7 @@ import {
   type StoredRecord,
 } from '../quickinfo/model.ts'
 import type { HubContext } from '../Shell.tsx'
+import { contactSummary, type Contact } from './Contacts.tsx'
 import { Badge, Banner, Button, Card, Dialog, Field, PageHeader, Spinner, errorText, useAction } from '../ui.tsx'
 import { vault } from '../vault/store.ts'
 import { useVaultUnlocked, VaultCard } from '../vault/VaultCard.tsx'
@@ -29,7 +30,12 @@ interface Profile {
   id: string
   displayName: string
   userId: string | null
+  /** Emergency contacts (Family Contacts IDs). */
+  emergency: { primary: string | null; backup: string | null }
 }
+
+/** The address book, for showing and choosing linked contacts. */
+const ContactsList = createContext<Contact[]>([])
 
 interface Loaded {
   profiles: Profile[]
@@ -75,11 +81,16 @@ function QuickInfoBody({ ctx }: { ctx: HubContext }) {
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<{ kind: Kind; profileId: string | null; record?: Loaded['records'][number] } | null>(null)
   const [addingPerson, setAddingPerson] = useState(false)
+  const [contacts, setContacts] = useState<Contact[]>([])
 
   const load = useCallback(async () => {
     setError('')
     try {
-      const raw = await api.get<{ profiles: Profile[]; records: StoredRecord[] }>('/api/quick-info')
+      const [raw, book] = await Promise.all([
+        api.get<{ profiles: Profile[]; records: StoredRecord[] }>('/api/quick-info'),
+        api.get<{ contacts: Contact[] }>('/api/contacts'),
+      ])
+      setContacts(book.contacts)
       const key = vault.use()
       if (!key) return
       const records = await Promise.all(
@@ -107,7 +118,7 @@ function QuickInfoBody({ ctx }: { ctx: HubContext }) {
   const household = recordsOf(null, 'household')[0]
 
   return (
-    <>
+    <ContactsList.Provider value={contacts}>
       <Card
         title={
           <>
@@ -136,7 +147,7 @@ function QuickInfoBody({ ctx }: { ctx: HubContext }) {
 
       {addingPerson && <AddPersonDialog ctx={ctx} profiles={data.profiles} onClose={(changed) => (setAddingPerson(false), changed && void load())} />}
       {editing && <EditDialog ctx={ctx} {...editing} onClose={(changed) => (setEditing(null), changed && void load())} />}
-    </>
+    </ContactsList.Provider>
   )
 }
 
@@ -175,8 +186,106 @@ function PersonCard({
             onEdit={(r) => onEdit({ kind, profileId: profile.id, record: r })}
           />
         ))}
+        <EmergencySection ctx={ctx} profile={profile} onChanged={onChanged} />
       </div>
     </Card>
+  )
+}
+
+function EmergencySection({ ctx, profile, onChanged }: { ctx: HubContext; profile: Profile; onChanged: () => void }) {
+  const contacts = useContext(ContactsList)
+  const [editing, setEditing] = useState(false)
+  const [choice, setChoice] = useState(profile.emergency)
+  const save = useAction(async () => {
+    await ctx.platform.api.request('PUT', `/api/quick-info/profiles/${profile.id}/emergency`, choice)
+    setEditing(false)
+    onChanged()
+  })
+  const set = profile.emergency.primary || profile.emergency.backup
+  return (
+    <section className="qi-section" aria-label="Emergency contacts">
+      <div className="row-between">
+        <h3>
+          <Siren size={16} aria-hidden /> Emergency contacts
+        </h3>
+        {!editing && (
+          <Button variant="ghost" icon={set ? <Pencil size={16} aria-hidden /> : <Plus size={16} aria-hidden />} onClick={() => (setChoice(profile.emergency), setEditing(true))}>
+            {set ? 'Change' : 'Choose emergency contacts'}
+          </Button>
+        )}
+      </div>
+      {!editing && set && (
+        <dl className="facts qi-facts">
+          {profile.emergency.primary && <LinkedContact label="First call" contactId={profile.emergency.primary} />}
+          {profile.emergency.backup && <LinkedContact label="If no answer" contactId={profile.emergency.backup} />}
+        </dl>
+      )}
+      {editing && (
+        <div className="stack-sm">
+          {contacts.length === 0 && <p className="muted small">Add people in Contacts first.</p>}
+          <ContactSelect label="First call" value={choice.primary ?? ''} onChange={(v) => setChoice({ ...choice, primary: v || null })} />
+          <ContactSelect label="If no answer" value={choice.backup ?? ''} onChange={(v) => setChoice({ ...choice, backup: v || null })} />
+          {save.error && <Banner kind="error">{save.error}</Banner>}
+          <div className="row">
+            <Button busy={save.busy} onClick={() => void save.run()}>
+              Save
+            </Button>
+            <Button variant="ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+/** A contact linked from a record: its name, what it is, and a number to call. */
+function LinkedContact({ label, contactId }: { label: string; contactId: string }) {
+  const c = useContext(ContactsList).find((x) => x.id === contactId)
+  const phone = c?.phones[0]
+  return (
+    <>
+      <dt>{label}</dt>
+      <dd className="qi-value">
+        {c ? (
+          <>
+            <span className="qi-text">
+              {c.name}
+              {contactSummary(c) && <span className="muted small"> · {contactSummary(c)}</span>}
+            </span>
+            {phone && (
+              <a className="btn btn-ghost" href={`tel:${phone.number.replace(/[^0-9+]/g, '')}`} aria-label={`Call ${c.name}`}>
+                <Phone size={16} aria-hidden />
+                <span>{phone.number}</span>
+              </a>
+            )}
+          </>
+        ) : (
+          <span className="muted">This contact has been deleted.</span>
+        )}
+      </dd>
+    </>
+  )
+}
+
+function ContactSelect({ label, hint, value, onChange }: { label: string; hint?: string; value: string; onChange: (id: string) => void }) {
+  const contacts = useContext(ContactsList)
+  const id = `contact-${label.replace(/\W+/g, '-').toLowerCase()}`
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <select id={id} className="select" value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">None</option>
+        {contacts.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+            {contactSummary(c) ? ` (${contactSummary(c)})` : ''}
+          </option>
+        ))}
+      </select>
+      {hint && <div className="field-hint">{hint}</div>}
+    </div>
   )
 }
 
@@ -212,9 +321,13 @@ function SectionView({
             <dl className="facts qi-facts">
               {def.fields
                 .filter((f) => r.content.fields[f.key])
-                .map((f) => (
-                  <FieldValue key={f.key} label={f.label} value={r.content.fields[f.key]!} sensitive={f.sensitive} date={f.type === 'date'} />
-                ))}
+                .map((f) =>
+                  f.type === 'contact' ? (
+                    <LinkedContact key={f.key} label={f.label} contactId={r.content.fields[f.key]!} />
+                  ) : (
+                    <FieldValue key={f.key} label={f.label} value={r.content.fields[f.key]!} sensitive={f.sensitive} date={f.type === 'date'} />
+                  ),
+                )}
             </dl>
           )}
           {r.content.documents.length > 0 && <LinkedDocuments ctx={ctx} documents={r.content.documents} />}
@@ -348,7 +461,10 @@ function EditDialog({
           void save.run()
         }}
       >
-        {def.fields.map((f) => (
+        {def.fields.map((f) =>
+          f.type === 'contact' ? (
+            <ContactSelect key={f.key} label={f.label} hint={f.hint} value={fields[f.key] ?? ''} onChange={(v) => setFields((prev) => ({ ...prev, [f.key]: v }))} />
+          ) : (
           <Field
             key={f.key}
             label={f.label}
@@ -373,7 +489,8 @@ function EditDialog({
               })
             }}
           />
-        ))}
+          ),
+        )}
         <DocumentPicker ctx={ctx} documents={documents} onChange={setDocuments} />
         {(save.error || remove.error) && <Banner kind="error">{save.error || remove.error}</Banner>}
         <div className="row">

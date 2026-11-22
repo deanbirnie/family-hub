@@ -18,6 +18,19 @@ export function fileDownload(api: Api): Platform['downloadFile'] {
   }
 }
 
+/** Saves an export from the API (only those the native side allows, e.g. vCards) where the person chooses. */
+export function exportDownload(api: Api): Platform['saveExport'] {
+  if (!Capacitor.isNativePlatform()) return undefined
+  return async (path, name) => {
+    try {
+      await Documents.download({ url: `${api.baseUrl}${path}`, token: api.token, name, action: 'save' })
+    } catch (e) {
+      if ((e as { code?: string }).code === 'UNAUTHENTICATED') api.onSignedOut?.()
+      throw e
+    }
+  }
+}
+
 export const clearDocumentCache = () => {
   if (Capacitor.isNativePlatform()) void Documents.clear().catch(() => undefined)
 }

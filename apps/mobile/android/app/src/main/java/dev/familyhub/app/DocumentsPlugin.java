@@ -51,7 +51,9 @@ public class DocumentsPlugin extends Plugin {
       HttpURLConnection connection = null;
       try {
         URL url = new URL(call.getString("url", ""));
-        if (!url.getProtocol().equals("https") || !url.getPath().matches("/api/files/[a-f0-9-]{36}/content") || url.getUserInfo() != null || url.getQuery() != null) {
+        // Only documents, and vCard exports of the address book, ever go to the server with the token.
+        boolean allowedPath = url.getPath().matches("/api/files/[a-f0-9-]{36}/content") || url.getPath().matches("/api/contacts/export/(all|[A-Za-z0-9_-]{16})(-notes)?\\.vcf");
+        if (!url.getProtocol().equals("https") || !allowedPath || url.getUserInfo() != null || url.getQuery() != null) {
           throw new Exception("Invalid document address");
         }
         connection = (HttpURLConnection) url.openConnection();

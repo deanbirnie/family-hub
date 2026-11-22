@@ -10,7 +10,7 @@
 // Uses CHROME_PATH when set (CI), otherwise Playwright's own Chromium.
 import { spawn } from 'node:child_process'
 import { createHmac } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -274,6 +274,30 @@ try {
   // The server holds only ciphertext.
   const stored = await page.evaluate(async () => (await fetch('/api/quick-info')).text())
   if (stored.includes('8001015009087') || stored.includes('Alex Quinn Tester')) throw new Error('Quick Info reached the server unencrypted')
+
+  // Family Contacts: add, search, export, and use as an emergency contact.
+  await page.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Contacts' }).click()
+  await page.getByRole('heading', { name: 'Contacts', exact: true }).waitFor()
+  await page.getByRole('button', { name: 'Add contact' }).click()
+  const contactDialog = page.getByRole('dialog')
+  await contactDialog.getByLabel('Name').fill('Gran Tester')
+  await contactDialog.getByLabel('Phone 1', { exact: true }).fill('+27 82 555 0101')
+  await contactDialog.getByLabel('Shared note').fill('Spare key is with her')
+  await contactDialog.getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('button', { name: 'Edit Gran Tester' }).waitFor()
+  await page.getByLabel('Search contacts').fill('0101')
+  await page.getByRole('link', { name: 'Call Gran Tester (Mobile)' }).waitFor()
+  await shot(page, '07g-contacts')
+  await page.getByRole('button', { name: 'Export' }).click()
+  const [vcf] = await Promise.all([page.waitForEvent('download'), page.getByRole('dialog').getByRole('button', { name: 'Save .vcf file' }).click()])
+  const vcard = readFileSync(await vcf.path(), 'utf8')
+  if (!vcard.includes('FN:Gran Tester') || vcard.includes('Spare key')) throw new Error(`unexpected vCard export:\n${vcard}`)
+  const nav2 = page.getByRole('navigation', { name: 'Main' }).first()
+  await nav2.getByRole('link', { name: 'Quick Info' }).click()
+  await alexCard.getByRole('button', { name: 'Choose emergency contacts' }).click()
+  await alexCard.getByLabel('First call').selectOption({ label: 'Gran Tester' })
+  await alexCard.getByRole('button', { name: 'Save', exact: true }).click()
+  await alexCard.getByRole('link', { name: 'Call Gran Tester' }).waitFor()
   // Locking the vault hides it all (in-app navigation: a reload would already forget the key).
   const nav = page.getByRole('navigation', { name: 'Main' }).first()
   await nav.getByRole('link', { name: 'Settings' }).click()

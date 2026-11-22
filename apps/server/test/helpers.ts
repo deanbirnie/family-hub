@@ -45,13 +45,15 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Test
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as AddressInfo
+  let closing: Promise<void> | undefined
   return {
     url: `http://127.0.0.1:${port}`,
     server,
     services,
     clock,
+    // Safe to call more than once (a file's afterEach may see the same server twice).
     close: () =>
-      new Promise((resolve) => {
+      (closing ??= new Promise((resolve) => {
         server.closeAllConnections()
         server.close(() => {
           db.close()
@@ -59,7 +61,7 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Test
           rmSync(dirname(config.keyFile), { recursive: true, force: true })
           resolve()
         })
-      }),
+      })),
   }
 }
 
