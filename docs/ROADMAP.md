@@ -258,7 +258,8 @@ reminders, export it and, later, sync it.
       custom label. A person's page shows their family ("Thandi's partner
       Sipho; their children Lwazi (7) and Ayanda (4)").
 - [x] **Quick add a child or partner** from a person's page: just a name and
-      a birthday, creating a linked contact without phone numbers.
+      a birthday, creating a linked contact without phone numbers. (Phase 4b
+      changes "Add a child" to keep the child on the contact instead.)
 - [x] **Groups:** e.g. "Book club", "School parents", "Christmas card list";
       filter and export by group.
 - [x] **About them:** how we met, interests, food preferences and
@@ -315,16 +316,110 @@ reminders, export it and, later, sync it.
 
 ## Phase 4 — Family calendar
 
-- [ ] Events with a colour per person, all-day and timed, recurring, with
-      locations and notes; month, week and agenda views.
-- [ ] Reminders (needs the notification work below).
-- [ ] Birthdays and anniversaries from phase 3 shown every year (for the
-      family, and for anyone else you choose).
-- [ ] Subscribe to outside calendars (school terms, sports fixtures, public
-      holidays) by iCal URL, read-only.
-- [ ] A private iCal feed per person so the family calendar shows in Google
-      Calendar, Outlook or the phone's own calendar.
-- [ ] "Who's where" today on the home page.
+The family's calendar lives **inside the hub only**. Events can be sent out
+to Google Calendar, Outlook or a phone's calendar as files, but nothing
+outside reads the hub's calendar live, so two-factor sign-in stays the only
+way in. Agreed with the owner in the phase 4 planning pull request.
+
+### Design (agreed)
+
+**People and tags.**
+
+- The calendar's people are the family: everyone with an account and the
+  children without accounts (the same people as Quick Info, so there is one
+  list). A parent gives each a **colour**.
+- A **Family** tag (its own chip, with a house icon) marks what matters to
+  everyone.
+- Every event is tagged with one or more people, or Family. An event for
+  several people shows each of their colours.
+
+**Views.**
+
+- **My view** (the default): my events and Family events.
+- **A person's view:** tap their chip to see their events and Family events.
+- **Everyone:** every event, colour-coded.
+- Month, week and agenda (a list; the default on phones); filters by person.
+- **Today** on the home page: each person's day, and the next few days.
+
+**Who can do what.** Everyone in the family sees, adds and edits every
+event (no private events for now). Each event has a version, so two people
+editing at once cannot overwrite each other.
+
+**Events.** Title; all-day, timed, or over several days; one or more tags;
+location; notes; links to a Contacts entry and to Files. Repeats daily,
+weekly on chosen days, monthly (a date, or e.g. "the 2nd Tuesday"), or
+yearly; every N; until a date or for a number of times. Changing a repeat
+asks: just this one, this and following, or all. Times are in the family's
+time zone (TZ); all-day events keep their date.
+
+**Sending events out.** "Add to my calendar" saves one event as an `.ics`
+file, which a phone opens in its calendar app and Google Calendar and
+Outlook import. A selection (e.g. "Sam's events for the next 3 months",
+"Family events this term") goes out as one file. Notes are left out unless
+chosen. A sent event does not update outside if it changes later; send it
+again.
+
+**Reminders.** Per event: at the time, 15 minutes, 1 hour, 1 day or 1 week
+before (any of these), for the people tagged (every parent for Family
+events), through the phase 2 notifications. Lock-screen text is generic
+("An event starts in 1 hour. Tap to see."). The reminder check runs every
+minute. Short reminders need push (ntfy or the browser): the phone's daily
+check cannot deliver them in time, and the app says so.
+
+**Birthdays.** Birthdays and anniversaries from Contacts (including family
+members kept on a contact, like a friend's young daughter) appear every
+year, read from Contacts each time, never copied, with a cake icon. Everyone
+in the family sees them (name and day only).
+
+**Outside calendars, with approval.**
+
+- A parent adds a subscription by link (school terms, sport fixtures) with
+  a name, default tags and a colour. https only; never addresses on the
+  home network; size and time limits; the link is kept encrypted (some
+  contain secret tokens); the file is read as data only.
+- **Nothing goes straight in.** New events wait in a **Calendar inbox**:
+  accept (with the subscription's tags or others), ignore (never shown
+  again), or "always accept from this calendar" for trusted sources.
+- If an accepted event is moved or cancelled at the source, it returns to
+  the inbox as Changed or Cancelled, to accept or keep as it was.
+- Clean-up: removing a subscription asks whether to remove its accepted
+  events too; inbox items older than 30 days and past subscribed events
+  are cleared automatically; each subscription shows when it last updated
+  and whether it failed.
+- **South African public holidays** are worked out by the hub itself (no
+  subscription), on by default and tagged Family.
+- One-off `.ics` imports (e.g. from Google Calendar) go through the same
+  inbox.
+
+### Build order (one pull request each)
+
+**4a. Events and views**
+
+- [ ] People's colours and the Family tag.
+- [ ] Events: all-day, timed and multi-day; tags; location and notes; links
+      to Contacts and Files; versioned edits.
+- [ ] Repeats, with "this one / this and following / all".
+- [ ] Month, week and agenda views; my view, a person's view, everyone.
+- [ ] Today on the home page.
+- [ ] Send one event, or a selection, out as `.ics`.
+
+**4b. Reminders and birthdays**
+
+- [ ] Event reminders, and the reminder check every minute.
+- [ ] Birthdays and anniversaries from Contacts on the calendar.
+- [ ] **Family members on a contact** (phase 3 change): "Add a child" on a
+      contact keeps the child on that contact (name, birthday, reminder)
+      instead of creating a full contact; shown under both parents when
+      the contact has a partner; not in the main Contacts list. A full
+      contact, if ever needed, is made by hand. Children already added as
+      full contacts stay as they are.
+
+**4c. Outside calendars**
+
+- [ ] South African public holidays.
+- [ ] Subscriptions by link, with the Calendar inbox (accept, ignore,
+      always accept, changed and cancelled events) and clean-up.
+- [ ] One-off `.ics` import through the inbox.
 
 ## Phase 5 — Lists, chores and noticeboard
 
