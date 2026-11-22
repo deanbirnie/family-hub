@@ -135,7 +135,7 @@ describe('notifications', () => {
     server.clock.now += 3600_000
     expect(await runReminders(server.services)).toBe(1)
     expect((await client.call('PUT', '/api/notifications/settings', { sendHour: 24 })).status).toBe(400)
-    expect((await client.get<{ settings: unknown }>('/api/notifications')).body.settings).toEqual({ enabled: true, expiry: true, dates: true, sendHour: 15 })
+    expect((await client.get<{ settings: unknown }>('/api/notifications')).body.settings).toEqual({ enabled: true, expiry: true, dates: true, touch: true, sendHour: 15 })
   })
 
   it('tracks push health, sends tests, and forgets addresses the push service says are gone', async () => {

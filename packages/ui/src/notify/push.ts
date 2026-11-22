@@ -24,6 +24,7 @@ export interface NotificationSettings {
   enabled: boolean
   expiry: boolean
   dates: boolean
+  touch: boolean
   sendHour: number
 }
 

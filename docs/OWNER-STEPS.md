@@ -203,6 +203,14 @@ On each parent's phone, once it has the app version with notifications
 - [ ] 4. Optional: in **Settings → Notifications**, untick **Birthdays,
       anniversaries and other dates** if you only want them on the home page.
 
+## 12. Keep in touch (after the "keeping in touch" pull request is merged and deployed)
+
+- [ ] 1. For people you want to see more of: open them in **Contacts** and
+      choose **Stay in touch** (every 2 weeks to every year). After a call
+      or visit, select **We spoke today**.
+- [ ] 2. Optional: jot down news with **Add a note or life event** (a new
+      job, a move, a new baby), and gift ideas with **Add a gift idea**.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

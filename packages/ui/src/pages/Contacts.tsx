@@ -10,6 +10,7 @@ import type { HubContext } from '../Shell.tsx'
 import { Badge, Banner, Button, Card, Dialog, Field, PageHeader, Spinner, useAction, useLoad } from '../ui.tsx'
 import { DATE_KINDS, formatImportantDate, nextComing, whenWords, type ImportantDate, type Relation } from '../people/dates.ts'
 import { AboutEditor, DatesEditor, emptyAbout, RelativesSection, type About, type Parent } from '../people/PeopleSections.tsx'
+import { emptyKeepInTouch, KeepInTouchEditor, TimelineSection, type KeepInTouch } from '../people/Timeline.tsx'
 
 export const CATEGORIES = {
   family: 'Family',
@@ -38,6 +39,7 @@ export interface Contact {
   dates: (ImportantDate & { id: string })[]
   deceased: boolean
   about: About
+  keepInTouch: KeepInTouch
   /** The Quick Info person this contact is, for the family themselves. */
   profileId: string | null
 }
@@ -282,6 +284,7 @@ function ContactDialog({
     dates: (contact?.dates ?? []) as ImportantDate[],
     deceased: contact?.deceased ?? false,
     about: contact?.about ?? emptyAbout(),
+    keepInTouch: contact?.keepInTouch ?? emptyKeepInTouch(),
     profileId: contact?.profileId ?? '',
     name: contact?.name ?? '',
     organisation: contact?.organisation ?? '',
@@ -375,6 +378,16 @@ function ContactDialog({
           <p className="muted small">Save first, then add their partner, children and other relationships.</p>
         )}
         <AboutEditor about={form.about} onChange={(about) => set('about', about)} />
+        <KeepInTouchEditor value={{ ...form.keepInTouch, lastContact: contact?.keepInTouch.lastContact ?? form.keepInTouch.lastContact }} parents={parents} onChange={(v) => set('keepInTouch', v)} />
+        {contact && (
+          <TimelineSection
+            api={api}
+            contactId={contact.id}
+            onChanged={onRelationsChanged}
+            onAddAnniversary={(date) => set('dates', [...form.dates, { kind: 'anniversary', label: '', date, remind: 'week', remindFor: 'all' }])}
+            onPassedAway={() => set('deceased', true)}
+          />
+        )}
         {profiles.length > 0 && (
           <div className="field">
             <label htmlFor="contact-profile">One of our family in Quick Info</label>

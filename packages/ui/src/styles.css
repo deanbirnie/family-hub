@@ -1523,3 +1523,30 @@ progress {
     grid-column: 1 / -1;
   }
 }
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.timeline li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.timeline-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.pre-wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

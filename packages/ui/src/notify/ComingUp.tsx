@@ -9,13 +9,14 @@ export interface UpcomingItem {
   title: string
   whose: string | null
   detail: string | null
-  category: 'expiry' | 'dates'
+  category: 'expiry' | 'dates' | 'touch'
   date: string
   daysLeft: number
   url: string
 }
 
-export function whenText(daysLeft: number): string {
+export function whenText(daysLeft: number, category: UpcomingItem['category'] = 'expiry'): string {
+  if (category === 'touch' && daysLeft < 0) return `${-daysLeft} day${daysLeft === -1 ? '' : 's'} overdue`
   if (daysLeft < -1) return `expired ${-daysLeft} days ago`
   if (daysLeft === -1) return 'expired yesterday'
   if (daysLeft === 0) return 'today'
@@ -55,10 +56,10 @@ export function ComingUpCard({ ctx }: { ctx: HubContext }) {
                 <div>
                   {i.title}
                   {i.whose && <span className="muted"> · {i.whose}</span>}
-                  {i.daysLeft < 0 ? <Badge tone="warning">Expired</Badge> : i.daysLeft <= 7 ? <Badge tone="warning">Soon</Badge> : null}
+                  {i.category === 'touch' ? null : i.daysLeft < 0 ? <Badge tone="warning">Expired</Badge> : i.daysLeft <= 7 ? <Badge tone="warning">Soon</Badge> : null}
                 </div>
                 <div className="muted small">
-                  {i.category === 'dates' ? longDate(i.date).replace(/,? \d{4}$/, '') : longDate(i.date)}, {whenText(i.daysLeft)}
+                  {i.category === 'expiry' ? longDate(i.date) : longDate(i.date).replace(/,? \d{4}$/, '')}, {whenText(i.daysLeft, i.category)}
                   {i.detail && ` · ${i.detail}`}
                 </div>
               </div>

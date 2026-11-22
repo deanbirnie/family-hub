@@ -272,6 +272,27 @@ const MIGRATIONS: string[] = [
     created_at INTEGER NOT NULL
   );
   `,
+  // 11: Notes, timeline and gifts for each contact (phase 3), each entry
+  // sealed with the server key and bound to its contact.
+  `
+  CREATE TABLE contact_notes (
+    id TEXT PRIMARY KEY,
+    contact_id TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+    sealed TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE INDEX contact_notes_contact ON contact_notes (contact_id);
+  CREATE TABLE contact_gifts (
+    id TEXT PRIMARY KEY,
+    contact_id TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+    sealed TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX contact_gifts_contact ON contact_gifts (contact_id);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

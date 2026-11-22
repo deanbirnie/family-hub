@@ -12,7 +12,7 @@
 import type { Api, Services } from '../app.ts'
 import { HttpError, readJson, str } from '../http.ts'
 import { newId } from '../secrets.ts'
-import { parseDate } from '../schedule.ts'
+import { localNow, parseDate } from '../schedule.ts'
 
 export const CATEGORIES = ['family', 'friend', 'school', 'health', 'insurance', 'services', 'other'] as const
 export const PHONE_LABELS = ['mobile', 'home', 'work', 'other'] as const
@@ -41,6 +41,18 @@ export interface About {
   sizes: string
 }
 
+/** "Catch up every few weeks / months". */
+export const TOUCH_INTERVALS = [0, 14, 30, 60, 90, 182, 365] as const
+
+export interface KeepInTouch {
+  /** 0 = off. */
+  everyDays: number
+  /** When the interval was set (counts from here until the first "We spoke"). */
+  since: string | null
+  lastContact: string | null
+  remindFor: string
+}
+
 export interface Contact {
   name: string
   organisation: string
@@ -53,6 +65,7 @@ export interface Contact {
   dates: ImportantDate[]
   deceased: boolean
   about: About
+  keepInTouch: KeepInTouch
 }
 
 /** Fills in what contacts saved before phase 3 do not have. */
@@ -69,7 +82,24 @@ export function normalise(raw: Partial<Contact>): Contact {
     dates: raw.dates ?? [],
     deceased: raw.deceased ?? false,
     about: { howWeMet: '', interests: '', food: '', sizes: '', ...(raw.about ?? {}) },
+    keepInTouch: { everyDays: 0, since: null, lastContact: null, remindFor: 'all', ...(raw.keepInTouch ?? {}) },
   }
+}
+
+function keepInTouchFrom(body: Record<string, unknown>, parents: Set<string>, previous: KeepInTouch | null, today: string): KeepInTouch {
+  const k = (body.keepInTouch ?? {}) as Record<string, unknown>
+  const everyDays = k.everyDays === undefined ? 0 : k.everyDays
+  if (typeof everyDays !== 'number' || !(TOUCH_INTERVALS as readonly number[]).includes(everyDays)) throw new HttpError(400, 'Choose how often to catch up.', 'invalid')
+  const remindFor = typeof k.remindFor === 'string' && k.remindFor ? k.remindFor : 'all'
+  if (remindFor !== 'all' && !parents.has(remindFor)) throw new HttpError(400, 'Reminders go to a parent.', 'invalid')
+  const given = typeof k.lastContact === 'string' && k.lastContact ? k.lastContact : null
+  if (given && (given.startsWith('--') || !parseDate(given))) throw new HttpError(400, 'The last time you spoke must be a date.', 'invalid')
+  // The later of what was sent and what is stored ("We spoke" may have happened while the form was open).
+  const stored = previous?.lastContact ?? null
+  const lastContact = given && stored ? (given > stored ? given : stored) : (given ?? stored)
+  // The count starts when the interval is first set (or changed).
+  const since = everyDays === 0 ? null : previous && previous.everyDays === everyDays && previous.since ? previous.since : today
+  return { everyDays, since, lastContact, remindFor }
 }
 
 export const RELATION_KINDS = ['partner', 'child', 'parent', 'sibling', 'grandparent', 'grandchild', 'friend', 'colleague', 'other'] as const
@@ -81,6 +111,35 @@ export interface Relation {
   kind: (typeof RELATION_KINDS)[number]
   /** For 'other': "godmother", "neighbour". */
   label: string
+}
+
+export const NOTE_KINDS = ['note', 'event', 'contact'] as const
+export const LIFE_EVENTS = ['new_job', 'moved', 'new_baby', 'engaged', 'married', 'graduated', 'retired', 'passed_away', 'other'] as const
+
+/** A timeline entry: a note, a life event, or a record of being in touch. */
+export interface Note {
+  date: string
+  kind: (typeof NOTE_KINDS)[number]
+  lifeEvent: (typeof LIFE_EVENTS)[number] | null
+  text: string
+}
+
+/** A gift idea, or a gift given (with when). */
+export interface Gift {
+  idea: string
+  occasion: string
+  status: 'idea' | 'given'
+  date: string | null
+  link: string
+  note: string
+}
+
+interface EntryRow {
+  id: string
+  contact_id: string
+  sealed: string
+  created_at: number
+  updated_at: number
 }
 
 export interface ContactRow {
@@ -126,7 +185,7 @@ function datesFrom(body: Record<string, unknown>, parents: Set<string>): Importa
 }
 
 /** A contact from a request, checked and tidied. `parents` are the user IDs reminders may go to. */
-export function contactFrom(body: Record<string, unknown>, parents: Set<string> = new Set()): Contact {
+export function contactFrom(body: Record<string, unknown>, parents: Set<string> = new Set(), previous: Contact | null = null, today = '2000-01-01'): Contact {
   const name = str(body, 'name', { max: 100 })
   const category = (body.category ?? 'other') as Contact['category']
   if (!CATEGORIES.includes(category)) throw new HttpError(400, 'Choose a category.', 'invalid')
@@ -165,6 +224,7 @@ export function contactFrom(body: Record<string, unknown>, parents: Set<string> 
       if (typeof a !== 'object' || Array.isArray(a)) throw new HttpError(400, '"about" must be an object.', 'invalid')
       return { howWeMet: text(a, 'howWeMet', 500), interests: text(a, 'interests', 500), food: text(a, 'food', 500), sizes: text(a, 'sizes', 300) }
     })(),
+    keepInTouch: keepInTouchFrom(body, parents, previous?.keepInTouch ?? null, today),
   }
 }
 
@@ -219,6 +279,7 @@ export function allRelations(s: Services): (Relation & { id: string })[] {
 export function contactRoutes(api: Api, s: Services): void {
   const { db } = s
   const parents = { admin: true } as const
+  const today = () => localNow(s.now(), s.config.timeZone).date
   const parentIds = () => new Set((db.prepare("SELECT id FROM users WHERE role = 'admin'").all() as { id: string }[]).map((u) => u.id))
   const seal = (id: string, c: Contact) => s.serverKey.seal(JSON.stringify(c), 'contact', id)
   const open = (r: ContactRow): Contact => openContact(s, r)
@@ -246,7 +307,7 @@ export function contactRoutes(api: Api, s: Services): void {
 
   api.authed('POST', '/api/contacts', parents, async (ctx) => {
     const body = await readJson(ctx.req)
-    const contact = contactFrom(body, parentIds())
+    const contact = contactFrom(body, parentIds(), null, today())
     const profileId = profileFrom(body, null)
     if ((db.prepare('SELECT COUNT(*) AS n FROM contacts').get() as { n: number }).n >= MAX_CONTACTS) {
       throw new HttpError(409, 'The address book is full.', 'too_many')
@@ -273,7 +334,7 @@ export function contactRoutes(api: Api, s: Services): void {
     if (typeof base !== 'number' || !Number.isInteger(base)) throw new HttpError(400, '"baseVersion" is required.', 'invalid')
     const changed = db
       .prepare('UPDATE contacts SET sealed = ?, profile_id = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ? AND version = ?')
-      .run(seal(r.id, contactFrom(body, parentIds())), profileFrom(body, r.id), s.now(), ctx.user.id, r.id, base)
+      .run(seal(r.id, contactFrom(body, parentIds(), open(r), today())), profileFrom(body, r.id), s.now(), ctx.user.id, r.id, base)
     if (Number(changed.changes) !== 1) {
       throw new HttpError(409, 'Someone else changed this contact while you were editing. Reload to see their changes.', 'edit_conflict')
     }
@@ -323,6 +384,140 @@ export function contactRoutes(api: Api, s: Services): void {
     if (Number(changed.changes) !== 1) throw new HttpError(404, 'That relationship has already been removed.', 'not_found')
     s.audit('contacts.relation_removed', ctx, ctx.user.id)
     return undefined
+  })
+
+  // ---- notes, timeline and gifts ------------------------------------------------------------
+
+  const sealEntry = (purpose: string, contactId: string, id: string, value: unknown) => s.serverKey.seal(JSON.stringify(value), purpose, `${contactId}/${id}`)
+  const openEntry = <T,>(purpose: string, row: { id: string; contact_id: string; sealed: string }) =>
+    JSON.parse(s.serverKey.open(row.sealed, purpose, `${row.contact_id}/${row.id}`)) as T
+  const entryDate = (body: Record<string, unknown>, key = 'date') => {
+    const v = body[key]
+    if (v === undefined || v === null || v === '') return today()
+    if (typeof v !== 'string' || v.startsWith('--') || !parseDate(v)) throw new HttpError(400, 'Choose a date.', 'invalid')
+    return v
+  }
+  const noteFrom = (body: Record<string, unknown>): Note => {
+    const kind = (body.kind ?? 'note') as Note['kind']
+    if (!NOTE_KINDS.includes(kind)) throw new HttpError(400, 'Unknown kind of entry.', 'invalid')
+    const lifeEvent = kind === 'event' ? ((body.lifeEvent ?? 'other') as Note['lifeEvent']) : null
+    if (lifeEvent !== null && !LIFE_EVENTS.includes(lifeEvent)) throw new HttpError(400, 'Unknown life event.', 'invalid')
+    const textValue = text(body, 'text', 4000)
+    if (!textValue && kind === 'note') throw new HttpError(400, 'Write something first.', 'invalid')
+    return { date: entryDate(body), kind, lifeEvent, text: textValue }
+  }
+  const giftFrom = (body: Record<string, unknown>): Gift => {
+    const idea = str(body, 'idea', { max: 200 })
+    const occasion = text(body, 'occasion', 60)
+    const status = (body.status ?? 'idea') as Gift['status']
+    if (status !== 'idea' && status !== 'given') throw new HttpError(400, 'A gift is an idea or given.', 'invalid')
+    const link = text(body, 'link', 500)
+    if (link && !/^https:\/\/[^\s]+$/.test(link)) throw new HttpError(400, 'Links must start with https://', 'invalid')
+    return { idea, occasion, status, date: status === 'given' ? entryDate(body) : null, link, note: text(body, 'note', 1000) }
+  }
+  const timeline = (contactId: string) => ({
+    notes: (db.prepare('SELECT * FROM contact_notes WHERE contact_id = ?').all(contactId) as unknown as EntryRow[])
+      .map((r) => ({ id: r.id, createdAt: r.created_at, ...openEntry<Note>('contact-note', r) }))
+      .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt),
+    gifts: (db.prepare('SELECT * FROM contact_gifts WHERE contact_id = ? ORDER BY created_at DESC').all(contactId) as unknown as EntryRow[]).map((r) => ({
+      id: r.id,
+      createdAt: r.created_at,
+      ...openEntry<Gift>('contact-gift', r),
+    })),
+  })
+  const count = (table: string, contactId: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE contact_id = ?`).get(contactId) as { n: number }).n
+  const findEntry = (table: 'contact_notes' | 'contact_gifts', id: string) => {
+    const row = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id) as unknown as EntryRow | undefined
+    if (!row) throw new HttpError(404, 'That entry has been deleted.', 'not_found')
+    return row
+  }
+
+  api.authed('GET', '/api/contacts/:id/timeline', parents, (ctx) => timeline(find(ctx.params.id!).id))
+
+  api.authed('POST', '/api/contacts/:id/notes', parents, async (ctx) => {
+    const contactId = find(ctx.params.id!).id
+    const note = noteFrom(await readJson(ctx.req))
+    if (count('contact_notes', contactId) >= 1000) throw new HttpError(409, 'This person has as many notes as they can hold.', 'too_many')
+    const id = newId()
+    const now = s.now()
+    db.prepare('INSERT INTO contact_notes (id, contact_id, sealed, created_at, updated_at, created_by) VALUES (?, ?, ?, ?, ?, ?)').run(
+      id,
+      contactId,
+      sealEntry('contact-note', contactId, id, note),
+      now,
+      now,
+      ctx.user.id,
+    )
+    s.audit('contacts.note_added', ctx, ctx.user.id)
+    return timeline(contactId)
+  })
+
+  api.authed('PUT', '/api/contacts/notes/:noteId', parents, async (ctx) => {
+    const row = findEntry('contact_notes', ctx.params.noteId!)
+    const note = noteFrom(await readJson(ctx.req))
+    db.prepare('UPDATE contact_notes SET sealed = ?, updated_at = ? WHERE id = ?').run(sealEntry('contact-note', row.contact_id, row.id, note), s.now(), row.id)
+    return timeline(row.contact_id)
+  })
+
+  api.authed('DELETE', '/api/contacts/notes/:noteId', parents, (ctx) => {
+    const row = findEntry('contact_notes', ctx.params.noteId!)
+    db.prepare('DELETE FROM contact_notes WHERE id = ?').run(row.id)
+    s.audit('contacts.note_removed', ctx, ctx.user.id)
+    return timeline(row.contact_id)
+  })
+
+  api.authed('POST', '/api/contacts/:id/gifts', parents, async (ctx) => {
+    const contactId = find(ctx.params.id!).id
+    const gift = giftFrom(await readJson(ctx.req))
+    if (count('contact_gifts', contactId) >= 500) throw new HttpError(409, 'This person has as many gift ideas as they can hold.', 'too_many')
+    const id = newId()
+    const now = s.now()
+    db.prepare('INSERT INTO contact_gifts (id, contact_id, sealed, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(id, contactId, sealEntry('contact-gift', contactId, id, gift), now, now)
+    s.audit('contacts.gift_added', ctx, ctx.user.id)
+    return timeline(contactId)
+  })
+
+  api.authed('PUT', '/api/contacts/gifts/:giftId', parents, async (ctx) => {
+    const row = findEntry('contact_gifts', ctx.params.giftId!)
+    const gift = giftFrom(await readJson(ctx.req))
+    db.prepare('UPDATE contact_gifts SET sealed = ?, updated_at = ? WHERE id = ?').run(sealEntry('contact-gift', row.contact_id, row.id, gift), s.now(), row.id)
+    return timeline(row.contact_id)
+  })
+
+  api.authed('DELETE', '/api/contacts/gifts/:giftId', parents, (ctx) => {
+    const row = findEntry('contact_gifts', ctx.params.giftId!)
+    db.prepare('DELETE FROM contact_gifts WHERE id = ?').run(row.id)
+    return timeline(row.contact_id)
+  })
+
+  /** "We spoke": records the last contact (for stay-in-touch reminders) and a timeline entry. */
+  api.authed('POST', '/api/contacts/:id/spoke', parents, async (ctx) => {
+    const r = find(ctx.params.id!)
+    const body = await readJson(ctx.req)
+    const date = entryDate(body)
+    const contact = open(r)
+    if (!contact.keepInTouch.lastContact || date > contact.keepInTouch.lastContact) contact.keepInTouch.lastContact = date
+    const note: Note = { date, kind: 'contact', lifeEvent: null, text: text(body, 'text', 4000) }
+    const id = newId()
+    const now = s.now()
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      db.prepare('UPDATE contacts SET sealed = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ?').run(seal(r.id, contact), now, ctx.user.id, r.id)
+      db.prepare('INSERT INTO contact_notes (id, contact_id, sealed, created_at, updated_at, created_by) VALUES (?, ?, ?, ?, ?, ?)').run(
+        id,
+        r.id,
+        sealEntry('contact-note', r.id, id, note),
+        now,
+        now,
+        ctx.user.id,
+      )
+      db.exec('COMMIT')
+    } catch (e) {
+      db.exec('ROLLBACK')
+      throw e
+    }
+    s.audit('contacts.spoke', ctx, ctx.user.id)
+    return { contact: info(find(r.id)), ...timeline(r.id) }
   })
 
   /** A vCard file: `all`, or one contact ID; add `-notes` to include internal notes. */
