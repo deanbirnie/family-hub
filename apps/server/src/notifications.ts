@@ -14,7 +14,8 @@
  */
 import { createHash } from 'node:crypto'
 import type { Services } from './app.ts'
-import { applicableLead, daysBetween, localNow, nextOccurrence, type Due } from './schedule.ts'
+import { applicableLead, daysBetween, localNow, nextOccurrence, yearsAt, type Due } from './schedule.ts'
+import { openContact, REMIND, type Contact, type ImportantDate } from './routes/contacts.ts'
 import { generateVapidKeys, sendPush, type PushKeys, type PushMessage, type SendOutcome, type VapidKeys } from './webpush.ts'
 
 // ---- settings --------------------------------------------------------------------------
@@ -24,11 +25,13 @@ export interface NotificationSettings {
   enabled: boolean
   /** Passport and licence disc expiry (Quick Info). */
   expiry: boolean
+  /** Birthdays, anniversaries and other dates (Contacts). */
+  dates: boolean
   /** Hour of the day (family time zone) from which reminders are sent. */
   sendHour: number
 }
 
-export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, sendHour: 8 }
+export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, dates: true, sendHour: 8 }
 
 export function getSettings(s: Services, userId: string): NotificationSettings {
   const row = s.db.prepare('SELECT settings FROM notification_settings WHERE user_id = ?').get(userId) as { settings: string } | undefined
@@ -38,6 +41,7 @@ export function getSettings(s: Services, userId: string): NotificationSettings {
     return {
       enabled: typeof raw.enabled === 'boolean' ? raw.enabled : DEFAULT_SETTINGS.enabled,
       expiry: typeof raw.expiry === 'boolean' ? raw.expiry : DEFAULT_SETTINGS.expiry,
+      dates: typeof raw.dates === 'boolean' ? raw.dates : DEFAULT_SETTINGS.dates,
       sendHour: Number.isInteger(raw.sendHour) && raw.sendHour! >= 0 && raw.sendHour! <= 23 ? raw.sendHour! : DEFAULT_SETTINGS.sendHour,
     }
   } catch {
@@ -135,24 +139,34 @@ export const subscriptionsOf = (s: Services, userId: string) =>
 
 // ---- what can be due --------------------------------------------------------------------
 
-export type Category = 'expiry'
+export type Category = 'expiry' | 'dates'
 
 export interface ReminderItem {
   /** Stable across runs: which reminder this is. */
   key: string
   category: Category
-  /** Shown inside the app: "Passport renewal". */
+  /** Shown inside the app: "Passport renewal", "Gran's birthday". */
   title: string
   /** Whose it is, inside the app: "Sam". */
   whose: string | null
   due: Due
   /** Days before the date to remind, e.g. [90, 30, 7]. */
   leads: number[]
-  /** The generic notification text, safe on a lock screen. */
-  notice: string
+  /** The generic notification text, safe on a lock screen (never a name or date). */
+  notice: (lead: number, occurrence: string) => string
   /** Where tapping goes. */
   url: string
+  /** Who gets it: every parent, or one parent's user ID. */
+  audience: 'all' | string
+  /** How many days ahead the home page shows it. */
+  horizon: number
+  /** Extra detail inside the app, e.g. "turns 40". */
+  detail?: (date: string) => string | null
 }
+
+/** Whether a person wants this reminder, by their settings and the reminder's audience. */
+const wants = (settings: NotificationSettings, item: ReminderItem, userId: string) =>
+  (item.audience === 'all' || item.audience === userId) && (item.category === 'expiry' ? settings.expiry : settings.dates)
 
 export const EXPIRY_LEADS = [90, 30, 7]
 
@@ -171,14 +185,91 @@ function quickInfoItems(s: Services): ReminderItem[] {
     whose: r.whose,
     due: { date: r.due, yearly: r.yearly === 1 },
     leads: EXPIRY_LEADS,
-    notice: r.field === 'licenceExpiry' ? 'A vehicle licence disc expires soon' : 'A family document expires soon',
+    notice: () => (r.field === 'licenceExpiry' ? 'A vehicle licence disc expires soon' : 'A family document expires soon'),
     url: '/',
+    audience: 'all',
+    horizon: 90,
   }))
 }
 
-/** Every reminder there is. Phase 3 adds birthdays and other dates here. */
+/**
+ * The lock-screen wording for dates: never a name, one of a few variations
+ * (the owner's choice), picked steadily for each reminder.
+ */
+export const DATE_NOTICES: Record<ImportantDate['kind'], { before: string[]; today: string[] }> = {
+  birthday: {
+    before: ['Tap to see whose birthday is coming up', 'Someone’s birthday is coming up. Tap to see who.', 'A birthday is coming up. Tap to see whose.'],
+    today: ['It’s someone’s birthday today. Tap to see who.', 'Birthday today! Tap to see whose.'],
+  },
+  anniversary: {
+    before: ['An anniversary is coming up. Tap to see whose.', 'Tap to see whose anniversary is coming up'],
+    today: ['It’s someone’s anniversary today. Tap to see whose.'],
+  },
+  memorial: {
+    before: ['A day to remember is coming up. Tap to see which.'],
+    today: ['Today is a day to remember. Tap to see which.'],
+  },
+  other: {
+    before: ['An important date is coming up. Tap to see which.', 'Tap to see which date is coming up'],
+    today: ['An important date is today. Tap to see which.'],
+  },
+}
+
+export function dateNotice(kind: ImportantDate['kind'], lead: number, occurrence: string): string {
+  const options = DATE_NOTICES[kind][lead === 0 ? 'today' : 'before']
+  let h = 0
+  for (const ch of occurrence) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return options[h % options.length]!
+}
+
+const DATE_TITLES: Record<ImportantDate['kind'], string> = { birthday: 'birthday', anniversary: 'anniversary', memorial: 'memorial', other: '' }
+
+/**
+ * Birthdays, anniversaries and other dates from Contacts. Worked out from the
+ * sealed contacts each time: never copied into plain reminder records
+ * (docs/DATA-PROTECTION.md, "People and dates").
+ */
+function contactDateItems(s: Services): ReminderItem[] {
+  const out: ReminderItem[] = []
+  for (const row of s.db.prepare('SELECT id, sealed FROM contacts').all() as { id: string; sealed: string }[]) {
+    let c: Contact
+    try {
+      c = openContact(s, row)
+    } catch {
+      continue
+    }
+    for (const d of c.dates) {
+      const leads = [...REMIND[d.remind]]
+      if (leads.length === 0) continue
+      // Birthdays stop for someone who has died; a memorial or other date carries on.
+      if (c.deceased && (d.kind === 'birthday' || d.kind === 'anniversary')) continue
+      const what = d.label || DATE_TITLES[d.kind]
+      out.push({
+        key: `c:${row.id}:${d.id}`,
+        category: 'dates',
+        title: `${c.name}’s ${what}`,
+        whose: null,
+        due: { date: d.date, yearly: true },
+        leads,
+        notice: (lead, occurrence) => dateNotice(d.kind, lead, occurrence),
+        url: '/contacts',
+        audience: d.remindFor || 'all',
+        horizon: 30,
+        detail: (date) => {
+          const years = yearsAt({ date: d.date, yearly: true }, date)
+          if (years === null || years <= 0) return null
+          if (d.kind === 'birthday') return `turns ${years}`
+          return `${years} year${years === 1 ? '' : 's'}`
+        },
+      })
+    }
+  }
+  return out
+}
+
+/** Every reminder there is. */
 export function allItems(s: Services): ReminderItem[] {
-  return quickInfoItems(s)
+  return [...quickInfoItems(s), ...contactDateItems(s)]
 }
 
 export interface DueNow {
@@ -205,15 +296,16 @@ export function dueNow(s: Services, today: string, items = allItems(s)): DueNow[
   return out
 }
 
-/** What is coming up in the next `horizon` days, and anything that expired in the last 30. */
-export function upcoming(s: Services, today: string, horizon = 90) {
-  const out: { key: string; title: string; whose: string | null; date: string; daysLeft: number; url: string; category: Category }[] = []
+/** What is coming up (within each item's horizon), and anything that expired in the last 30 days, for one parent. */
+export function upcoming(s: Services, today: string, userId: string) {
+  const out: { key: string; title: string; whose: string | null; detail: string | null; date: string; daysLeft: number; url: string; category: Category }[] = []
   for (const item of allItems(s)) {
+    if (item.audience !== 'all' && item.audience !== userId) continue
     const date = nextOccurrence(item.due, today)
     if (!date) continue
     const daysLeft = daysBetween(today, date)
-    if (daysLeft > horizon || daysLeft < -30) continue
-    out.push({ key: item.key, title: item.title, whose: item.whose, date, daysLeft, url: item.url, category: item.category })
+    if (daysLeft > item.horizon || daysLeft < -30) continue
+    out.push({ key: item.key, title: item.title, whose: item.whose, detail: item.detail?.(date) ?? null, date, daysLeft, url: item.url, category: item.category })
   }
   return out.sort((a, b) => a.daysLeft - b.daysLeft || a.title.localeCompare(b.title))
 }
@@ -229,8 +321,8 @@ export function dueMessagesFor(s: Services, userId: string, today: string): Push
   const settings = getSettings(s, userId)
   if (!settings.enabled) return []
   return dueNow(s, today)
-    .filter((d) => d.item.category !== 'expiry' || settings.expiry)
-    .map((d) => ({ title: 'Family Hub', body: d.item.notice, tag: d.occurrence, url: d.item.url }))
+    .filter((d) => wants(settings, d.item, userId))
+    .map((d) => ({ title: 'Family Hub', body: d.item.notice(d.lead, d.occurrence), tag: d.occurrence, url: d.item.url }))
 }
 
 // ---- sending ----------------------------------------------------------------------------
@@ -258,12 +350,12 @@ export async function runReminders(s: Services): Promise<number> {
       if (!settings.enabled || hour < settings.sendHour) continue
       const routes = subscriptionsOf(s, userId)
       for (const d of due) {
-        if (d.item.category === 'expiry' && !settings.expiry) continue
+        if (!wants(settings, d.item, userId)) continue
         // Recorded first, so two runs can never both send it.
         if (Number(record.run(userId, d.occurrence, now).changes) !== 1) continue
         sent++
         for (const route of routes) {
-          await sendTo(s, route, { title: 'Family Hub', body: d.item.notice, tag: d.occurrence, url: d.item.url })
+          await sendTo(s, route, { title: 'Family Hub', body: d.item.notice(d.lead, d.occurrence), tag: d.occurrence, url: d.item.url })
         }
       }
     }

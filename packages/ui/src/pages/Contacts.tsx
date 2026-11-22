@@ -2,12 +2,14 @@
  * Family Contacts: the parents' shared address book. Stored encrypted with
  * the server key (docs/DATA-PROTECTION.md, "Family Contacts").
  */
-import { Download, Mail, Phone, Plus, Search, Trash2, UserRound } from 'lucide-react'
+import { Cake, Download, Mail, Phone, Plus, Search, Trash2, UserRound } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ApiError } from '../api.ts'
 import { saveFromApi } from '../download.ts'
 import type { HubContext } from '../Shell.tsx'
 import { Badge, Banner, Button, Card, Dialog, Field, PageHeader, Spinner, useAction, useLoad } from '../ui.tsx'
+import { DATE_KINDS, formatImportantDate, nextComing, whenWords, type ImportantDate, type Relation } from '../people/dates.ts'
+import { AboutEditor, DatesEditor, emptyAbout, RelativesSection, type About, type Parent } from '../people/PeopleSections.tsx'
 
 export const CATEGORIES = {
   family: 'Family',
@@ -33,9 +35,29 @@ export interface Contact {
   emails: string[]
   address: string
   note: string
+  dates: (ImportantDate & { id: string })[]
+  deceased: boolean
+  about: About
+  /** The Quick Info person this contact is, for the family themselves. */
+  profileId: string | null
 }
 
-export const useContacts = (ctx: HubContext) => useLoad(() => ctx.platform.api.get<{ contacts: Contact[] }>('/api/contacts'), [ctx.platform.api])
+export const useContacts = (ctx: HubContext) =>
+  useLoad(() => ctx.platform.api.get<{ contacts: Contact[]; relations: Relation[] }>('/api/contacts'), [ctx.platform.api])
+
+/** The contact's next date coming round within `days` days. */
+function nextDate(c: Contact, days = 31) {
+  if (c.deceased) return null
+  let best: { date: ImportantDate; days: number; years: number | null } | null = null
+  for (const d of c.dates) {
+    const n = nextComing(d.date)
+    if (n && n.days <= days && (!best || n.days < best.days)) best = { date: d, ...n }
+  }
+  return best
+}
+
+const dateTitle = (d: ImportantDate) => (d.kind === 'other' ? d.label : DATE_KINDS[d.kind])
+const yearsText = (d: ImportantDate, years: number | null) => (years === null || years <= 0 ? '' : d.kind === 'birthday' ? `turns ${years}` : `${years} years`)
 
 /** "Gran Tester (Family)" or "Ballito Plumbing · Plumber". */
 export const contactSummary = (c: Contact) => [c.organisation && c.organisation !== c.name ? c.organisation : '', c.role].filter(Boolean).join(' · ')
@@ -56,10 +78,26 @@ export function ContactsPage({ ctx }: { ctx: HubContext }) {
 
 function ContactsBody({ ctx }: { ctx: HubContext }) {
   const contacts = useContacts(ctx)
+  const others = useLoad(async () => {
+    const [members, info] = await Promise.all([
+      ctx.platform.api.get<{ members: { id: string; displayName: string; role: string; disabled: boolean }[] }>('/api/members'),
+      ctx.platform.api.get<{ profiles: { id: string; displayName: string }[] }>('/api/quick-info'),
+    ])
+    return { parents: members.members.filter((m) => m.role === 'admin' && !m.disabled) as Parent[], profiles: info.profiles }
+  }, [ctx.platform.api])
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<Category | 'all'>('all')
-  const [editing, setEditing] = useState<Contact | 'new' | null>(null)
+  const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [exporting, setExporting] = useState(false)
+  const editing = editingId === 'new' ? 'new' : (contacts.data?.contacts.find((c) => c.id === editingId) ?? null)
+  const comingUp = useMemo(
+    () =>
+      (contacts.data?.contacts ?? [])
+        .map((c) => ({ c, next: nextDate(c) }))
+        .filter((x): x is { c: Contact; next: NonNullable<ReturnType<typeof nextDate>> } => x.next !== null)
+        .sort((a, b) => a.next.days - b.next.days),
+    [contacts.data],
+  )
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -77,7 +115,7 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
         subtitle="The family’s shared address book: family and friends, school, doctors, insurers and trades."
         actions={
           <div className="row">
-            <Button icon={<Plus size={16} aria-hidden />} onClick={() => setEditing('new')}>
+            <Button icon={<Plus size={16} aria-hidden />} onClick={() => setEditingId('new')}>
               Add contact
             </Button>
             <Button variant="secondary" icon={<Download size={16} aria-hidden />} disabled={!contacts.data?.contacts.length} onClick={() => setExporting(true)}>
@@ -88,6 +126,34 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
       />
       {contacts.error && <Banner kind="error">{contacts.error}</Banner>}
       {!contacts.data && !contacts.error && <Spinner />}
+      {comingUp.length > 0 && (
+        <Card
+          title={
+            <>
+              <Cake size={18} aria-hidden /> Coming up this month
+            </>
+          }
+        >
+          <ul className="item-list">
+            {comingUp.map(({ c, next }) => (
+              <li key={`${c.id}-${next.date.id}`}>
+                <div className="item-main">
+                  <div>
+                    <button className="link" onClick={() => setEditingId(c.id)}>
+                      {c.name}
+                    </button>
+                    <span className="muted"> · {dateTitle(next.date)}</span>
+                  </div>
+                  <div className="muted small">
+                    {formatImportantDate(next.date.date).replace(/ \d{4}$/, '')}, {whenWords(next.days)}
+                    {yearsText(next.date, next.years) && ` · ${yearsText(next.date, next.years)}`}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       {contacts.data && (
         <Card>
           <div className="row">
@@ -108,7 +174,7 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
           <ul className="contact-list">
             {shown.map((c) => (
               <li key={c.id}>
-                <button className="contact-row" onClick={() => setEditing(c)} aria-label={`Edit ${c.name}`}>
+                <button className="contact-row" onClick={() => setEditingId(c.id)} aria-label={`Edit ${c.name}`}>
                   <span className="avatar avatar-lg" aria-hidden>
                     <UserRound size={18} />
                   </span>
@@ -116,6 +182,8 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
                     <strong>{c.name}</strong>
                     {contactSummary(c) && <span className="muted small">{contactSummary(c)}</span>}
                   </span>
+                  {c.deceased && <Badge>In memory</Badge>}
+                  {c.profileId && <Badge tone="accent">Our family</Badge>}
                   <Badge>{CATEGORIES[c.category]}</Badge>
                 </button>
                 <div className="contact-actions">
@@ -137,12 +205,19 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
           </ul>
         </Card>
       )}
-      {editing && (
+      {editing && contacts.data && (
         <ContactDialog
+          key={editing === 'new' ? 'new' : editing.id}
           ctx={ctx}
           contact={editing === 'new' ? null : editing}
+          contacts={contacts.data.contacts}
+          relations={contacts.data.relations}
+          parents={others.data?.parents ?? []}
+          profiles={others.data?.profiles ?? []}
+          onRelationsChanged={() => contacts.reload()}
+          onOpen={(id) => setEditingId(id)}
           onClose={(changed) => {
-            setEditing(null)
+            setEditingId(null)
             if (changed) contacts.reload()
           }}
         />
@@ -181,9 +256,33 @@ function ExportDialog({ ctx, contact, onClose }: { ctx: HubContext; contact?: Co
   )
 }
 
-function ContactDialog({ ctx, contact, onClose }: { ctx: HubContext; contact: Contact | null; onClose: (changed: boolean) => void }) {
+function ContactDialog({
+  ctx,
+  contact,
+  contacts,
+  relations,
+  parents,
+  profiles,
+  onRelationsChanged,
+  onOpen,
+  onClose,
+}: {
+  ctx: HubContext
+  contact: Contact | null
+  contacts: Contact[]
+  relations: Relation[]
+  parents: Parent[]
+  profiles: { id: string; displayName: string }[]
+  onRelationsChanged: () => void
+  onOpen: (id: string) => void
+  onClose: (changed: boolean) => void
+}) {
   const { api } = ctx.platform
   const [form, setForm] = useState(() => ({
+    dates: (contact?.dates ?? []) as ImportantDate[],
+    deceased: contact?.deceased ?? false,
+    about: contact?.about ?? emptyAbout(),
+    profileId: contact?.profileId ?? '',
     name: contact?.name ?? '',
     organisation: contact?.organisation ?? '',
     role: contact?.role ?? '',
@@ -196,7 +295,7 @@ function ContactDialog({ ctx, contact, onClose }: { ctx: HubContext; contact: Co
   const [exporting, setExporting] = useState(false)
   const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }))
   const save = useAction(async () => {
-    const body = { ...form, phones: form.phones.filter((p) => p.number.trim()), emails: form.emails.filter((e) => e.trim()) }
+    const body = { ...form, profileId: form.profileId || null, phones: form.phones.filter((p) => p.number.trim()), emails: form.emails.filter((e) => e.trim()) }
     try {
       if (contact) await api.request('PUT', `/api/contacts/${contact.id}`, { ...body, baseVersion: contact.version })
       else await api.post('/api/contacts', body)
@@ -269,6 +368,33 @@ function ContactDialog({ ctx, contact, onClose }: { ctx: HubContext; contact: Co
           <label htmlFor="contact-address">Address</label>
           <textarea id="contact-address" className="textarea" rows={2} value={form.address} onChange={(e) => set('address', e.target.value)} maxLength={400} />
         </div>
+        <DatesEditor dates={form.dates} parents={parents} onChange={(dates) => set('dates', dates)} />
+        {contact ? (
+          <RelativesSection api={api} contact={contact} contacts={contacts} relations={relations} onChanged={onRelationsChanged} onOpen={onOpen} />
+        ) : (
+          <p className="muted small">Save first, then add their partner, children and other relationships.</p>
+        )}
+        <AboutEditor about={form.about} onChange={(about) => set('about', about)} />
+        {profiles.length > 0 && (
+          <div className="field">
+            <label htmlFor="contact-profile">One of our family in Quick Info</label>
+            <select id="contact-profile" className="select" value={form.profileId} onChange={(e) => set('profileId', e.target.value)}>
+              <option value="">No</option>
+              {profiles
+                .filter((p) => p.id === form.profileId || !contacts.some((c) => c.profileId === p.id))
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.displayName}
+                  </option>
+                ))}
+            </select>
+            <div className="field-hint">So the family’s own birthdays and anniversaries are here too. Nothing is copied from the vault.</div>
+          </div>
+        )}
+        <label className="check">
+          <input type="checkbox" checked={form.deceased} onChange={(e) => set('deceased', e.target.checked)} />
+          <span>They have passed away (stops birthday reminders; a memorial date can still remind you)</span>
+        </label>
         <div className="field">
           <label htmlFor="contact-note">Shared note</label>
           <textarea id="contact-note" className="textarea" rows={3} placeholder="Only parents see this. Left out of exports unless you choose otherwise." value={form.note} onChange={(e) => set('note', e.target.value)} maxLength={2000} />

@@ -8,6 +8,8 @@ export interface UpcomingItem {
   key: string
   title: string
   whose: string | null
+  detail: string | null
+  category: 'expiry' | 'dates'
   date: string
   daysLeft: number
   url: string
@@ -42,7 +44,9 @@ export function ComingUpCard({ ctx }: { ctx: HubContext }) {
         </button>
       }
     >
-      {items.data && list.length === 0 && <p className="muted">Nothing due in the next 90 days. Passport and licence disc dates from Quick Info show here.</p>}
+      {items.data && list.length === 0 && (
+        <p className="muted">Nothing coming up. Passport and licence disc dates from Quick Info, and birthdays and other dates from Contacts, show here.</p>
+      )}
       {list.length > 0 && (
         <ul className="item-list">
           {list.map((i) => (
@@ -54,7 +58,8 @@ export function ComingUpCard({ ctx }: { ctx: HubContext }) {
                   {i.daysLeft < 0 ? <Badge tone="warning">Expired</Badge> : i.daysLeft <= 7 ? <Badge tone="warning">Soon</Badge> : null}
                 </div>
                 <div className="muted small">
-                  {longDate(i.date)}, {whenText(i.daysLeft)}
+                  {i.category === 'dates' ? longDate(i.date).replace(/,? \d{4}$/, '') : longDate(i.date)}, {whenText(i.daysLeft)}
+                  {i.detail && ` · ${i.detail}`}
                 </div>
               </div>
             </li>

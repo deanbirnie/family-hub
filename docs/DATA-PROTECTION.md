@@ -160,23 +160,23 @@ when linking.
 | Reminders shown on the phone | Android notification (generic text; hidden on a locked screen), and the tags already shown, so each shows once | On the phone; tags only | ✅ |
 | Notification text | Sent to the push service | Encrypted to the device (RFC 8291), so the push service (ntfy, Google, Mozilla, Apple) cannot read it; generic wording only | ✅ |
 
-### People and dates, a family CRM (phase 3; agreed, not built yet)
+### People and dates, a family CRM (phase 3; agreed, being built)
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Relationships between contacts (partner, child, parent, friend, custom label) | Inside each contact's sealed value | S | 🔜 |
-| Important dates: birthdays, anniversaries, custom dates (year optional), and their reminder choices | Inside the sealed contact | S | 🔜 |
-| About them: how we met, interests, food preferences and allergies, clothing sizes | Inside the sealed contact | S | 🔜 |
+| Relationships between contacts (partner, child, parent, friend, custom label) | `contact_relations.sealed` (one value per relationship, holding both contact IDs, bound to its ID) | S | ✅ |
+| Important dates: birthdays, anniversaries, memorials, custom dates (year optional), their reminder choices and which parent they are for; whether someone has passed away | Inside the sealed contact | S | ✅ |
+| About them: how we met, interests, food preferences and allergies, clothing sizes | Inside the sealed contact | S | ✅ |
 | Notes, timeline entries and life events | One sealed value per entry, bound to the contact | S | 🔜 |
 | Stay-in-touch interval and last-contacted date | Inside the sealed contact | S | 🔜 |
 | Gift ideas and gifts given | One sealed value per gift, bound to the contact | S | 🔜 |
 | Group names and members | Sealed | S | 🔜 |
-| Link from a contact to a Quick Info person | `contacts` column (both are IDs) | P | 🔜 |
-| Reminders for these dates | **Not stored.** The server works them out from the sealed contacts when it checks; only delivery records (IDs and times) are kept | P (IDs only) | 🔜 |
-| Notification text | Always generic, never a name or date: a few rotating variations such as "Tap to see whose birthday is coming up", "Someone's birthday is coming up. Tap to see who." and "An anniversary is coming up. Tap to see whose." No option to show names on the lock screen | Encrypted to the device (RFC 8291) | 🔜 (agreed) |
+| Link from a contact to a Quick Info person | `contacts.profile_id` (both are IDs) | P | ✅ |
+| Reminders for these dates | **Not stored.** The server works them out from the sealed contacts when it checks; only delivery records (IDs and times) are kept | P (IDs only) | ✅ |
+| Notification text | Always generic, never a name or date: a few rotating variations such as "Tap to see whose birthday is coming up", "Someone's birthday is coming up. Tap to see who." and "An anniversary is coming up. Tap to see whose." No option to show names on the lock screen | Encrypted to the device (RFC 8291) | ✅ |
 | vCard and calendar (`.ics`) exports, address-label CSV | Downloaded to the parent's device; notes and gift ideas left out unless chosen | Plain file on the device | 🔜 |
 | vCard imports | Read in memory, shown for review, then discarded | Not stored | 🔜 |
-| CRM events (person, note or date added or changed, import, export; never details) | `audit_log` | P | 🔜 |
+| CRM events (person, note or date added or changed, relationship added or removed, import, export; never details) | `audit_log` | P | ✅ (3a) |
 
 Reminders for these dates are deliberately not copied into the plain
 reminder records used for Quick Info: a list of names with birthdays is
