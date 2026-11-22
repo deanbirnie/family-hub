@@ -1,4 +1,4 @@
-import { request } from 'node:http'
+import { request, type Server } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -12,6 +12,7 @@ export const PASSWORD = 'correct horse battery staple'
 
 export interface TestServer {
   url: string
+  server: Server
   services: Services
   clock: { now: number }
   close(): Promise<void>
@@ -42,6 +43,7 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Test
   const { port } = server.address() as AddressInfo
   return {
     url: `http://127.0.0.1:${port}`,
+    server,
     services,
     clock,
     close: () =>

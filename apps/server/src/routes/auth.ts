@@ -208,7 +208,9 @@ export function authRoutes(api: Api, services: Services): void {
       return { ...advance(ctx, afterSecondFactor(ctx.session.transport)), recoveryCodesLeft: left }
     }
 
-    const counter = checkTotp(row.totp_secret ?? '', body.code, row.totp_last_counter, services.now())
+    // (A 'totp' session only exists while a secret is set; refuse outright if not.)
+    if (!row.totp_secret) throw new HttpError(409, 'Two-factor sign-in is not set up. Sign in again.', 'restart')
+    const counter = checkTotp(row.totp_secret, body.code, row.totp_last_counter, services.now())
     if (counter === null) return wrongCode(ctx, 'login.code_failed')
     // Only one request can use a given code, even if two arrive at once.
     const claimed = db

@@ -168,7 +168,12 @@ export function pruneSessions(db: Db, now = Date.now()): void {
   db.prepare('DELETE FROM sessions WHERE expires_at <= ? OR last_seen_at + idle_seconds * 1000 < ?').run(now, now)
   db.prepare('DELETE FROM device_challenges WHERE expires_at <= ?').run(now)
   db.prepare('DELETE FROM invites WHERE used_at IS NULL AND expires_at <= ?').run(now - 30 * DAY)
+  // A year of security history; failed sign-ins from the internet must not
+  // grow the database forever.
+  db.prepare('DELETE FROM audit_log WHERE at < ?').run(now - AUDIT_DAYS * DAY)
 }
+
+export const AUDIT_DAYS = 365
 
 interface UserRow {
   id: string

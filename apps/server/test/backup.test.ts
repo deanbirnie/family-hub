@@ -13,7 +13,7 @@ async function persistent(dataDir: string): Promise<TestServer> {
   const clock = { now: Date.UTC(2026, 10, 20) }
   const { server, services } = createApp({ db, config: { ...loadConfig(), dataDir }, now: () => clock.now, argon2: { memory: 1024, passes: 1, parallelism: 1 } })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-  return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, services, clock,
+  return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, server, services, clock,
     close: () => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => { db.close(); resolve() }) }) }
 }
 

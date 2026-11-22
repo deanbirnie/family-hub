@@ -42,7 +42,12 @@ export function accountRoutes(api: Api, services: Services): void {
     return { user: { ...publicUser(ctx.user), displayName } }
   })
 
-  /** Needs the current password. Signs out every other session (and phone unlock stays, as it is tied to the device key). */
+  /**
+   * Needs the current password. Signs out every other session and removes
+   * every other registered phone: a phone registered by someone who knew the
+   * old password must not keep unlocking. (The phone making the change, if
+   * any, stays.) Phones sign in again with the new password and a code.
+   */
   api.authed('POST', '/api/account/password', {}, async (ctx) => {
     const body = await readJson(ctx.req)
     const current = str(body, 'currentPassword', { max: 256, trim: false })
@@ -59,6 +64,7 @@ export function accountRoutes(api: Api, services: Services): void {
     tx(db, () => {
       db.prepare('UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?').run(hash, services.now(), ctx.user.id)
       deleteUserSessions(db, ctx.user.id, ctx.session.id)
+      db.prepare('DELETE FROM devices WHERE user_id = ? AND id IS NOT ?').run(ctx.user.id, ctx.session.deviceId)
     })
     services.audit('password.changed', ctx, ctx.user.id)
     return undefined

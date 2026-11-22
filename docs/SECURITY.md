@@ -32,7 +32,8 @@ can be judged against it.
 The session is an `HttpOnly`, `Secure`, `SameSite=Strict` cookie named
 `__Host-fh_session`, lasting 14 days at most and ending after 2 days unused.
 Only its SHA-256 is stored. Changing the password signs out every other
-session. Sign-in refuses to set a cookie over plain http (other than to
+session and removes every other registered phone (the phone making the
+change, if any, stays). Sign-in refuses to set a cookie over plain http (other than to
 `localhost`) unless `FAMILY_HUB_ALLOW_HTTP=true`.
 
 ## Android: password + code once, then fingerprint or face, every time
@@ -69,16 +70,20 @@ recent-apps list), backups are off, and plain-http traffic is refused.
 
 ## Requests
 
+- API requests whose `Sec-Fetch-Site` is anything but `same-origin` or
+  `none` are refused unless they come from the app's own origin. That
+  includes other services on sibling subdomains of the same home server.
 - State-changing requests must carry `X-Requested-With: family-hub`, which a
-  cross-site form cannot send; requests marked `Sec-Fetch-Site: cross-site`
-  are refused unless they come from the app's own origin (CORS allows only
-  `https://localhost`, Capacitor's, and never with credentials).
+  cross-site form cannot send. CORS allows only the app's origin
+  (`https://localhost`, Capacitor's), and never with credentials.
 - Every response: `X-Content-Type-Options`, `X-Frame-Options: DENY`,
   `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy`, a tight
   `Permissions-Policy`, and HSTS over https. The page has a strict CSP
   (`script-src 'self'`, nothing from other origins, no framing).
 - API responses are `Cache-Control: no-store`.
-- JSON bodies are limited to 64 KiB; slow clients are cut off.
+- JSON bodies are limited to 64 KiB; headers must arrive within 20 s, and a
+  connection idle for 2 minutes is closed. A whole request has no time
+  limit, so large uploads over slow links still finish.
 
 ## The server and its data
 
@@ -100,7 +105,8 @@ recent-apps list), backups are off, and plain-http traffic is refused.
   codes, but would still need passwords); encrypting sensitive data at rest is
   on the roadmap with the Quick info module.
 - The audit log records sign-ins, failures, lockouts and account changes with
-  the client address; each person sees their own in Settings.
+  the client address; each person sees their own in Settings. Entries older
+  than a year are removed.
 
 ## Reporting a problem
 
