@@ -302,6 +302,20 @@ const MIGRATIONS: string[] = [
     created_at INTEGER NOT NULL
   );
   `,
+  // 13: The family calendar (phase 4, routes/calendar.ts). Everything about an
+  // event, times included, is one value sealed with the server key; each
+  // person's calendar colour is plain.
+  `
+  ALTER TABLE family_profiles ADD COLUMN colour TEXT;
+  CREATE TABLE events (
+    id TEXT PRIMARY KEY,
+    sealed TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

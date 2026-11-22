@@ -1580,3 +1580,191 @@ progress {
 .grow {
   flex: 1;
 }
+
+/* ---- calendar (phase 4) ---- */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: color-mix(in srgb, var(--tag) 14%, transparent);
+  color: color-mix(in srgb, var(--tag) 80%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--tag) 35%, transparent);
+  white-space: nowrap;
+}
+.tag-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--tag);
+  flex: none;
+}
+.cal-toolbar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.cal-nav {
+  align-items: center;
+}
+.cal-title {
+  margin-left: 6px;
+}
+.cal-month {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+.cal-weekday {
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.cal-day {
+  min-height: 92px;
+  padding: 4px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cal-day-out {
+  background: var(--surface-2);
+}
+.cal-day-out .cal-day-num {
+  color: var(--muted);
+}
+.cal-day-num {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 999px;
+  min-width: 26px;
+  height: 26px;
+}
+.cal-day-today .cal-day-num {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.cal-day-selected {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+.event-pill {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: var(--stripe) left top / 4px 100% no-repeat, var(--surface-2);
+  color: inherit;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 1px 4px 1px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.event-time {
+  color: var(--muted);
+  flex: none;
+}
+.event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cal-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (max-width: 900px) {
+  .cal-week {
+    grid-template-columns: 1fr;
+  }
+}
+.cal-agenda {
+  display: grid;
+  gap: 12px;
+}
+.cal-daylist {
+  min-width: 0;
+}
+.cal-daylist-head {
+  justify-content: space-between;
+  align-items: center;
+}
+.cal-daylist-today .cal-daylist-head strong {
+  color: var(--primary);
+}
+.cal-items {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.cal-item {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--stripe) left top / 5px 100% no-repeat, var(--surface);
+  color: inherit;
+  font: inherit;
+  padding: 6px 8px 6px 14px;
+  cursor: pointer;
+}
+.cal-item-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cal-item-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.today-days {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 700px) {
+  .today-days {
+    grid-template-columns: 1fr;
+  }
+}
+.today-item {
+  display: grid;
+  gap: 2px;
+}
+.swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+.swatch-on {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--surface) inset;
+}
+.colour-name {
+  min-width: 8rem;
+}
