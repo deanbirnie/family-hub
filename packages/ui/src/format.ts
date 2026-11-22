@@ -75,7 +75,7 @@ export const EVENT_NAMES: Record<string, string> = {
   logout: 'Signed out',
   'two_factor.enabled': 'Two-factor sign-in set up',
   'two_factor.setup_failed': 'Wrong code during two-factor set-up',
-  'two_factor.reset_by_admin': 'Two-factor sign-in reset by an admin',
+  'two_factor.reset_by_admin': 'Two-factor sign-in reset by a parent',
   'recovery_codes.replaced': 'New recovery codes made',
   'password.changed': 'Password changed',
   'password.change_failed': 'Wrong current password when changing it',
@@ -90,4 +90,7 @@ export const EVENT_NAMES: Record<string, string> = {
   'member.updated': 'Changed a member',
   'member.two_factor_reset': 'Reset a member’s two-factor sign-in',
   'family.renamed': 'Renamed the family',
+  'server_key.revealed': 'Showed the server key',
+  'server_key.reveal_failed': 'Wrong code when showing the server key',
+  'server_key.saved': 'Confirmed the server key is saved',
 }

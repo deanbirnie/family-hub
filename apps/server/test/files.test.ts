@@ -131,7 +131,10 @@ describe('shared documents', () => {
     const { client } = await setUpAdmin(server)
     const item = await add(client, 'Policy é.txt')
     expect((await client.get<{ items: Item[] }>('/api/files')).body.items).toEqual([expect.objectContaining({ id: item.id, name: 'Policy é.txt', size: 19 })])
-    expect(readFileSync(join(server.services.config.dataDir, 'files', item.id), 'utf8')).toBe('important paperwork')
+    // Stored encrypted with the server key: the disk copy never holds the contents.
+    const onDisk = readFileSync(join(server.services.config.dataDir, 'files', item.id))
+    expect(onDisk.subarray(0, 4).toString()).toBe('FHF1')
+    expect(onDisk.includes(Buffer.from('important paperwork'))).toBe(false)
     for (let i = 0; i < 2; i++) {
       const res = await fetch(`${server.url}/api/files/${item.id}/content`, { headers: { cookie: client.cookie } })
       expect(res.status).toBe(200)

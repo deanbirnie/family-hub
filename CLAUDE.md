@@ -24,6 +24,11 @@
   label (including from the weekly maintenance run, which then says so in its
   pull request). Without the key, a release goes out with no APK. Once a
   release has an APK, drop this item.
+- **Server key reminder.** The hub reminds parents in the app (Settings →
+  Server key) until one confirms the server key is in their password
+  manager. When the owner talks about deploying, upgrading or backups, ask
+  whether they have done this yet; never put the key in the repository, an
+  issue, a pull request or a chat message.
 - Security is not negotiable here: two-factor sign-in on the web and
   biometric unlock on Android are mandatory. Do not add a way around either
   (no "remember this device" that skips the code, no PIN fallback for the

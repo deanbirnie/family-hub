@@ -123,6 +123,11 @@ const MIGRATIONS: string[] = [
   CREATE UNIQUE INDEX files_name ON files(COALESCE(parent_id, ''), name) WHERE deleted_at IS NULL;
   CREATE INDEX files_trash ON files(trash_root, deleted_at);
   `,
+  // 4: document contents encrypted with the server key (docs/DATA-PROTECTION.md).
+  // Existing documents start at 0 and are encrypted by encryptStoredData().
+  `
+  ALTER TABLE files ADD COLUMN encrypted INTEGER NOT NULL DEFAULT 0;
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

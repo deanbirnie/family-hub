@@ -21,7 +21,7 @@ export async function maintainFiles(s: Services): Promise<void> {
   const root = join(s.config.dataDir, 'files')
   for (const f of expired) await unlink(join(root, f.id)).catch((e: NodeJS.ErrnoException) => { if (e.code !== 'ENOENT') console.error('Could not remove expired document', f.id, e.code) })
   for (const entry of await readdir(root, { withFileTypes: true })) {
-    if (!entry.isFile() || !/^[a-f0-9-]{36}(\.part)?$/.test(entry.name) || referenced.has(entry.name)) continue
+    if (!entry.isFile() || !/^[a-f0-9-]{36}(\.part|\.enc)?$/.test(entry.name) || referenced.has(entry.name)) continue
     const path = join(root, entry.name)
     try {
       if ((await stat(path)).mtimeMs <= s.now() - ORPHAN_GRACE) await unlink(path)

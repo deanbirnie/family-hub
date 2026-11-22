@@ -48,7 +48,7 @@ about what a **stolen database, backup or disk** reveals, and about what the
 | Key | Where it lives | Backed up to |
 |---|---|---|
 | Family key | Wrapped per parent device: Android Keystore (fingerprint or face), browser passkey (WebAuthn PRF). Shared between parents through per-parent key pairs. | The **recovery key**, shown once when the family key is created, kept in the owner's password manager. |
-| Server key | A key file outside the `/data` volume (a separate mount or a Docker secret). | The owner's password manager. **Never back it up alongside `/data`**, or S data in that backup is as good as plain. |
+| Server key | A key file outside the `/data` volume (a separate mount or a Docker secret). | The owner's password manager. Parents are reminded in the app until one confirms it is saved; **Settings → Server key** shows it after a fresh authenticator code (each showing is logged). **Never back it up alongside `/data`**, or S data in that backup is as good as plain. |
 
 ## Register
 
@@ -60,24 +60,24 @@ Status: ✅ in place · 🔜 planned for the phase shown · ❓ to decide.
 |---|---|---|---|
 | Usernames, display names, roles | `users` | P | ✅ |
 | Passwords | `users.password_hash` | H (Argon2id) | ✅ |
-| Authenticator (TOTP) secrets | `users.totp_secret`, `totp_pending_secret` | S | 🔜 phase 2 (P today) |
+| Authenticator (TOTP) secrets | `users.totp_secret`, `totp_pending_secret` | S (bound to the user) | ✅ phase 2 |
 | Recovery codes | `recovery_codes` | H (SHA-256) | ✅ |
 | Session and invite tokens | `sessions`, `invites` | H (SHA-256) | ✅ |
 | Phone public keys, device names | `devices` | P (public keys are not secret) | ✅ |
 | Phone private keys | Android Keystore, on the phone | Never leaves the hardware | ✅ |
 | Audit log: events, times, IP addresses | `audit_log` | P (kept one year) | ✅ |
-| Family name, settings | `settings` | P | ✅ |
+| Family name, settings (including when the server key was confirmed saved, and by whom) | `settings` | P | ✅ |
 
 ### Shared documents (phase 1)
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Document contents | `/data/files/<id>` | S | 🔜 phase 2 (P today; agreed, see below) |
+| Document contents | `/data/files/<id>` | S (chunked, bound to the document) | ✅ phase 2 |
 | File and folder names, sizes, types, dates | `files` | P | ✅ |
-| Recycle bin (deleted documents for 30 days) | `files`, `/data/files` | Same as live documents (S from phase 2) | ✅ |
+| Recycle bin (deleted documents for 30 days) | `files`, `/data/files` | S, like live documents | ✅ |
 | Opened or saved copies on Android | App cache `documents/` | Plain on the phone; deleted when the app locks or starts | ✅ |
 
-**Document contents move to S (agreed).** Phase 1 is for important
+**Document contents are S (agreed, built in phase 2).** Phase 1 is for important
 paperwork (certificates, ID scans), and today a copy of `/data` reveals all
 of it. In phase 2, once the server key exists:
 
@@ -87,7 +87,8 @@ of it. In phase 2, once the server key exists:
   still stream.
 - A one-off migration encrypts every existing document and recycle-bin file
   in place, then removes the plain copies. It can be interrupted and
-  resumed safely.
+  resumed safely. Old plain blocks may linger in free disk space until
+  overwritten, and backups made before the upgrade still hold plain copies.
 - Backups of `/data` can then only be opened with the server key, so the
   backup and restore instructions name the key as a required part of a
   restore, kept separately (the owner's password manager).

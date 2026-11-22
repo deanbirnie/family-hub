@@ -23,6 +23,11 @@ export interface Config {
   appOrigins: string[]
   /** Maximum bytes accepted for one shared document. */
   maxFileBytes: number
+  /**
+   * The server key file (docs/DATA-PROTECTION.md, tier S). Keep it outside
+   * the data folder, on its own mount, and copy it to a password manager.
+   */
+  keyFile: string
 }
 
 function int(name: string, fallback: number, min: number, max: number): number {
@@ -53,6 +58,7 @@ export function loadConfig(): Config {
     trustProxyHops: int('FAMILY_HUB_TRUST_PROXY', 0, 0, 10),
     allowHttp: bool('FAMILY_HUB_ALLOW_HTTP', false),
     maxFileBytes: int('FAMILY_HUB_MAX_FILE_BYTES', 100 * 1024 * 1024, 1, 2 * 1024 * 1024 * 1024),
+    keyFile: resolve(process.env.FAMILY_HUB_KEY_FILE || './keys/server.key'),
     // Capacitor serves the Android app from https://localhost.
     appOrigins: (process.env.FAMILY_HUB_APP_ORIGINS || 'https://localhost')
       .split(',')

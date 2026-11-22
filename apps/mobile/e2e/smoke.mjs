@@ -70,7 +70,7 @@ const data = mkdtempSync(join(tmpdir(), 'family-hub-mobile-e2e-'))
 const port = await freePort()
 const server = spawn(process.execPath, ['apps/server/src/main.ts'], {
   cwd: repo,
-  env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', FAMILY_HUB_DATA: data, FAMILY_HUB_APP_ORIGINS: appOrigin },
+  env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', FAMILY_HUB_DATA: data, FAMILY_HUB_KEY_FILE: join(data + '-key', 'server.key'), FAMILY_HUB_APP_ORIGINS: appOrigin },
   stdio: ['ignore', 'inherit', 'inherit'],
 })
 const base = `http://localhost:${port}`
@@ -172,5 +172,6 @@ try {
   await new Promise((resolve) => { server.once('exit', resolve); server.kill() })
   files.close()
   rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+  rmSync(data + '-key', { recursive: true, force: true })
 }
 process.exit(failed ? 1 : 0)

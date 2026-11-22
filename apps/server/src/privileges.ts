@@ -22,15 +22,17 @@ function idFrom(name: string, fallback: number): number {
  * When the container is started as a non-root user (`--user`), or the server
  * runs outside Docker, this only creates the directory.
  */
-export function prepareDataDir(dataDir: string): void {
+export function prepareDataDir(dataDir: string, otherDirs: string[] = []): void {
   mkdirSync(dataDir, { recursive: true })
+  // Other folders the server writes to, such as the server key's.
+  for (const dir of otherDirs) mkdirSync(dir, { recursive: true, mode: 0o700 })
   if (typeof process.getuid !== 'function' || process.getuid() !== 0) return
 
   const uid = idFrom('PUID', 1000)
   const gid = idFrom('PGID', 1000)
   if (uid === 0) return // explicitly asked to stay root
 
-  const pending = [dataDir]
+  const pending = [dataDir, ...otherDirs]
   while (pending.length) {
     const path = pending.pop()!
     const info = lstatSync(path)

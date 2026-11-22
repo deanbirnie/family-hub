@@ -6,12 +6,15 @@ import { expect, it } from 'vitest'
 import { createApp } from '../src/app.ts'
 import { loadConfig } from '../src/config.ts'
 import { openDb } from '../src/db.ts'
+import { loadServerKey } from '../src/server-key.ts'
 import { setUpAdmin, type TestServer } from './helpers.ts'
 
-async function persistent(dataDir: string): Promise<TestServer> {
+/** The server key lives outside the data folder, so it is not part of the copied backup. */
+async function persistent(dataDir: string, keyFile: string): Promise<TestServer> {
   const db = openDb(join(dataDir, 'family-hub.db'))
   const clock = { now: Date.UTC(2026, 10, 20) }
-  const { server, services } = createApp({ db, config: { ...loadConfig(), dataDir }, now: () => clock.now, argon2: { memory: 1024, passes: 1, parallelism: 1 } })
+  const config = { ...loadConfig(), dataDir, keyFile }
+  const { server, services } = createApp({ db, config, serverKey: loadServerKey(keyFile, db, dataDir), now: () => clock.now, argon2: { memory: 1024, passes: 1, parallelism: 1 } })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, server, services, clock,
     close: () => new Promise<void>((resolve) => { server.closeAllConnections(); server.close(() => { db.close(); resolve() }) }) }
@@ -21,7 +24,8 @@ it('a stopped-data backup restores accounts, folders, active files and recoverab
   const root = mkdtempSync(join(tmpdir(), 'family-hub-backup-test-'))
   const source = join(root, 'source'), restored = join(root, 'restored')
   mkdirSync(source)
-  let running: TestServer | null = await persistent(source)
+  const keyFile = join(root, 'keys', 'server.key')
+  let running: TestServer | null = await persistent(source, keyFile)
   try {
     const { client } = await setUpAdmin(running)
     const folder = await client.post<{ item: { id: string } }>('/api/files/folders', { name: 'Policies' })
@@ -34,7 +38,7 @@ it('a stopped-data backup restores accounts, folders, active files and recoverab
     await client.del(`/api/files/${deleted}`)
     await running.close(); running = null
     cpSync(source, restored, { recursive: true })
-    running = await persistent(restored)
+    running = await persistent(restored, keyFile)
     client.base = running.url
     expect(Object.values(running.services.db.prepare('PRAGMA integrity_check').get()!)).toEqual(['ok'])
     expect((await client.get('/api/auth/session')).status).toBe(200)

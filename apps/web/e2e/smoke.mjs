@@ -68,7 +68,7 @@ const data = mkdtempSync(join(tmpdir(), 'family-hub-e2e-'))
 const port = await freePort()
 const server = spawn(process.execPath, ['apps/server/src/main.ts'], {
   cwd: repo,
-  env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', FAMILY_HUB_DATA: data, FAMILY_HUB_WEB_DIR: 'apps/web/dist', FAMILY_HUB_VERSION: 'e2e' },
+  env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', FAMILY_HUB_DATA: data, FAMILY_HUB_KEY_FILE: join(data + '-key', 'server.key'), FAMILY_HUB_WEB_DIR: 'apps/web/dist', FAMILY_HUB_VERSION: 'e2e' },
   stdio: ['ignore', 'inherit', 'inherit'],
 })
 const base = `http://localhost:${port}`
@@ -119,6 +119,8 @@ try {
   // The hub.
   await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
   await page.getByText('Important family documents, stored on your own server.').waitFor()
+  // Parents are reminded to save the server key until one confirms it.
+  await page.getByText('Save the server key to your password manager.').waitFor()
   await shot(page, '04-home')
   await page.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Files' }).click()
   await page.getByRole('heading', { name: 'No documents yet' }).waitFor()
@@ -167,6 +169,23 @@ try {
   await sam.getByText('Alex Tester').waitFor()
   if (await sam.getByRole('button', { name: 'Invite someone' }).count()) throw new Error('a member can see the invite button')
 
+  // Members are not reminded about the server key.
+  if (await sam.getByText('Save the server key to your password manager.').count()) throw new Error('a member sees the server key reminder')
+
+  // The reminder leads to Settings: show the key with a fresh code, confirm it is saved.
+  await page.getByRole('button', { name: 'Save it now' }).click()
+  await page.getByRole('heading', { name: 'Server key' }).waitFor()
+  await page.getByLabel('Enter a code from your authenticator app to show the key').fill(await nextCode(secret))
+  await page.getByRole('button', { name: 'Show the key' }).click()
+  const shownKey = (await page.getByLabel('Server key').textContent()).trim()
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(shownKey)) throw new Error(`unexpected server key ${shownKey}`)
+  await shot(page, '07a-server-key')
+  await page.getByRole('button', { name: 'I’ve saved it in my password manager' }).click()
+  await page.getByText('Saved', { exact: true }).waitFor()
+  await page.goto(base)
+  await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
+  if (await page.getByText('Save the server key to your password manager.').count()) throw new Error('the server key reminder is still shown after saving')
+
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)
   await page.getByRole('heading', { name: 'Where you’re signed in' }).waitFor()
@@ -206,5 +225,6 @@ try {
   await browser.close()
   await new Promise((resolve) => { server.once('exit', resolve); server.kill() })
   rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+  rmSync(data + '-key', { recursive: true, force: true })
 }
 process.exit(failed ? 1 : 0)

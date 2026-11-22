@@ -14,12 +14,16 @@ import { accountRoutes } from './routes/account.ts'
 import { authRoutes } from './routes/auth.ts'
 import { deviceRoutes } from './routes/devices.ts'
 import { memberRoutes } from './routes/members.ts'
+import { serverKeyRoutes } from './routes/server-key.ts'
 import { fileRoutes } from './routes/files.ts'
 import { maintainFiles } from './file-maintenance.ts'
+import type { ServerKey } from './server-key.ts'
 
 export interface AppOptions {
   db: Db
   config: Config
+  /** Encrypts data at rest (see server-key.ts). */
+  serverKey: ServerKey
   /** Lower Argon2 settings make tests fast; production uses the default. */
   argon2?: Argon2Params
   now?: () => number
@@ -29,6 +33,7 @@ export interface AppOptions {
 export interface Services {
   db: Db
   config: Config
+  serverKey: ServerKey
   argon2: Argon2Params
   now: () => number
   limits: {
@@ -70,6 +75,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   const services: Services = {
     db,
     config,
+    serverKey: opts.serverKey,
     argon2: opts.argon2 ?? DEFAULT_ARGON2,
     now: opts.now ?? Date.now,
     limits: {
@@ -104,6 +110,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   memberRoutes(api, services)
   deviceRoutes(api, services)
   fileRoutes(api, services)
+  serverKeyRoutes(api, services)
 
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     void dispatch(services, router, req, res)
@@ -230,6 +237,6 @@ function authenticate(services: Services, ctx: Ctx, guard: Guard): AuthedCtx {
   }
   const user = getUser(services.db, session.userId)
   if (!user || user.disabled) throw new HttpError(401, 'Please sign in.', 'unauthenticated')
-  if (guard.admin && user.role !== 'admin') throw new HttpError(403, 'Only a family admin can do that.', 'forbidden')
+  if (guard.admin && user.role !== 'admin') throw new HttpError(403, 'Only a parent can do that.', 'forbidden')
   return Object.assign(ctx, { session, user })
 }

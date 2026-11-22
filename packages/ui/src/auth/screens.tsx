@@ -38,7 +38,7 @@ export function SetupScreen({ api, onStep }: { api: Api; onStep: (r: StepResult)
     onStep(await api.setup({ familyName: form.familyName, displayName: form.displayName, username: form.username, password: form.password }))
   })
   return (
-    <AuthLayout title="Welcome" subtitle="Set up your family’s hub. You will be its first admin, and can invite everyone else afterwards.">
+    <AuthLayout title="Welcome" subtitle="Set up your family’s hub. You will be its first parent, and can invite everyone else afterwards.">
       <form
         className="stack"
         onSubmit={(e) => {

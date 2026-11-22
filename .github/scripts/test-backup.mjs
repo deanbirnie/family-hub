@@ -11,6 +11,8 @@ const image = process.argv[2] || 'family-hub'
 const prefix = `family-hub-backup-${randomUUID()}`
 const source = `${prefix}-source`, restored = `${prefix}-restored`
 const sourceVolume = `${prefix}-source-data`, restoredVolume = `${prefix}-restored-data`
+// The server key is kept apart from /data (and from the backup), as in docker-compose.yml.
+const keyVolume = `${prefix}-keys`, emptyKeyVolume = `${prefix}-no-keys`
 const backupDir = mkdtempSync(join(tmpdir(), 'family-hub-backup-'))
 const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8', timeout: 120_000 }).trim()
 let base = '', cookie = ''
@@ -22,8 +24,8 @@ async function call(path, method = 'GET', body) {
   return res
 }
 const json = async (path, method = 'GET', body) => (await call(path, method, body)).json()
-async function start(name, volume, uid) {
-  docker('run', '-d', '--name', name, '-p', '127.0.0.1::8080', '-e', `PUID=${uid}`, '-e', 'PGID=100', '-v', `${volume}:/data`, image)
+async function start(name, volume, uid, keys = keyVolume) {
+  docker('run', '-d', '--name', name, '-p', '127.0.0.1::8080', '-e', `PUID=${uid}`, '-e', 'PGID=100', '-v', `${volume}:/data`, '-v', `${keys}:/keys`, image)
   base = `http://${docker('port', name, '8080/tcp')}`
   for (let attempt = 0; attempt < 60; attempt++) {
     try { if ((await fetch(`${base}/api/health`)).ok) return } catch { /* starting */ }
@@ -35,6 +37,8 @@ async function start(name, volume, uid) {
 try {
   docker('volume', 'create', sourceVolume)
   docker('volume', 'create', restoredVolume)
+  docker('volume', 'create', keyVolume)
+  docker('volume', 'create', emptyKeyVolume)
   await start(source, sourceVolume, 99)
   await json('/api/setup', 'POST', { familyName: 'Backup test', username: 'parent', displayName: 'Parent', password: 'backup-validation-passphrase' })
   const { secret } = await json('/api/auth/totp/setup', 'POST', {})
@@ -47,6 +51,18 @@ try {
   docker('stop', source)
   docker('run', '--rm', '-v', `${sourceVolume}:/data:ro`, '-v', `${backupDir}:/backup`, '--entrypoint', 'sh', image, '-c', 'umask 077; tar -czf /backup/family-hub.tgz -C /data .')
   docker('run', '--rm', '-v', `${restoredVolume}:/data`, '-v', `${backupDir}:/backup:ro`, '--entrypoint', 'tar', image, '-xzf', '/backup/family-hub.tgz', '-C', '/data')
+  // The backup holds only ciphertext: the sign-in secret is not in it in the clear.
+  const archive = docker('run', '--rm', '-v', `${backupDir}:/backup:ro`, '--entrypoint', 'sh', image, '-c', 'cd /tmp && tar -xzf /backup/family-hub.tgz && cat files/* && echo && node --input-type=module -e "import {DatabaseSync} from \'node:sqlite\'; console.log(new DatabaseSync(\'family-hub.db\',{readOnly:true}).prepare(\'SELECT totp_secret FROM users\').get().totp_secret)"')
+  assert.ok(!archive.includes(secret), 'the backup contains the authenticator secret in the clear')
+  assert.ok(archive.split('\n').pop().startsWith('s1.'), 'the authenticator secret is not sealed')
+  // Restored without its key, the server refuses to start rather than make a new one.
+  let refusal = ''
+  try {
+    docker('run', '--rm', '--name', `${restored}-nokey`, '-e', 'PUID=1001', '-e', 'PGID=100', '-v', `${restoredVolume}:/data`, '-v', `${emptyKeyVolume}:/keys`, image)
+  } catch (e) {
+    refusal = `${e.stdout ?? ''}${e.stderr ?? ''}`
+  }
+  assert.match(refusal, /server key file .* is missing/, 'a restore without its key must refuse to start')
   await start(restored, restoredVolume, 1001)
   assert.equal((await json('/api/auth/session')).user.username, 'parent')
   assert.deepEqual((await json(`/api/files?parent=${folder.id}`)).items.map((f) => f.id), [active.id])
@@ -55,9 +71,9 @@ try {
   for (const item of [active, deleted]) assert.deepEqual(Buffer.from(await (await call(`/api/files/${item.id}/content`)).arrayBuffer()), bytes)
   const integrity = docker('exec', restored, 'node', '--input-type=module', '-e', "import {DatabaseSync} from 'node:sqlite'; const db=new DatabaseSync('/data/family-hub.db',{readOnly:true}); console.log(Object.values(db.prepare('PRAGMA integrity_check').get())[0]); db.close()")
   assert.equal(integrity, 'ok')
-  console.log('Container backup and restore: passed (accounts, folders, bytes, recycle bin, changed PUID)')
+  console.log('Container backup and restore: passed (accounts, folders, bytes, recycle bin, changed PUID, encrypted at rest, refuses a missing key)')
 } finally {
-  for (const name of [source, restored]) { try { docker('rm', '-f', name) } catch { /* already absent */ } }
-  for (const volume of [sourceVolume, restoredVolume]) { try { docker('volume', 'rm', volume) } catch { /* already absent */ } }
+  for (const name of [source, restored, `${restored}-nokey`]) { try { docker('rm', '-f', name) } catch { /* already absent */ } }
+  for (const volume of [sourceVolume, restoredVolume, keyVolume, emptyKeyVolume]) { try { docker('volume', 'rm', volume) } catch { /* already absent */ } }
   rmSync(backupDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
 }
