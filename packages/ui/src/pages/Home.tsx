@@ -77,7 +77,7 @@ export function HomePage({ ctx }: { ctx: HubContext }) {
                   {initials(m.displayName)}
                 </span>
                 <span>{m.displayName}</span>
-                {m.role === 'admin' && <Badge>Admin</Badge>}
+                {m.role === 'admin' && <Badge>Parent</Badge>}
               </li>
             ))}
           </ul>

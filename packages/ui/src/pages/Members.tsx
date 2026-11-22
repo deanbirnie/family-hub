@@ -1,4 +1,4 @@
-/** The family: members, their roles, and invites (admins). */
+/** The family: members, their roles, and invites (parents). */
 import { MailPlus, ShieldAlert, ShieldCheck, Trash2, UserCog } from 'lucide-react'
 import { useState } from 'react'
 import { CopyButton } from '../auth/screens.tsx'
@@ -71,7 +71,7 @@ export function MembersPage({ ctx }: { ctx: HubContext }) {
                   </div>
                 </div>
                 <div className="member-badges">
-                  {m.role === 'admin' && <Badge tone="accent">Admin</Badge>}
+                  {m.role === 'admin' && <Badge tone="accent">Parent</Badge>}
                   {m.disabled && <Badge tone="warning">Turned off</Badge>}
                   {!m.disabled &&
                     (m.twoFactor ? (
@@ -194,7 +194,7 @@ function InviteDialog({ ctx, open, onClose }: { ctx: HubContext; open: boolean; 
             <label className="check">
               <input type="radio" name="role" checked={role === 'admin'} onChange={() => setRole('admin')} />
               <span>
-                <strong>Admin</strong> — also invites people and manages accounts
+                <strong>Parent</strong> — also invites people, manages accounts, and sees Quick Info and Contacts
               </span>
             </label>
           </fieldset>
@@ -233,7 +233,7 @@ function ManageDialog({ ctx, member, onClose }: { ctx: HubContext; member: Membe
           <div className="manage-row">
             <div>
               <strong>Role</strong>
-              <p className="muted">{member.role === 'admin' ? 'Admin: can invite people and manage accounts.' : 'Member.'}</p>
+              <p className="muted">{member.role === 'admin' ? 'Parent: can invite people, manage accounts, and see Quick Info and Contacts.' : 'Member.'}</p>
             </div>
             <Button
               variant="secondary"
@@ -241,11 +241,11 @@ function ManageDialog({ ctx, member, onClose }: { ctx: HubContext; member: Membe
               onClick={() =>
                 void patch.run(
                   { role: member.role === 'admin' ? 'member' : 'admin' },
-                  member.role === 'admin' ? `${member.displayName} is now a member.` : `${member.displayName} is now an admin.`,
+                  member.role === 'admin' ? `${member.displayName} is now a member.` : `${member.displayName} is now a parent.`,
                 )
               }
             >
-              {member.role === 'admin' ? 'Make member' : 'Make admin'}
+              {member.role === 'admin' ? 'Make member' : 'Make parent'}
             </Button>
           </div>
           <div className="manage-row">

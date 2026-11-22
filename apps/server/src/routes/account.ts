@@ -7,6 +7,7 @@ import { tx } from '../db.ts'
 import { HttpError, readJson, str } from '../http.ts'
 import { hashPassword, passwordProblem, verifyPassword } from '../secrets.ts'
 import { deleteUserSessions } from '../sessions.ts'
+import { openTotp } from '../at-rest.ts'
 import { checkTotp, newRecoveryCodes } from '../totp.ts'
 import { familyName, publicUser, replaceRecoveryCodes } from './auth.ts'
 
@@ -77,7 +78,9 @@ export function accountRoutes(api: Api, services: Services): void {
       totp_secret: string
       totp_last_counter: number | null
     }
-    const counter = checkTotp(row.totp_secret, body.code, row.totp_last_counter, services.now())
+    const secret = openTotp(services.serverKey, ctx.user.id, row.totp_secret)
+    if (!secret) throw new HttpError(409, 'Two-factor sign-in is not set up.', 'not_set_up')
+    const counter = checkTotp(secret, body.code, row.totp_last_counter, services.now())
     if (counter === null) {
       services.limits.accounts.fail(ctx.user.username, services.now())
       throw new HttpError(400, 'That code is not right.', 'bad_code')

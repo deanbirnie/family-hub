@@ -27,8 +27,14 @@ services:
       FAMILY_HUB_TRUST_PROXY: "1"
       FAMILY_HUB_MAX_FILE_BYTES: "${FAMILY_HUB_MAX_FILE_BYTES:-104857600}"
     volumes:
-      # The database (and, from phase 1, the family's files). Back this up.
+      # The database and the family's documents. Back this up.
       - family-hub-data:/data
+      # The server key that encrypts documents and sign-in secrets at rest.
+      # Kept apart from /data, so a backup of the data alone cannot be read.
+      # Created on first start: copy keys/server.key to your password
+      # manager. Without it, a backup cannot be restored (docs/BACKUPS.md).
+      - family-hub-keys:/keys
 
 volumes:
   family-hub-data:
+  family-hub-keys:

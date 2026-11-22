@@ -68,7 +68,7 @@ export function memberRoutes(api: Api, services: Services): void {
     // There must always be someone who can manage the family.
     const losesAdmin = target.role === 'admin' && !target.disabled && (newRole !== 'admin' || disabled)
     if (losesAdmin && adminCount() <= 1) {
-      throw new HttpError(409, 'The family needs at least one admin. Make someone else an admin first.', 'last_admin')
+      throw new HttpError(409, 'The family needs at least one parent. Make someone else a parent first.', 'last_admin')
     }
     if (id === ctx.user.id && disabled) throw new HttpError(409, 'You cannot turn off your own account.', 'self')
     tx(db, () => {
@@ -87,7 +87,7 @@ export function memberRoutes(api: Api, services: Services): void {
   api.authed('POST', '/api/members/:id/reset-two-factor', { admin: true }, (ctx) => {
     const id = ctx.params.id!
     if (id === ctx.user.id) {
-      throw new HttpError(409, 'Ask another admin to do this, or use a recovery code.', 'self')
+      throw new HttpError(409, 'Ask the other parent to do this, or use a recovery code.', 'self')
     }
     const target = db.prepare('SELECT username FROM users WHERE id = ?').get(id) as { username: string } | undefined
     if (!target) throw new HttpError(404, 'No such member.', 'not_found')

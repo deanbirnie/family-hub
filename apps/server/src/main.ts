@@ -2,7 +2,9 @@
  * Starts the server: reads the environment, prepares the data folder (and
  * stops running as root in Docker), opens the database and listens.
  */
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { encryptStoredData } from './at-rest.ts'
+import { loadServerKey, ServerKeyError } from './server-key.ts'
 import { createApp } from './app.ts'
 import { loadConfig } from './config.ts'
 import { openDb } from './db.ts'
@@ -10,9 +12,19 @@ import { prepareDataDir } from './privileges.ts'
 import { maintainFiles } from './file-maintenance.ts'
 
 const config = loadConfig()
-prepareDataDir(config.dataDir)
+prepareDataDir(config.dataDir, [dirname(config.keyFile)])
 const db = openDb(join(config.dataDir, 'family-hub.db'))
-const { server, services } = createApp({ db, config })
+let serverKey
+try {
+  serverKey = loadServerKey(config.keyFile, db, config.dataDir)
+} catch (e) {
+  if (!(e instanceof ServerKeyError)) throw e
+  console.error(e.message)
+  process.exit(1)
+}
+const { server, services } = createApp({ db, config, serverKey })
+// Before accepting requests: anything stored before encryption is encrypted now.
+await encryptStoredData(services)
 await maintainFiles(services)
 
 server.listen(config.port, config.host, () => {

@@ -25,6 +25,7 @@ ARG VERSION=dev
 ENV NODE_ENV=production \
     PORT=8080 \
     FAMILY_HUB_DATA=/data \
+    FAMILY_HUB_KEY_FILE=/keys/server.key \
     FAMILY_HUB_WEB_DIR=/app/web \
     FAMILY_HUB_VERSION=${VERSION}
 LABEL org.opencontainers.image.title="Family Hub" \
@@ -38,13 +39,16 @@ WORKDIR /app
 RUN apk upgrade --no-cache \
  && rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx \
       /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-* \
- && mkdir /data && chown node:node /data
+ && mkdir /data /keys && chown node:node /data /keys && chmod 700 /keys
 COPY apps/server/src ./server
 RUN echo '{"type":"module"}' > package.json
 COPY --from=web /src/apps/web/dist ./web
 # Starts as root only long enough to take ownership of /data, then drops to
 # PUID:PGID (default 1000:1000) before serving. See server/privileges.ts.
 VOLUME /data
+# The server key, on its own mount so a backup of /data does not contain it.
+# Mount a named volume or folder here; copy server.key to a password manager.
+VOLUME /keys
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD wget -qO- http://127.0.0.1:8080/api/health || exit 1

@@ -75,7 +75,7 @@ export const EVENT_NAMES: Record<string, string> = {
   logout: 'Signed out',
   'two_factor.enabled': 'Two-factor sign-in set up',
   'two_factor.setup_failed': 'Wrong code during two-factor set-up',
-  'two_factor.reset_by_admin': 'Two-factor sign-in reset by an admin',
+  'two_factor.reset_by_admin': 'Two-factor sign-in reset by a parent',
   'recovery_codes.replaced': 'New recovery codes made',
   'password.changed': 'Password changed',
   'password.change_failed': 'Wrong current password when changing it',

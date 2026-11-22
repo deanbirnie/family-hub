@@ -100,10 +100,15 @@ recent-apps list), backups are off, and plain-http traffic is refused.
 - The container starts as root only to take ownership of `/data`, then runs
   as `PUID:PGID`. The image has no npm, npx, yarn or corepack.
 - `/data/family-hub.db` (SQLite) holds account data, password hashes, TOTP
-  secrets and the audit log. **Protect and back up this volume.** TOTP
-  secrets are not encrypted at rest (anyone with the database could generate
-  codes, but would still need passwords). Phase 2 moves them under a server
-  key file kept outside the database (see below).
+  secrets and the audit log. **Protect and back up this volume.**
+- **Server key at rest:** TOTP secrets and document contents are encrypted
+  with a key file kept outside `/data` (`/keys/server.key`), so a copy of the
+  database, the documents or a backup alone reveals neither. Each value is
+  bound to its owner (a secret to its user, a document's chunks to that
+  document, in order, with the end marked), so it cannot be moved, swapped or
+  cut short unnoticed. The server refuses to start if encrypted data exists
+  and the key is missing or wrong, rather than making a new key. Details:
+  [DATA-PROTECTION.md](DATA-PROTECTION.md) and [BACKUPS.md](BACKUPS.md).
 - The audit log records sign-ins, failures, lockouts and account changes with
   the client address; each person sees their own in Settings. Entries older
   than a year are removed.
@@ -126,8 +131,8 @@ Agreed design; details in docs/ROADMAP.md, "Phase 2 → Design (agreed)".
   Android (the one that opens the app), and a passkey or approval from the
   parent's phone in a browser. Unlocked once per session; the browser vault
   locks after 15 minutes unused.
-- **Server key at rest:** Family Contacts, TOTP secrets and push addresses
-  are encrypted with a key file kept outside the database volume.
+- **Server key at rest** (TOTP secrets and documents already, above): Family
+  Contacts and push addresses join them.
 - **Notifications** (UnifiedPush and Web Push, RFC 8291 encrypted) carry
   generic text only. Reminder records (what, whose, when) are readable by the
   server so it can send them; the underlying numbers are not.

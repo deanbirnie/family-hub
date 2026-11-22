@@ -7,3 +7,4 @@ dist-e2e/
 .env
 test-results/
 /data/
+/keys/

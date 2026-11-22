@@ -1,11 +1,12 @@
 import { request, type Server } from 'node:http'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { AddressInfo } from 'node:net'
 import { createApp, type Services } from '../src/app.ts'
 import type { Config } from '../src/config.ts'
 import { openDb } from '../src/db.ts'
+import { loadServerKey } from '../src/server-key.ts'
 import { totpAt } from '../src/totp.ts'
 
 export const PASSWORD = 'correct horse battery staple'
@@ -30,12 +31,15 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Test
     allowHttp: false,
     appOrigins: ['https://localhost'],
     maxFileBytes: 100 * 1024 * 1024,
+    // Kept apart from the data folder, as in production.
+    keyFile: join(mkdtempSync(join(tmpdir(), 'family-hub-key-')), 'server.key'),
     ...overrides,
   }
   const db = openDb(':memory:')
   const { server, services } = createApp({
     db,
     config,
+    serverKey: loadServerKey(config.keyFile, db, config.dataDir),
     argon2: { memory: 1024, passes: 1, parallelism: 1 },
     now: () => clock.now,
   })
@@ -52,6 +56,7 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Test
         server.close(() => {
           db.close()
           rmSync(config.dataDir, { recursive: true, force: true })
+          rmSync(dirname(config.keyFile), { recursive: true, force: true })
           resolve()
         })
       }),

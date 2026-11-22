@@ -1,7 +1,8 @@
 /** Shared documents: existing full sessions grant access to the whole Family folder. */
 import { randomUUID } from 'node:crypto'
-import { createReadStream, mkdirSync } from 'node:fs'
-import { open, rename, unlink } from 'node:fs/promises'
+import { mkdirSync } from 'node:fs'
+import { open, rename, unlink, type FileHandle } from 'node:fs/promises'
+import { DamagedFileError, FileEncryptor, decryptFile } from '../file-crypto.ts'
 import { join } from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import { presentedToken, type Api, type AuthedCtx, type Services } from '../app.ts'
@@ -22,6 +23,8 @@ export interface FileRow {
   updated_at: number
   deleted_at: number | null
   trash_root: string | null
+  /** 1 once the contents on disk are encrypted with the server key. */
+  encrypted: number
 }
 
 export const fileInfo = (f: FileRow) => ({
@@ -36,6 +39,17 @@ export function fileName(raw: unknown): string {
     throw new HttpError(400, 'Use a name of up to 240 bytes without slashes or control characters.', 'invalid')
   }
   return name
+}
+
+/** A not-yet-encrypted document, read in chunks like an encrypted one. */
+async function* plainChunks(handle: FileHandle): AsyncGenerator<Buffer> {
+  const buffer = Buffer.alloc(64 * 1024)
+  for (let position = 0; ; ) {
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, position)
+    if (bytesRead === 0) return
+    yield Buffer.from(buffer.subarray(0, bytesRead))
+    position += bytesRead
+  }
 }
 
 /** Only raster images and PDFs are eligible for an in-app preview. */
@@ -181,6 +195,8 @@ export function fileRoutes(api: Api, s: Services): void {
     let moved = false
     try {
       const out = await open(partial, 'wx', 0o600)
+      // Contents are encrypted with the server key as they arrive (file-crypto.ts).
+      const enc = new FileEncryptor(s.serverKey, id, out)
       let size = 0
       let head = Buffer.alloc(0)
       try {
@@ -191,8 +207,9 @@ export function fileRoutes(api: Api, s: Services): void {
             ctx.res.setHeader('Connection', 'close')
             throw new HttpError(413, 'This file exceeds the upload size limit.', 'too_large')
           }
-          await out.writeFile(chunk as Buffer)
+          await enc.write(chunk as Buffer)
         }
+        await enc.finish()
         await out.sync()
       } finally {
         await out.close()
@@ -212,7 +229,7 @@ export function fileRoutes(api: Api, s: Services): void {
       parent(parentId)
       unique(parentId, name)
       const now = s.now()
-      s.db.prepare('INSERT INTO files (id, parent_id, name, kind, size, media_type, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      s.db.prepare('INSERT INTO files (id, parent_id, name, kind, size, media_type, created_by, created_at, updated_at, encrypted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
         .run(id, parentId, name, 'file', size, documentType(head), ctx.user.id, now, now)
       complete = true
       s.audit('files.uploaded', ctx, ctx.user.id, id)
@@ -233,17 +250,43 @@ export function fileRoutes(api: Api, s: Services): void {
     }
     try {
       const preview = ctx.url.searchParams.get('preview') === '1'
-      const head = Buffer.alloc(16)
-      const { bytesRead } = await handle.read(head, 0, 16, 0)
-      const type = documentType(head.subarray(0, bytesRead))
-      if (preview && type === 'application/octet-stream') throw new HttpError(415, 'Download this document to open it.', 'no_preview')
+      const diskSize = (await handle.stat()).size
+      // Encrypted documents are decrypted chunk by chunk; the first chunk is
+      // read before any header is sent, so a damaged file is a clean error.
+      // (Documents not yet encrypted exist only until startup's migration.)
+      const chunks: AsyncGenerator<Buffer> = f.encrypted
+        ? decryptFile(s.serverKey, f.id, handle, diskSize)
+        : plainChunks(handle)
+      let first: IteratorResult<Buffer>
+      try {
+        first = await chunks.next()
+      } catch (e) {
+        if (e instanceof DamagedFileError) {
+          console.error('Document could not be decrypted', f.id, e.message)
+          throw new HttpError(500, 'This document is damaged. Restore it from a backup.', 'damaged_content')
+        }
+        throw e
+      }
+      const firstChunk = first.done ? Buffer.alloc(0) : first.value
+      const type = documentType(firstChunk.subarray(0, 16))
+      if (preview && type === 'application/octet-stream') {
+        await chunks.return(undefined)
+        throw new HttpError(415, 'Download this document to open it.', 'no_preview')
+      }
       ctx.res.setHeader('Content-Type', preview ? type : 'application/octet-stream')
       ctx.res.setHeader('Content-Disposition', `attachment; filename="document"; filename*=UTF-8''${encodeURIComponent(f.name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16)}`)}`)
       ctx.res.setHeader('Content-Length', f.size)
       ctx.res.setHeader('Cache-Control', 'no-store')
       ctx.res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'")
-      if (ctx.method === 'HEAD') ctx.res.end()
-      else await pipeline(createReadStream('', { fd: handle.fd, autoClose: false, start: 0 }), ctx.res)
+      if (ctx.method === 'HEAD') {
+        await chunks.return(undefined)
+        ctx.res.end()
+      } else {
+        await pipeline(async function* () {
+          if (!first.done) yield firstChunk
+          yield* chunks
+        }, ctx.res)
+      }
     } finally { await handle.close() }
   })
 }

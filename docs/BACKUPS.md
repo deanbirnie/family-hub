@@ -1,5 +1,27 @@
 # Back up and restore Family Hub
 
+## The server key: keep it separately
+
+Documents and sign-in secrets in `/data` are encrypted with the **server
+key** (`/keys/server.key`, in the `family-hub-keys` volume). It is deliberately
+**not** part of the `/data` backup, so a stolen backup cannot be read. That
+also means **a backup cannot be restored without the key**.
+
+The hub creates the key on first start. Copy it to your password manager
+once, straight away (it is one line of text and never changes):
+
+```sh
+docker compose run --rm --no-deps --entrypoint cat family-hub /keys/server.key
+```
+
+If the key is missing or wrong, the hub refuses to start and says so; it
+never makes a new key over data encrypted with the old one.
+
+Upgrading from a version before encryption: on first start the hub encrypts
+existing documents and sign-in secrets in place. Backups made **before** that
+upgrade still contain them in the clear: delete or securely store them.
+
+
 Back up the **whole `/data` volume together**: `family-hub.db`, any SQLite
 WAL files, and `files/`. The files use opaque IDs; the database holds their
 names, folders and recycle-bin state. Neither part alone is a complete backup.
@@ -23,8 +45,9 @@ docker compose start family-hub
 
 Check that the archive command succeeded. If it fails, start the hub again
 and investigate. Keep another copy on a separate disk or machine. The
-archive holds authenticator secrets, live sessions and family documents:
-restrict access and encrypt its storage. The helper runs as root, so copying
+archive's documents and sign-in secrets are encrypted with the server key,
+which is not in it; names, accounts and the audit log are not encrypted, so
+still restrict access to it. The helper runs as root, so copying
 the archive on the host may require elevated permissions.
 
 ## Restore into a new volume
@@ -54,9 +77,18 @@ an older server refuses a database with a newer schema.
        name: family-hub-restored
    ```
 
-4. Run `docker compose up -d family-hub`. Startup adjusts ownership to the
+4. If the `family-hub-keys` volume is gone too (a new machine), put the key
+   back first, from your password manager, saved as `server.key`:
+
+   ```sh
+   docker compose run --rm --no-deps -T --entrypoint sh family-hub \
+     -c 'umask 077; cat > /keys/server.key' < server.key
+   ```
+
+   Then delete that `server.key` copy from the host.
+5. Run `docker compose up -d family-hub`. Startup adjusts ownership to the
    configured `PUID` and `PGID`, including document blobs.
-5. Sign in, open folders, preview and download known documents, and check
+6. Sign in, open folders, preview and download known documents, and check
    the recycle bin. Keep the old volume and archive until these checks pass.
    To roll back, stop the hub, restore the original Compose volume
    declaration, then start it again.
@@ -75,4 +107,6 @@ The image CI job also runs `node .github/scripts/test-backup.mjs family-hub`.
 It creates isolated volumes, uploads binary files, stops the source,
 archives and extracts `/data`, then starts a new container with a different
 `PUID`. It checks the account, folders, exact bytes, recycle-bin recovery and
-SQLite integrity. It removes only the containers and volumes it created.
+SQLite integrity. It also checks the archive holds the sign-in secret only
+encrypted, and that the restored data refuses to start without its key. It
+removes only the containers and volumes it created.

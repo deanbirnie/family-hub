@@ -20,6 +20,7 @@ import {
   type Transport,
   type User,
 } from '../sessions.ts'
+import { openTotp, sealTotp } from '../at-rest.ts'
 import { checkTotp, newRecoveryCodes, newTotpSecret, normaliseRecoveryCode, otpauthUrl } from '../totp.ts'
 
 /** Compared against when a username does not exist, so the answer takes as long either way. */
@@ -209,8 +210,9 @@ export function authRoutes(api: Api, services: Services): void {
     }
 
     // (A 'totp' session only exists while a secret is set; refuse outright if not.)
-    if (!row.totp_secret) throw new HttpError(409, 'Two-factor sign-in is not set up. Sign in again.', 'restart')
-    const counter = checkTotp(row.totp_secret, body.code, row.totp_last_counter, services.now())
+    const secret = openTotp(services.serverKey, ctx.user.id, row.totp_secret)
+    if (!secret) throw new HttpError(409, 'Two-factor sign-in is not set up. Sign in again.', 'restart')
+    const counter = checkTotp(secret, body.code, row.totp_last_counter, services.now())
     if (counter === null) return wrongCode(ctx, 'login.code_failed')
     // Only one request can use a given code, even if two arrive at once.
     const claimed = db
@@ -224,16 +226,19 @@ export function authRoutes(api: Api, services: Services): void {
 
   api.authed('POST', '/api/auth/totp/setup', { stages: ['enroll'] }, (ctx) => {
     const row = db.prepare('SELECT totp_pending_secret FROM users WHERE id = ?').get(ctx.user.id) as { totp_pending_secret: string | null }
-    const secret = row.totp_pending_secret ?? newTotpSecret()
-    if (!row.totp_pending_secret) db.prepare('UPDATE users SET totp_pending_secret = ? WHERE id = ?').run(secret, ctx.user.id)
+    const secret = openTotp(services.serverKey, ctx.user.id, row.totp_pending_secret) ?? newTotpSecret()
+    if (!row.totp_pending_secret) {
+      db.prepare('UPDATE users SET totp_pending_secret = ? WHERE id = ?').run(sealTotp(services.serverKey, ctx.user.id, secret), ctx.user.id)
+    }
     return { secret, otpauthUrl: otpauthUrl(secret, ctx.user.username, `Family Hub (${familyName(services)})`) }
   })
 
   api.authed('POST', '/api/auth/totp/confirm', { stages: ['enroll'] }, async (ctx) => {
     const body = await readJson(ctx.req)
     const row = db.prepare('SELECT totp_pending_secret FROM users WHERE id = ?').get(ctx.user.id) as { totp_pending_secret: string | null }
-    if (!row.totp_pending_secret) throw new HttpError(409, 'Start the set-up again.', 'no_pending_secret')
-    const counter = checkTotp(row.totp_pending_secret, body.code, null, services.now())
+    const pendingSecret = openTotp(services.serverKey, ctx.user.id, row.totp_pending_secret)
+    if (!pendingSecret) throw new HttpError(409, 'Start the set-up again.', 'no_pending_secret')
+    const counter = checkTotp(pendingSecret, body.code, null, services.now())
     if (counter === null) return wrongCode(ctx, 'two_factor.setup_failed')
     const codes = newRecoveryCodes()
     tx(db, () => {

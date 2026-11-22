@@ -115,7 +115,7 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
           </span>
           <span className="sidebar-user-name">
             {user.displayName}
-            <small>{user.role === 'admin' ? 'Admin' : 'Member'}</small>
+            <small>{user.role === 'admin' ? 'Parent' : 'Member'}</small>
           </span>
           <button className="icon-btn" onClick={signOut} aria-label="Sign out" title="Sign out">
             <LogOut size={18} />

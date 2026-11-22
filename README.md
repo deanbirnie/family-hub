@@ -58,6 +58,7 @@ for commands and verification.
 | `FAMILY_HUB_ALLOW_HTTP` | `false` | Allow browser sign-in over plain http. Only for a quick test on a home network. |
 | `FAMILY_HUB_APP_ORIGINS` | `https://localhost` | Origins allowed to call the API with a bearer token (the Android app's). |
 | `PORT` | `8080` | |
+| `FAMILY_HUB_KEY_FILE` | `/keys/server.key` | The server key that encrypts documents and sign-in secrets at rest. Keep it on its own mount (not inside `/data`) and copy it to a password manager: see [backups](docs/BACKUPS.md). |
 | `FAMILY_HUB_MAX_FILE_BYTES` | `104857600` (100 MiB) | Maximum size of one document upload; up to 2 GiB. Set a matching or larger request limit on your reverse proxy. |
 
 ### Shared documents
