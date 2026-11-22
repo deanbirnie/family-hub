@@ -144,26 +144,53 @@ when linking.
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Reminder records: what, whose, when | Reminders | P (the server sends them) | 🔜 |
+| Reminder records: what, whose, when (Quick Info expiry dates; created by the parent's device, as the server cannot read the record) | Reminders | P (the server sends them) | 🔜 |
 | Push addresses (UnifiedPush and Web Push endpoints) and their keys | Push subscriptions | S | 🔜 |
+| Push health: last success, failure count, when a route stopped working | Push subscriptions | P | 🔜 |
+| Which reminders were sent or shown, to which device | Delivery records | P (IDs and times only) | 🔜 |
+| Notification settings per person (which reminders, how far ahead) | Settings | P | 🔜 |
 | Background-check tokens (read reminders only) | Tokens | H | 🔜 |
+| Reminders shown by the phone's daily check | Android notification, and the IDs already shown (so each shows once) | On the phone; IDs only | 🔜 |
 | Notification text | Sent to the push service | Encrypted in transit (RFC 8291); generic wording only | 🔜 |
+
+### People and dates, a family CRM (phase 3; proposed, confirm before building)
+
+| Data | Where | Tier | Status |
+|---|---|---|---|
+| Relationships between contacts (partner, child, parent, friend, custom label) | Inside each contact's sealed value | S | 🔜 |
+| Important dates: birthdays, anniversaries, custom dates (year optional), and their reminder choices | Inside the sealed contact | S | 🔜 |
+| About them: how we met, interests, food preferences and allergies, clothing sizes | Inside the sealed contact | S | 🔜 |
+| Notes, timeline entries and life events | One sealed value per entry, bound to the contact | S | 🔜 |
+| Stay-in-touch interval and last-contacted date | Inside the sealed contact | S | 🔜 |
+| Gift ideas and gifts given | One sealed value per gift, bound to the contact | S | 🔜 |
+| Group names and members | Sealed | S | 🔜 |
+| Link from a contact to a Quick Info person | `contacts` column (both are IDs) | P | 🔜 |
+| Reminders for these dates | **Not stored.** The server works them out from the sealed contacts when it checks; only delivery records (IDs and times) are kept | P (IDs only) | 🔜 |
+| Notification text | Generic by default ("A birthday is coming up"); names on the lock screen only if a parent turns that on for their own devices | Encrypted in transit (RFC 8291) | ❓ owner to choose the default |
+| vCard and calendar (`.ics`) exports, address-label CSV | Downloaded to the parent's device; notes and gift ideas left out unless chosen | Plain file on the device | 🔜 |
+| vCard imports | Read in memory, shown for review, then discarded | Not stored | 🔜 |
+| CRM events (person, note or date added or changed, import, export; never details) | `audit_log` | P | 🔜 |
+
+Reminders for these dates are deliberately not copied into the plain
+reminder records used for Quick Info: a list of names with birthdays is
+exactly what identity thieves look for, and the server can read the sealed
+contacts anyway.
 
 ### Later phases (proposed; confirm at the start of each phase)
 
 | Phase | Data | Proposed tier | Why |
 |---|---|---|---|
-| 3 Calendar | Events, locations, notes | S | Calendar sync (iCal feeds, maybe CalDAV) needs the server to read them. |
-| 4 Lists, chores, noticeboard | Items, chores, notices | P | Everyday and low-risk; live sync is simpler. |
-| 5 Meals | Plans, recipes | P | Not personal. Allergies come from Health, not stored here. |
-| 6 Household admin | Bills, amounts, budgets | S | Financial, but the server must send due-date reminders. |
-| 6 Household admin | Bank account or card numbers | E2E, or don't store at all | Fraud risk. |
-| 6 Home & car | Service history, warranties | P or S | Low risk; decide with the phase. |
-| 7 Health | Allergies, conditions, medications, history, treatment plans | E2E | Health data; already agreed. |
-| 7 Health | Repeat-prescription reminders | P (what · whose · when only) | Same split as Quick Info reminders. |
-| 7 Health | Offline emergency card on the phone | E2E, opened by biometric | Already agreed. |
-| 8 Gift ideas | Ideas per person | S | Hidden from the recipient by access rules, not encryption. |
-| 8 In case of emergency | Instructions for a trusted person | ❓ | Released after a waiting period, which needs either server access (S) or key escrow to the trusted person (E2E). Decide with the phase. |
+| 4 Calendar | Events, locations, notes | S | Calendar sync (iCal feeds, maybe CalDAV) needs the server to read them. |
+| 5 Lists, chores, noticeboard | Items, chores, notices | P | Everyday and low-risk; live sync is simpler. |
+| 6 Meals | Plans, recipes | P | Not personal. Allergies come from Health, not stored here. |
+| 7 Household admin | Bills, amounts, budgets | S | Financial, but the server must send due-date reminders. |
+| 7 Household admin | Bank account or card numbers | E2E, or don't store at all | Fraud risk. |
+| 7 Home & car | Service history, warranties | P or S | Low risk; decide with the phase. |
+| 8 Health | Allergies, conditions, medications, history, treatment plans | E2E | Health data; already agreed. |
+| 8 Health | Repeat-prescription reminders | P (what · whose · when only) | Same split as Quick Info reminders. |
+| 8 Health | Offline emergency card on the phone | E2E, opened by biometric | Already agreed. |
+| 9 Wishlists | A family member's own wishlist, and ideas others add for them | S | Hidden from the recipient by access rules, not encryption. (Gift ideas for friends and family are in phase 3.) |
+| 9 In case of emergency | Instructions for a trusted person | ❓ | Released after a waiting period, which needs either server access (S) or key escrow to the trusted person (E2E). Decide with the phase. |
 
 ## When building a phase
 
