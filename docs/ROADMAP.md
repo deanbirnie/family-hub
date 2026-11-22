@@ -276,6 +276,9 @@ reminders, export it and, later, sync it.
       by default a week before and on the day, adjustable per date, and
       chosen per parent (both, or just one of you). Marking someone as
       deceased stops birthday reminders; a memorial reminder is optional.
+      The notification never names anyone: it is one of a few generic
+      lines, such as "Tap to see whose birthday is coming up", and the
+      details are in the app.
 - [ ] **Upcoming dates** on the home page "Coming up" card and a "This month"
       list on the Contacts page.
 

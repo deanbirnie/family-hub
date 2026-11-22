@@ -157,7 +157,7 @@ when linking.
 | Reminders shown by the phone's daily check | Android notification, and the IDs already shown (so each shows once) | On the phone; IDs only | 🔜 |
 | Notification text | Sent to the push service | Encrypted to the device (RFC 8291), so the push service cannot read it; generic wording only | ✅ (browsers) |
 
-### People and dates, a family CRM (phase 3; proposed, confirm before building)
+### People and dates, a family CRM (phase 3; agreed, not built yet)
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
@@ -170,7 +170,7 @@ when linking.
 | Group names and members | Sealed | S | 🔜 |
 | Link from a contact to a Quick Info person | `contacts` column (both are IDs) | P | 🔜 |
 | Reminders for these dates | **Not stored.** The server works them out from the sealed contacts when it checks; only delivery records (IDs and times) are kept | P (IDs only) | 🔜 |
-| Notification text | Generic by default ("A birthday is coming up"); names on the lock screen only if a parent turns that on for their own devices | Encrypted in transit (RFC 8291) | ❓ owner to choose the default |
+| Notification text | Always generic, never a name or date: a few rotating variations such as "Tap to see whose birthday is coming up", "Someone's birthday is coming up. Tap to see who." and "An anniversary is coming up. Tap to see whose." No option to show names on the lock screen | Encrypted to the device (RFC 8291) | 🔜 (agreed) |
 | vCard and calendar (`.ics`) exports, address-label CSV | Downloaded to the parent's device; notes and gift ideas left out unless chosen | Plain file on the device | 🔜 |
 | vCard imports | Read in memory, shown for review, then discarded | Not stored | 🔜 |
 | CRM events (person, note or date added or changed, import, export; never details) | `audit_log` | P | 🔜 |
