@@ -259,7 +259,7 @@ reminders, export it and, later, sync it.
       Sipho; their children Lwazi (7) and Ayanda (4)").
 - [x] **Quick add a child or partner** from a person's page: just a name and
       a birthday, creating a linked contact without phone numbers.
-- [ ] **Groups:** e.g. "Book club", "School parents", "Christmas card list";
+- [x] **Groups:** e.g. "Book club", "School parents", "Christmas card list";
       filter and export by group.
 - [x] **About them:** how we met, interests, food preferences and
       allergies (for hosting), and clothing and shoe sizes (for gifts,
@@ -296,18 +296,18 @@ reminders, export it and, later, sync it.
 
 **Getting data in and out**
 
-- [ ] **Import from vCard** (Google Contacts, the phone's contacts app,
+- [x] **Import from vCard** (Google Contacts, the phone's contacts app,
       Monica's export), with a preview and duplicate matching before
       anything is saved. Imported files are read and discarded, not kept.
-- [ ] **vCard export** of a person, a group or everyone, including
+- [x] **vCard export** of a person, a group or everyone, including
       birthdays (with or without the year), anniversaries and related names,
       tested against Google Contacts, Android's contacts app and Apple
       Contacts (each handles year-less dates and relationships slightly
       differently, so the export uses the forms each one reads).
-- [ ] **Calendar export:** an `.ics` file of birthdays and anniversaries as
+- [x] **Calendar export:** an `.ics` file of birthdays and anniversaries as
       yearly events, for any calendar app. The phase 4 private calendar
       feed then includes them automatically.
-- [ ] **Address labels:** export a group's postal addresses as CSV (the
+- [x] **Address labels:** export a group's postal addresses as CSV (the
       Christmas card list).
 - [ ] Later: **CardDAV**, so the phone's own contacts app (and through it,
       the phone's calendar) syncs the family address book, birthdays

@@ -293,6 +293,15 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX contact_gifts_contact ON contact_gifts (contact_id);
   `,
+  // 12: Contact groups (phase 3): each group's name sealed with the server key;
+  // who is in it is kept inside each (sealed) contact.
+  `
+  CREATE TABLE contact_groups (
+    id TEXT PRIMARY KEY,
+    sealed TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

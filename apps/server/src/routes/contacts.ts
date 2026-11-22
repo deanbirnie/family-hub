@@ -13,6 +13,7 @@ import type { Api, Services } from '../app.ts'
 import { HttpError, readJson, str } from '../http.ts'
 import { newId } from '../secrets.ts'
 import { localNow, parseDate } from '../schedule.ts'
+import { parseVCards, toICS, toLabelsCsv, toVCard, type CalendarEntry, type ImportedContact, type Related } from '../vcard.ts'
 
 export const CATEGORIES = ['family', 'friend', 'school', 'health', 'insurance', 'services', 'other'] as const
 export const PHONE_LABELS = ['mobile', 'home', 'work', 'other'] as const
@@ -66,6 +67,8 @@ export interface Contact {
   deceased: boolean
   about: About
   keepInTouch: KeepInTouch
+  /** IDs of the groups they are in ("Book club", "Christmas card list"). */
+  groups: string[]
 }
 
 /** Fills in what contacts saved before phase 3 do not have. */
@@ -83,6 +86,7 @@ export function normalise(raw: Partial<Contact>): Contact {
     deceased: raw.deceased ?? false,
     about: { howWeMet: '', interests: '', food: '', sizes: '', ...(raw.about ?? {}) },
     keepInTouch: { everyDays: 0, since: null, lastContact: null, remindFor: 'all', ...(raw.keepInTouch ?? {}) },
+    groups: raw.groups ?? [],
   }
 }
 
@@ -103,6 +107,19 @@ function keepInTouchFrom(body: Record<string, unknown>, parents: Set<string>, pr
 }
 
 export const RELATION_KINDS = ['partner', 'child', 'parent', 'sibling', 'grandparent', 'grandchild', 'friend', 'colleague', 'other'] as const
+
+/** What b is to a, when a is b's <kind>. */
+export const INVERSE_RELATION: Record<(typeof RELATION_KINDS)[number], (typeof RELATION_KINDS)[number]> = {
+  partner: 'partner',
+  child: 'parent',
+  parent: 'child',
+  sibling: 'sibling',
+  grandparent: 'grandchild',
+  grandchild: 'grandparent',
+  friend: 'friend',
+  colleague: 'colleague',
+  other: 'other',
+}
 
 /** "a is b's <kind>": Lwazi (a) is Thandi's (b) child. */
 export interface Relation {
@@ -225,45 +242,18 @@ export function contactFrom(body: Record<string, unknown>, parents: Set<string> 
       return { howWeMet: text(a, 'howWeMet', 500), interests: text(a, 'interests', 500), food: text(a, 'food', 500), sizes: text(a, 'sizes', 300) }
     })(),
     keepInTouch: keepInTouchFrom(body, parents, previous?.keepInTouch ?? null, today),
+    groups: (() => {
+      const g = body.groups === undefined || body.groups === null ? [] : body.groups
+      if (!Array.isArray(g) || g.length > 50 || g.some((x) => typeof x !== 'string' || !/^[A-Za-z0-9_-]{1,24}$/.test(x))) {
+        throw new HttpError(400, '"groups" must be a list of groups.', 'invalid')
+      }
+      return [...new Set(g as string[])]
+    })(),
   }
 }
 
-// ---- vCard 3.0 -----------------------------------------------------------------------
-
-const escape = (v: string) => v.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/[,;]/g, (c) => `\\${c}`)
-
-/** Folds a line at 75 octets, as RFC 6350 asks, without splitting a character. */
-function fold(line: string): string {
-  const out: string[] = []
-  let current = ''
-  let bytes = 0
-  for (const ch of line) {
-    const n = Buffer.byteLength(ch)
-    if (bytes + n > (out.length ? 74 : 75)) {
-      out.push(current)
-      current = ''
-      bytes = 0
-    }
-    current += ch
-    bytes += n
-  }
-  out.push(current)
-  return out.join('\r\n ')
-}
-
-const TEL_TYPES: Record<Contact['phones'][number]['label'], string> = { mobile: 'CELL', home: 'HOME', work: 'WORK', other: 'VOICE' }
-
-export function toVCard(c: Contact, withNotes: boolean): string {
-  const lines = ['BEGIN:VCARD', 'VERSION:3.0', `FN:${escape(c.name)}`, `N:${escape(c.name)};;;;`]
-  if (c.organisation) lines.push(`ORG:${escape(c.organisation)}`)
-  if (c.role) lines.push(`TITLE:${escape(c.role)}`)
-  for (const p of c.phones) lines.push(`TEL;TYPE=${TEL_TYPES[p.label]}:${escape(p.number)}`)
-  for (const e of c.emails) lines.push(`EMAIL;TYPE=INTERNET:${escape(e)}`)
-  if (c.address) lines.push(`ADR;TYPE=HOME:;;${escape(c.address)};;;;`)
-  if (withNotes && c.note) lines.push(`NOTE:${escape(c.note)}`)
-  lines.push('END:VCARD')
-  return lines.map(fold).join('\r\n') + '\r\n'
-}
+// vCard, calendar and CSV formats: see vcard.ts.
+export { toVCard } from '../vcard.ts'
 
 /** Opens a contact row (sealed with the server key, bound to its ID). */
 export const openContact = (s: Services, r: Pick<ContactRow, 'id' | 'sealed'>): Contact => normalise(JSON.parse(s.serverKey.open(r.sealed, 'contact', r.id)) as Partial<Contact>)
@@ -298,16 +288,25 @@ export function contactRoutes(api: Api, s: Services): void {
     if (!r) throw new HttpError(404, 'That contact has been deleted.', 'not_found')
     return r
   }
+  const allGroups = () =>
+    (db.prepare('SELECT id, sealed FROM contact_groups ORDER BY created_at').all() as { id: string; sealed: string }[])
+      .map((g) => ({ id: g.id, ...(JSON.parse(s.serverKey.open(g.sealed, 'contact-group', g.id)) as { name: string }) }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+  /** Drops groups that no longer exist. */
+  const knownGroups = (c: Contact): Contact => {
+    const ids = new Set((db.prepare('SELECT id FROM contact_groups').all() as { id: string }[]).map((g) => g.id))
+    return { ...c, groups: c.groups.filter((g) => ids.has(g)) }
+  }
   const all = () =>
     (db.prepare('SELECT * FROM contacts').all() as unknown as ContactRow[])
       .map(info)
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
 
-  api.authed('GET', '/api/contacts', parents, () => ({ contacts: all(), relations: allRelations(s) }))
+  api.authed('GET', '/api/contacts', parents, () => ({ contacts: all(), relations: allRelations(s), groups: allGroups() }))
 
   api.authed('POST', '/api/contacts', parents, async (ctx) => {
     const body = await readJson(ctx.req)
-    const contact = contactFrom(body, parentIds(), null, today())
+    const contact = knownGroups(contactFrom(body, parentIds(), null, today()))
     const profileId = profileFrom(body, null)
     if ((db.prepare('SELECT COUNT(*) AS n FROM contacts').get() as { n: number }).n >= MAX_CONTACTS) {
       throw new HttpError(409, 'The address book is full.', 'too_many')
@@ -334,7 +333,7 @@ export function contactRoutes(api: Api, s: Services): void {
     if (typeof base !== 'number' || !Number.isInteger(base)) throw new HttpError(400, '"baseVersion" is required.', 'invalid')
     const changed = db
       .prepare('UPDATE contacts SET sealed = ?, profile_id = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ? AND version = ?')
-      .run(seal(r.id, contactFrom(body, parentIds(), open(r), today())), profileFrom(body, r.id), s.now(), ctx.user.id, r.id, base)
+      .run(seal(r.id, knownGroups(contactFrom(body, parentIds(), open(r), today()))), profileFrom(body, r.id), s.now(), ctx.user.id, r.id, base)
     if (Number(changed.changes) !== 1) {
       throw new HttpError(409, 'Someone else changed this contact while you were editing. Reload to see their changes.', 'edit_conflict')
     }
@@ -520,21 +519,192 @@ export function contactRoutes(api: Api, s: Services): void {
     return { contact: info(find(r.id)), ...timeline(r.id) }
   })
 
-  /** A vCard file: `all`, or one contact ID; add `-notes` to include internal notes. */
-  api.authed('GET', '/api/contacts/export/:file', parents, (ctx) => {
-    const m = /^(all|[A-Za-z0-9_-]{16})(-notes)?\.vcf$/.exec(ctx.params.file!)
-    if (!m) throw new HttpError(404, 'Not found.', 'not_found')
-    const withNotes = Boolean(m[2])
-    const contacts = m[1] === 'all' ? all() : [info(find(m[1]!))]
-    const body = contacts.map((c) => toVCard(c, withNotes)).join('')
-    const name = m[1] === 'all' ? 'family-contacts.vcf' : `${contacts[0]!.name.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'contact'}.vcf`
-    s.audit('contacts.exported', ctx, ctx.user.id, `${contacts.length}${withNotes ? ' with notes' : ''}`)
+  // ---- groups -------------------------------------------------------------------------
+
+  const groupName = (body: Record<string, unknown>) => str(body, 'name', { max: 60 })
+  const sealGroup = (id: string, name: string) => s.serverKey.seal(JSON.stringify({ name }), 'contact-group', id)
+
+  api.authed('POST', '/api/contacts/groups', parents, async (ctx) => {
+    const name = groupName(await readJson(ctx.req))
+    const existing = allGroups()
+    if (existing.length >= 100) throw new HttpError(409, 'There are as many groups as there can be.', 'too_many')
+    if (existing.some((g) => g.name.toLowerCase() === name.toLowerCase())) throw new HttpError(409, 'There is already a group with that name.', 'group_exists')
+    const id = newId()
+    db.prepare('INSERT INTO contact_groups (id, sealed, created_at) VALUES (?, ?, ?)').run(id, sealGroup(id, name), s.now())
+    s.audit('contacts.group_added', ctx, ctx.user.id)
+    return { group: { id, name }, groups: allGroups() }
+  })
+
+  api.authed('PUT', '/api/contacts/groups/:groupId', parents, async (ctx) => {
+    const id = ctx.params.groupId!
+    if (!db.prepare('SELECT 1 FROM contact_groups WHERE id = ?').get(id)) throw new HttpError(404, 'That group has been deleted.', 'not_found')
+    const name = groupName(await readJson(ctx.req))
+    if (allGroups().some((g) => g.id !== id && g.name.toLowerCase() === name.toLowerCase())) throw new HttpError(409, 'There is already a group with that name.', 'group_exists')
+    db.prepare('UPDATE contact_groups SET sealed = ? WHERE id = ?').run(sealGroup(id, name), id)
+    return { groups: allGroups() }
+  })
+
+  /** Deletes a group (not its people); they are taken out of it. */
+  api.authed('DELETE', '/api/contacts/groups/:groupId', parents, (ctx) => {
+    const id = ctx.params.groupId!
+    if (Number(db.prepare('DELETE FROM contact_groups WHERE id = ?').run(id).changes) !== 1) throw new HttpError(404, 'That group has been deleted.', 'not_found')
+    for (const r of db.prepare('SELECT * FROM contacts').all() as unknown as ContactRow[]) {
+      const c = open(r)
+      if (c.groups.includes(id)) {
+        db.prepare('UPDATE contacts SET sealed = ?, version = version + 1 WHERE id = ?').run(seal(r.id, { ...c, groups: c.groups.filter((g) => g !== id) }), r.id)
+      }
+    }
+    s.audit('contacts.group_removed', ctx, ctx.user.id)
+    return { groups: allGroups() }
+  })
+
+  // ---- exports ----------------------------------------------------------------------------
+
+  /** Who an export covers: `all`, `group-<id>`, or (vCard only) one contact ID. */
+  const exportScope = (which: string, allowOne: boolean) => {
+    if (which === 'all') return { contacts: all(), name: 'family-contacts' }
+    if (which.startsWith('group-')) {
+      const group = allGroups().find((g) => g.id === which.slice(6))
+      if (!group) throw new HttpError(404, 'That group has been deleted.', 'not_found')
+      return { contacts: all().filter((c) => c.groups.includes(group.id)), name: group.name }
+    }
+    if (!allowOne) throw new HttpError(404, 'Not found.', 'not_found')
+    const one = info(find(which))
+    return { contacts: [one], name: one.name }
+  }
+  const safeName = (name: string) => name.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'contacts'
+  const download = (ctx: { res: import('node:http').ServerResponse }, type: string, name: string, body: string) => {
     ctx.res.statusCode = 200
-    ctx.res.setHeader('Content-Type', 'text/vcard; charset=utf-8')
-    ctx.res.setHeader('Content-Disposition', `attachment; filename="contacts.vcf"; filename*=UTF-8''${encodeURIComponent(name)}`)
+    ctx.res.setHeader('Content-Type', type)
+    ctx.res.setHeader('Content-Disposition', `attachment; filename="export"; filename*=UTF-8''${encodeURIComponent(name)}`)
     ctx.res.setHeader('Cache-Control', 'no-store')
     ctx.res.end(body)
+  }
+
+  /**
+   * Exports, by file name:
+   * - `<all|group-ID|contact ID>[-notes].vcf`: vCards, with dates and related names; notes only with `-notes`
+   * - `<all|group-ID>-dates.ics`: birthdays and anniversaries as yearly calendar events
+   * - `<all|group-ID>-labels.csv`: names and postal addresses
+   */
+  api.authed('GET', '/api/contacts/export/:file', parents, (ctx) => {
+    const file = ctx.params.file!
+    const id = '[A-Za-z0-9_-]{16}'
+    let m = new RegExp(`^(all|group-${id}|${id})(-notes)?\\.vcf$`).exec(file)
+    if (m) {
+      const withNotes = Boolean(m[2])
+      const scope = exportScope(m[1]!, true)
+      const names = new Map(all().map((c) => [c.id, c.name]))
+      const relations = allRelations(s)
+      const relatedTo = (cid: string): Related[] =>
+        relations.flatMap((r): Related[] => {
+          // r.a is r.b's <kind>.
+          if (r.b === cid && names.has(r.a)) return [{ name: names.get(r.a)!, kind: r.kind, label: r.label }]
+          if (r.a === cid && names.has(r.b)) return [{ name: names.get(r.b)!, kind: INVERSE_RELATION[r.kind], label: r.label }]
+          return []
+        })
+      const body = scope.contacts.map((c) => toVCard(c, withNotes, relatedTo(c.id))).join('')
+      s.audit('contacts.exported', ctx, ctx.user.id, `${scope.contacts.length} vcard${withNotes ? ' with notes' : ''}`)
+      download(ctx, 'text/vcard; charset=utf-8', `${safeName(scope.name)}.vcf`, body)
+      return undefined
+    }
+    m = new RegExp(`^(all|group-${id})-(dates\\.ics|labels\\.csv)$`).exec(file)
+    if (!m) throw new HttpError(404, 'Not found.', 'not_found')
+    const scope = exportScope(m[1]!, false)
+    if (m[2] === 'dates.ics') {
+      const entries: CalendarEntry[] = scope.contacts.flatMap((c) =>
+        c.dates
+          .filter((d) => !c.deceased || (d.kind !== 'birthday' && d.kind !== 'anniversary'))
+          .map((d) => ({ uid: `${c.id}-${d.id}@family-hub`, summary: `${c.name}’s ${d.kind === 'other' ? d.label : d.label || d.kind}`, date: d.date })),
+      )
+      s.audit('contacts.exported', ctx, ctx.user.id, `${entries.length} dates`)
+      download(ctx, 'text/calendar; charset=utf-8', `${safeName(scope.name)} dates.ics`, toICS(entries, s.now(), Number(today().slice(0, 4))))
+    } else {
+      s.audit('contacts.exported', ctx, ctx.user.id, `${scope.contacts.length} labels`)
+      download(ctx, 'text/csv; charset=utf-8', `${safeName(scope.name)} addresses.csv`, toLabelsCsv(scope.contacts))
+    }
     return undefined
+  })
+
+  // ---- import ---------------------------------------------------------------------------
+
+  const IMPORT_LIMIT = 5 * 1024 * 1024
+  const digits = (n: string) => n.replace(/\D/g, '').slice(-9)
+
+  /** Reads a vCard file and shows what would be added, marking people who look like existing contacts. Nothing is stored. */
+  api.authed('POST', '/api/contacts/import/preview', parents, async (ctx) => {
+    const body = await readJson(ctx.req, IMPORT_LIMIT)
+    if (typeof body.vcf !== 'string') throw new HttpError(400, 'Choose a .vcf file.', 'invalid')
+    const cards = parseVCards(body.vcf)
+    if (cards.length === 0) throw new HttpError(400, 'No contacts were found in that file. Is it a vCard (.vcf) file?', 'invalid')
+    if (cards.length > MAX_CONTACTS) throw new HttpError(400, `That file has more than ${MAX_CONTACTS} contacts.`, 'invalid')
+    const existing = all()
+    const match = (c: ImportedContact) =>
+      existing.find(
+        (e) =>
+          e.name.toLowerCase() === c.name.toLowerCase() ||
+          c.phones.some((p) => e.phones.some((q) => digits(q.number).length >= 7 && digits(q.number) === digits(p.number))) ||
+          c.emails.some((m2) => e.emails.some((f) => f.toLowerCase() === m2.toLowerCase())),
+      )
+    return { contacts: cards.map((c) => ({ ...c, duplicateOf: match(c)?.id ?? null, duplicateName: match(c)?.name ?? null })) }
+  })
+
+  /** Adds the chosen people from a preview, then links related names that match exactly one person. */
+  api.authed('POST', '/api/contacts/import', parents, async (ctx) => {
+    const body = await readJson(ctx.req, IMPORT_LIMIT)
+    const list = body.contacts
+    if (!Array.isArray(list) || list.length === 0) throw new HttpError(400, 'Choose who to add.', 'invalid')
+    const category = (body.category ?? 'friend') as Contact['category']
+    if (!CATEGORIES.includes(category)) throw new HttpError(400, 'Choose a category.', 'invalid')
+    const groupId = typeof body.groupId === 'string' && body.groupId ? body.groupId : null
+    if (groupId && !allGroups().some((g) => g.id === groupId)) throw new HttpError(400, 'That group has been deleted.', 'invalid')
+    const count = (db.prepare('SELECT COUNT(*) AS n FROM contacts').get() as { n: number }).n
+    if (count + list.length > MAX_CONTACTS) throw new HttpError(409, 'That would make the address book too big.', 'too_many')
+    const parents = parentIds()
+    const added: { id: string; name: string; related: ImportedContact['related'] }[] = []
+    const skipped: { name: string; reason: string }[] = []
+    const now = s.now()
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      for (const raw of list) {
+        const item = (raw ?? {}) as Record<string, unknown>
+        try {
+          const dates = Array.isArray(item.dates) ? (item.dates as Record<string, unknown>[]).slice(0, 10).map((d) => ({ ...d, remind: d.kind === 'birthday' ? 'week' : 'off' })) : []
+          const contact = contactFrom({ ...item, category, dates, groups: groupId ? [groupId] : [] }, parents, null, today())
+          const id = newId()
+          db.prepare('INSERT INTO contacts (id, sealed, profile_id, version, created_at, updated_at, updated_by) VALUES (?, ?, NULL, 1, ?, ?, ?)').run(id, seal(id, contact), now, now, ctx.user.id)
+          const related = Array.isArray(item.related) ? (item.related as ImportedContact['related']).slice(0, 20) : []
+          added.push({ id, name: contact.name, related })
+        } catch (e) {
+          skipped.push({ name: typeof item.name === 'string' ? item.name.slice(0, 100) : '?', reason: e instanceof HttpError ? e.message : 'Could not be read.' })
+        }
+      }
+      // Related names: link to the one contact with exactly that name, if there is one.
+      const everyone = all()
+      const relations = allRelations(s)
+      const linked = new Set(relations.map((r) => [r.a, r.b].sort().join('|')))
+      let links = 0
+      for (const person of added) {
+        for (const rel of person.related) {
+          if (!RELATION_KINDS.includes(rel.kind)) continue
+          const matches = everyone.filter((c) => c.id !== person.id && c.name.toLowerCase() === String(rel.name).toLowerCase())
+          if (matches.length !== 1) continue
+          const pair = [matches[0]!.id, person.id].sort().join('|')
+          if (linked.has(pair)) continue
+          linked.add(pair)
+          const rid = newId()
+          const relation: Relation = { a: matches[0]!.id, b: person.id, kind: rel.kind, label: rel.kind === 'other' ? String(rel.label || 'related').slice(0, 40) : '' }
+          db.prepare('INSERT INTO contact_relations (id, sealed, created_at) VALUES (?, ?, ?)').run(rid, s.serverKey.seal(JSON.stringify(relation), 'relation', rid), now)
+          links++
+        }
+      }
+      db.exec('COMMIT')
+      s.audit('contacts.imported', ctx, ctx.user.id, `${added.length} added, ${links} links`)
+      return { added: added.length, links, skipped }
+    } catch (e) {
+      db.exec('ROLLBACK')
+      throw e
+    }
   })
 
   /** A person's emergency contacts (from Quick Info), by contact ID. */
