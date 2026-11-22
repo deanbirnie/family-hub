@@ -63,29 +63,53 @@ libraries and backups.
 - [x] **Recover:** keep deleted documents for 30 days and document how to
       back up and restore the shared folder alongside the hub database.
 
-## Phase 2 — Quick info (the family's reference card) ← next
+## Phase 2 — Quick Info and Family Contacts ← next
 
-ID and passport numbers, medical aid, policy numbers, Wi-Fi passwords:
-always to hand, never in plain text.
+Family Hub initially supports parents managing family administration. Either
+signed-in parent can view and edit all records in Quick Info, Family Contacts
+and Health, including their own, the other parent's and each child's. Family
+profiles can exist without login accounts. Access for other family members
+comes later, when their permissions can be defined.
 
-- [ ] **Encryption at rest** for this module (and the TOTP secrets), with a
-      key kept outside the database (a key file or Docker secret), so a copy
-      of the database alone reveals nothing. Ask-first item: agree the design
-      (server-side envelope encryption vs. end-to-end family key) before building.
-- [ ] Items per person or for the family, from templates: ID document,
-      passport, driver's licence, medical aid / health insurance, blood type
-      and allergies, doctor and dentist, insurance policies, vehicle
-      registration and licence renewal, bank branch codes (no passwords or
-      PINs), school details, Wi-Fi and alarm codes, emergency contacts.
-- [ ] Sensitive fields hidden until revealed; revealing needs a fresh code
-      (web) or fingerprint (phone); copy clears the clipboard after 30 s; every
-      reveal goes in the audit log.
-- [ ] **Expiry reminders:** passports, licences, vehicle licence discs,
-      policies: "renew in 60 days".
-- [ ] Attach a scan from Files (front and back of an ID card).
-- [ ] **Emergency card:** the medical basics and emergency contacts for each
-      person, readable on the phone even offline (encrypted on the device,
-      opened with a fingerprint).
+### Quick Info
+
+A reference card per person and one household card for information needed
+when filling in forms or handling family paperwork.
+
+- [ ] **Personal details:** full legal name, South African ID number and date
+      of birth. Optional SARS income tax reference number for each adult.
+- [ ] **Medical aid:** scheme, plan, membership number, main member and each
+      person's dependant code. Link the scheme's contact from Family Contacts.
+- [ ] **Household details:** street address, including suburb and postal code,
+      and postal address if different.
+- [ ] **Optional details:** passport number and expiry, vehicle registration
+      and licence renewal date, and insurance policy number. Link insurer or
+      accountant contacts where relevant.
+- [ ] **Documents:** link scans and certificates from Shared Family Documents
+      when suitable for everyone who can access the shared folder.
+- [ ] **Encryption at rest** for Quick Info and TOTP secrets, with a key kept
+      outside the database. Agree the encryption design before building.
+- [ ] **Sensitive fields:** require a fresh code on the web or biometric
+      verification on Android to reveal hidden fields. Clear copied values
+      from the clipboard after 30 seconds and audit each reveal.
+- [ ] **Expiry reminders:** remind parents when recorded passport or vehicle
+      licence renewal dates approach.
+
+### Family Contacts
+
+One shared address book for people and organisations the parents need to
+reach, including schools, healthcare practices, insurers and tradespeople.
+
+- [ ] **Contact cards:** name, organisation, role, phone numbers, email,
+      address and a short shared note.
+- [ ] **Reusable links:** link records from Quick Info, Health and Calendar
+      so contact edits appear everywhere the record is used. Reuse these
+      contacts in Household Admin when that phase is built.
+- [ ] **Emergency contacts:** designate a primary and backup contact for
+      each family member.
+- [ ] **vCard export:** export one contact or the whole address book as a
+      `.vcf` file. Include standard contact fields and omit internal notes
+      by default.
 
 ## Phase 3 — Family calendar
 
@@ -119,7 +143,7 @@ always to hand, never in plain text.
 - [ ] Recipe box: ingredients, steps, photos, tags; import from a recipe
       website link (optional, as it fetches from outside).
 - [ ] "Add this week's ingredients to the shopping list", merging duplicates.
-- [ ] Dietary notes per person (allergies from Quick info).
+- [ ] Dietary notes per person (allergies from Health when available).
 
 ## Phase 6 — Household admin
 
@@ -129,20 +153,44 @@ always to hand, never in plain text.
 - [ ] **Simple budget:** monthly categories, planned vs. actual, entered by hand
       or imported from a bank CSV export.
 - [ ] **Home & car:** service history, warranties and manuals (linked to
-      Files), next service due, licence and roadworthy dates, trusted
-      contacts (plumber, electrician, mechanic).
+      Files), next service due, licence and roadworthy dates, links to
+      trusted tradespeople in Family Contacts.
 - [ ] **Pets:** vet, vaccinations, medication schedule.
 
-## Phase 7 — Family life extras (pick and choose)
+## Phase 7 — Health
+
+A parent-managed health profile for each family member. Apply the parent
+access rules from Phase 2, enforce them on the server, and encrypt health
+records at rest. Show medical aid details from Quick Info through a link.
+
+- [ ] **At a glance:** allergies and known reactions, blood type if known,
+      active conditions and essential care notes.
+- [ ] **Healthcare providers:** link Family Contacts for the person's GP,
+      paediatrician, dentist, specialists and pharmacy, with a role for each.
+- [ ] **Medication list:** current and past medications, with dose, schedule,
+      start and end dates, and prescribing provider where known.
+- [ ] **Medical history:** dated diagnoses, procedures, hospital stays,
+      vaccinations and significant appointments.
+- [ ] **PDF export:** preview and export a short appointment summary or
+      selected history by date range. The default summary includes allergies,
+      current medications, relevant conditions and provider details. Parents
+      can explicitly add medical aid information, ID numbers or older history.
+- [ ] **Treatment plans:** family-recorded care instructions, the provider
+      who gave them, follow-up dates and links to suitable documents.
+- [ ] **Repeat-prescription reminders:** reminders for upcoming renewals.
+- [ ] **Offline emergency card:** selected allergies, essential medications
+      and emergency contacts. Encrypt the card on the phone and require
+      biometric verification to open it.
+
+## Phase 8 — Family life extras (pick and choose)
 
 - [ ] **Kids' accounts:** a `child` role that sees chosen modules only (lists,
-      chores, calendar), with a simpler home page and no access to Quick info.
+      chores, calendar), with a simpler home page. Keep Quick Info and Health
+      parent-managed until family member access is designed.
 - [ ] **Extended family:** a `guest` role for grandparents or a babysitter
       with access to chosen items only (the emergency card, the calendar).
 - [ ] **Trips:** itinerary, bookings and documents (from Files and Quick
       info), packing lists per person, shared expenses.
-- [ ] **Health records:** vaccinations, prescriptions and repeat-medication
-      reminders, appointment history per person.
 - [ ] **School hub:** term dates, timetables, homework, uniform and kit lists,
       teacher contacts.
 - [ ] **Gift ideas and wishlists:** ideas hidden from the person they are
