@@ -159,6 +159,10 @@ family address book) needs the server to read them.
       limited to parents on the server.
 - [ ] Server key file: created on first start, its location configurable
       and documented for backup; TOTP secrets moved under it (migration).
+- [ ] Shared document contents encrypted with the server key: streamed,
+      chunked encryption for uploads, downloads and previews, and a
+      resumable migration of existing files; backup and restore steps
+      updated to include the key. (May land as its own pull request.)
 - [ ] Family key creation, the recovery kit, and sharing with the second
       parent.
 - [ ] Android: family key unwrapped by the same biometric check that opens

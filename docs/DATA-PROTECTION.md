@@ -72,18 +72,28 @@ Status: ✅ in place · 🔜 planned for the phase shown · ❓ to decide.
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Document contents | `/data/files/<id>` | **P** | ✅ as built. ❓ See the open question below. |
+| Document contents | `/data/files/<id>` | S | 🔜 phase 2 (P today; agreed, see below) |
 | File and folder names, sizes, types, dates | `files` | P | ✅ |
-| Recycle bin (deleted documents for 30 days) | `files`, `/data/files` | Same as live documents | ✅ |
+| Recycle bin (deleted documents for 30 days) | `files`, `/data/files` | Same as live documents (S from phase 2) | ✅ |
 | Opened or saved copies on Android | App cache `documents/` | Plain on the phone; deleted when the app locks or starts | ✅ |
 
-**Open question: should document contents move to S?** Phase 1 is for
-important paperwork (certificates, ID scans), and today a copy of `/data`
-reveals all of it. Moving to S is a low-cost change (the server can encrypt
-existing files itself), so it can be done at any time; the main trade-off is
-that the files on disk are no longer readable directly from a backup without
-the server key. Proposed: **S**, as a small pull request alongside phase 2's
-server key.
+**Document contents move to S (agreed).** Phase 1 is for important
+paperwork (certificates, ID scans), and today a copy of `/data` reveals all
+of it. In phase 2, once the server key exists:
+
+- New uploads are encrypted as they stream to disk, in fixed-size chunks
+  (AES-256-GCM per chunk, each bound to the file's ID and chunk number), so
+  large files never need to fit in memory and downloads and previews can
+  still stream.
+- A one-off migration encrypts every existing document and recycle-bin file
+  in place, then removes the plain copies. It can be interrupted and
+  resumed safely.
+- Backups of `/data` can then only be opened with the server key, so the
+  backup and restore instructions name the key as a required part of a
+  restore, kept separately (the owner's password manager).
+- File and folder **names stay P**, so the server can list, sort and search
+  them in the database. A name such as "Sam passport.pdf" reveals little;
+  moving names to S later is cheap if wanted.
 
 ### Quick Info (phase 2)
 
