@@ -190,6 +190,19 @@ On each parent's phone, once it has the app version with notifications
 - [ ] 4. If Android asks about battery use for ntfy, allow it to run in the
       background, so instant notifications are not delayed.
 
+## 11. Add birthdays and family (after the "people and dates" pull request is merged and deployed)
+
+- [ ] 1. In **Contacts**, open each person and **Add a date** for birthdays
+      and anniversaries. The year is optional. Choose the reminder (a week
+      before and on the day is the default) and, if only one of you should
+      get it, who.
+- [ ] 2. For friends and family with children: **Add a child** (just a name
+      and, if you know it, a birthday), or **Link someone in Contacts**.
+- [ ] 3. Create a contact for each of you and the children, and set **One of
+      our family in Quick Info**, so your own birthdays are reminded too.
+- [ ] 4. Optional: in **Settings → Notifications**, untick **Birthdays,
+      anniversaries and other dates** if you only want them on the home page.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

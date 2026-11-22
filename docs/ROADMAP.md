@@ -253,34 +253,34 @@ reminders, export it and, later, sync it.
 
 **People and relationships**
 
-- [ ] **Relationships** between contacts, both ways: partner or spouse,
+- [x] **Relationships** between contacts, both ways: partner or spouse,
       child and parent, sibling, grandparent, friend, colleague, plus a
       custom label. A person's page shows their family ("Thandi's partner
       Sipho; their children Lwazi (7) and Ayanda (4)").
-- [ ] **Quick add a child or partner** from a person's page: just a name and
+- [x] **Quick add a child or partner** from a person's page: just a name and
       a birthday, creating a linked contact without phone numbers.
 - [ ] **Groups:** e.g. "Book club", "School parents", "Christmas card list";
       filter and export by group.
-- [ ] **About them:** how we met, interests, food preferences and
+- [x] **About them:** how we met, interests, food preferences and
       allergies (for hosting), and clothing and shoe sizes (for gifts,
       mainly children's).
-- [ ] **The family themselves:** link a contact to a Quick Info person, so
+- [x] **The family themselves:** link a contact to a Quick Info person, so
       the family's own birthdays and anniversaries appear here too without
       copying ID numbers out of the vault.
 
 **Important dates**
 
-- [ ] **Birthdays, anniversaries and custom dates** (a memorial, a name day,
+- [x] **Birthdays, anniversaries and custom dates** (a memorial, a name day,
       "moved to Perth"). The year is optional: a day and month is enough.
       Age or years are shown when the year is known ("turns 40").
-- [ ] **Reminders for each date**, through the phase 2 notification system:
+- [x] **Reminders for each date**, through the phase 2 notification system:
       by default a week before and on the day, adjustable per date, and
       chosen per parent (both, or just one of you). Marking someone as
       deceased stops birthday reminders; a memorial reminder is optional.
       The notification never names anyone: it is one of a few generic
       lines, such as "Tap to see whose birthday is coming up", and the
       details are in the app.
-- [ ] **Upcoming dates** on the home page "Coming up" card and a "This month"
+- [x] **Upcoming dates** on the home page "Coming up" card and a "This month"
       list on the Contacts page.
 
 **Keeping in touch**

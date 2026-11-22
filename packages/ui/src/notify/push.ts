@@ -23,6 +23,7 @@ export interface PushRoute {
 export interface NotificationSettings {
   enabled: boolean
   expiry: boolean
+  dates: boolean
   sendHour: number
 }
 

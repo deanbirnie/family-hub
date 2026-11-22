@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { toVCard, type Contact } from '../src/routes/contacts.ts'
+import { normalise, toVCard, type Contact } from '../src/routes/contacts.ts'
 import { Client, enrollTotp, nextStep, PASSWORD, setUpAdmin, startServer, type TestServer } from './helpers.ts'
 
 let server: TestServer
@@ -106,7 +106,7 @@ describe('Family Contacts', () => {
 describe('vCard lines', () => {
   it('escape special characters and fold long lines at 75 octets', () => {
     const card = toVCard(
-      { name: 'Zoë, the "Plumber"', organisation: '', role: '', category: 'services', phones: [], emails: [], address: 'é'.repeat(60), note: 'line one\nline two' },
+      normalise({ name: 'Zoë, the "Plumber"', organisation: '', role: '', category: 'services', phones: [], emails: [], address: 'é'.repeat(60), note: 'line one\nline two' }),
       true,
     )
     expect(card).toContain('FN:Zoë\\, the "Plumber"')

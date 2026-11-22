@@ -86,7 +86,7 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
     <Card title="Notifications" actions={here === 'on' ? <Badge tone="success">On here</Badge> : undefined}>
       <p className="muted">
         {parent
-          ? 'Reminders before passports and licence discs expire. Notifications only say something is due; the details are in the app. Whatever happens with notifications, everything due also shows under “Coming up” on the home page.'
+          ? 'Reminders before passports and licence discs expire, and for birthdays and other dates in Contacts. Notifications never name anyone; the details are in the app. Everything due also shows under “Coming up” on the home page.'
           : 'Notifications for the family hub. The details are only ever shown in the app.'}
       </p>
 
@@ -188,6 +188,10 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
               <label className="check">
                 <input type="checkbox" checked={data.settings.expiry} disabled={!data.settings.enabled} onChange={(e) => void save.run({ expiry: e.target.checked })} />
                 <span>Passport and licence disc expiry (90, 30 and 7 days before)</span>
+              </label>
+              <label className="check">
+                <input type="checkbox" checked={data.settings.dates} disabled={!data.settings.enabled} onChange={(e) => void save.run({ dates: e.target.checked })} />
+                <span>Birthdays, anniversaries and other dates from Contacts (as chosen for each date)</span>
               </label>
               <div className="field">
                 <label htmlFor="send-hour">Send reminders from</label>

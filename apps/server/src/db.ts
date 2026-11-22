@@ -260,6 +260,18 @@ const MIGRATIONS: string[] = [
     last_check_at INTEGER
   );
   `,
+  // 10: People and dates (phase 3). A contact can be one of the family's
+  // Quick Info people (IDs only); relationships between contacts are sealed
+  // with the server key, one value per relationship.
+  `
+  ALTER TABLE contacts ADD COLUMN profile_id TEXT REFERENCES family_profiles(id) ON DELETE SET NULL;
+  CREATE UNIQUE INDEX contacts_profile ON contacts (profile_id) WHERE profile_id IS NOT NULL;
+  CREATE TABLE contact_relations (
+    id TEXT PRIMARY KEY,
+    sealed TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

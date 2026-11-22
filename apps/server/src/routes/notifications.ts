@@ -116,7 +116,7 @@ export function notificationRoutes(api: Api, s: Services): void {
     const body = await readJson(ctx.req)
     const current = getSettings(s, ctx.user.id)
     const next = { ...current }
-    for (const key of ['enabled', 'expiry'] as const) {
+    for (const key of ['enabled', 'expiry', 'dates'] as const) {
       if (body[key] === undefined) continue
       if (typeof body[key] !== 'boolean') throw new HttpError(400, `"${key}" must be true or false.`, 'invalid')
       next[key] = body[key]
@@ -204,7 +204,7 @@ export function notificationRoutes(api: Api, s: Services): void {
   /** What is coming up, for the home page. Reminders are for parents. */
   api.authed('GET', '/api/reminders/upcoming', signedIn, (ctx) => {
     if (ctx.user.role !== 'admin') return { items: [] }
-    return { items: upcoming(s, localNow(s.now(), s.config.timeZone).date) }
+    return { items: upcoming(s, localNow(s.now(), s.config.timeZone).date, ctx.user.id) }
   })
 
   /** The expiry dates the server holds for Quick Info records, so a parent's device can bring them up to date. */
