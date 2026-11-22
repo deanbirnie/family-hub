@@ -250,6 +250,46 @@ try {
   await sam.getByRole('heading', { name: 'Where you’re signed in' }).waitFor()
   if (await sam.getByRole('heading', { name: 'Family vault' }).count()) throw new Error('a member sees the family vault')
 
+  // Quick Info, in the open vault: records are encrypted on the device.
+  await page.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Quick Info' }).click()
+  await page.getByRole('heading', { name: 'Quick Info' }).waitFor()
+  await page.getByRole('button', { name: 'Add a person' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Alex Tester' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Add', exact: true }).click()
+  const alexCard = page.locator('section.card', { has: page.getByRole('heading', { name: 'Alex Tester' }) })
+  await alexCard.getByRole('button', { name: 'Add personal details' }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByLabel('Full legal name').fill('Alex Quinn Tester')
+  await dialog.getByLabel('South African ID number').fill('8001015009088')
+  await dialog.getByText('check digit is wrong').waitFor()
+  await dialog.getByLabel('South African ID number').fill('8001015009087')
+  if ((await dialog.getByLabel('Date of birth').inputValue()) !== '1980-01-01') throw new Error('date of birth not filled from the ID number')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await alexCard.getByText('Alex Quinn Tester').waitFor()
+  // Masked until tapped.
+  if (await alexCard.getByText('8001015009087').count()) throw new Error('the ID number is shown unmasked')
+  await alexCard.getByRole('button', { name: 'Show South African ID number' }).click()
+  await alexCard.getByText('8001015009087').waitFor()
+  await shot(page, '07f-quick-info')
+  // The server holds only ciphertext.
+  const stored = await page.evaluate(async () => (await fetch('/api/quick-info')).text())
+  if (stored.includes('8001015009087') || stored.includes('Alex Quinn Tester')) throw new Error('Quick Info reached the server unencrypted')
+  // Locking the vault hides it all (in-app navigation: a reload would already forget the key).
+  const nav = page.getByRole('navigation', { name: 'Main' }).first()
+  await nav.getByRole('link', { name: 'Settings' }).click()
+  await page.locator('section', { has: page.getByRole('heading', { name: 'Family vault' }) }).getByRole('button', { name: 'Lock now' }).click()
+  await nav.getByRole('link', { name: 'Quick Info' }).click()
+  await page.getByRole('heading', { name: 'Family vault' }).waitFor()
+  // And a reload forgets the key: the vault is locked again.
+  await page.reload()
+  await page.getByRole('heading', { name: 'Family vault' }).waitFor()
+  if (await page.getByText('Alex Quinn Tester').count()) throw new Error('Quick Info is shown while the vault is locked')
+  // Members neither see it in the menu nor can open it.
+  await sam.goto(`${base}/`)
+  if (await sam.getByRole('link', { name: 'Quick Info' }).count()) throw new Error('a member sees Quick Info in the menu')
+  await sam.goto(`${base}/info`)
+  await sam.getByText('It is kept for parents only.').waitFor()
+
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)
   await page.getByRole('heading', { name: 'Where you’re signed in' }).waitFor()

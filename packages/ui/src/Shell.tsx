@@ -9,6 +9,7 @@ import { initials } from './format.ts'
 import { MODULES } from './modules.ts'
 import { ComingSoon } from './pages/ComingSoon.tsx'
 import { FilesPage } from './pages/Files.tsx'
+import { QuickInfoPage } from './pages/QuickInfo.tsx'
 import { HomePage } from './pages/Home.tsx'
 import { MembersPage } from './pages/Members.tsx'
 import { SettingsPage } from './pages/Settings.tsx'
@@ -86,12 +87,13 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
     })
   }
   const ctx: HubContext = { platform, user, familyName, setFamilyName, setUser, signOut, serverKeySaved, setServerKeySaved }
-  const ready = MODULES.filter((m) => m.status !== 'planned')
+  const ready = MODULES.filter((m) => m.status !== 'planned' && (!m.parentsOnly || user.role === 'admin'))
 
   let page: ReactNode
   const module = MODULES.find((m) => path === m.path || path.startsWith(`${m.path}/`))
   if (path === '/') page = <HomePage ctx={ctx} />
   else if (path === '/files' || path.startsWith('/files/')) page = <FilesPage ctx={ctx} />
+  else if (path === '/info') page = <QuickInfoPage ctx={ctx} />
   else if (module) page = <ComingSoon module={module} />
   else if (path === '/family') page = <MembersPage ctx={ctx} />
   else if (path === '/settings') page = <SettingsPage ctx={ctx} />

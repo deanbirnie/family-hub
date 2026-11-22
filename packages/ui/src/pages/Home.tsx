@@ -30,7 +30,7 @@ export function HomePage({ ctx }: { ctx: HubContext }) {
 
       <h2 className="section-title">Your hub</h2>
       <div className="module-grid">
-        {MODULES.map((m) => {
+        {MODULES.filter((m) => !m.parentsOnly || ctx.user.role === 'admin').map((m) => {
           const open = m.status !== 'planned'
           return (
             <a

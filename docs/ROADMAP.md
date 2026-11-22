@@ -177,19 +177,20 @@ family address book) needs the server to read them.
 A reference card per person and one household card for information needed
 when filling in forms or handling family paperwork, all end-to-end encrypted.
 
-- [ ] **Family profiles**, including people without login accounts (children).
-- [ ] **Personal details:** full legal name, South African ID number and date
+- [x] **Family profiles**, including people without login accounts (children).
+- [x] **Personal details:** full legal name, South African ID number and date
       of birth. Optional SARS income tax reference number for each adult.
-- [ ] **Medical aid:** scheme, plan, membership number, main member and each
-      person's dependant code. Link the scheme's contact from Family Contacts.
-- [ ] **Household details:** street address, including suburb and postal code,
+- [x] **Medical aid:** scheme, plan, membership number, main member and each
+      person's dependant code. (Linking the scheme's contact comes with Family
+      Contacts.)
+- [x] **Household details:** street address, including suburb and postal code,
       and postal address if different.
-- [ ] **Optional details:** passport number and expiry, vehicle registration
-      and licence renewal date, and insurance policy number. Link insurer or
-      accountant contacts where relevant.
-- [ ] **Documents:** link scans and certificates from Shared Family Documents
+- [x] **Optional details:** passport number and expiry, vehicle registration
+      and licence renewal date, and insurance policy number. (Linking insurer
+      or accountant contacts comes with Family Contacts.)
+- [x] **Documents:** link scans and certificates from Shared Family Documents
       when suitable for everyone who can access the shared folder.
-- [ ] **Masked fields** with tap-to-show and copy that clears after 30 seconds.
+- [x] **Masked fields** with tap-to-show and copy that clears after 30 seconds.
 
 **3. Family Contacts**
 

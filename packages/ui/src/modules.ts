@@ -24,6 +24,8 @@ export interface HubModule {
   /** 'ready' modules are in the menu; 'next' is being built now; 'planned' is on the roadmap. */
   status: 'ready' | 'next' | 'planned'
   phase: number
+  /** Shown to parents only. */
+  parentsOnly?: boolean
 }
 
 export const MODULES: HubModule[] = [
@@ -38,12 +40,13 @@ export const MODULES: HubModule[] = [
   },
   {
     id: 'info',
-    name: 'Quick info',
+    name: 'Quick Info',
     path: '/info',
     icon: IdCard,
-    description: 'ID and passport numbers, medical aid, policy numbers and Wi-Fi passwords, encrypted, to hand when you need them.',
-    status: 'planned',
+    description: 'ID and passport numbers, medical aid, vehicles and policies, end-to-end encrypted, to hand when you need them.',
+    status: 'ready',
     phase: 2,
+    parentsOnly: true,
   },
   {
     id: 'calendar',

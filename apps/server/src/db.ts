@@ -160,6 +160,31 @@ const MIGRATIONS: string[] = [
     payload TEXT
   );
   `,
+  // 6: Quick Info (end-to-end; see routes/quick-info.ts). Profiles name the
+  // people records belong to; each record's contents are ciphertext under the
+  // family key, which the server never has.
+  `
+  CREATE TABLE family_profiles (
+    id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    user_id TEXT UNIQUE REFERENCES users(id) ON DELETE SET NULL,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE quick_info (
+    id TEXT PRIMARY KEY,
+    profile_id TEXT REFERENCES family_profiles(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('personal', 'medical', 'passport', 'vehicle', 'policy', 'household')),
+    ciphertext TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
+  );
+  -- One personal, medical aid and passport record per person; one household record.
+  CREATE UNIQUE INDEX quick_info_single ON quick_info(COALESCE(profile_id, ''), kind) WHERE kind IN ('personal', 'medical', 'passport', 'household');
+  CREATE INDEX quick_info_profile ON quick_info(profile_id);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

@@ -16,6 +16,7 @@ import { deviceRoutes } from './routes/devices.ts'
 import { memberRoutes } from './routes/members.ts'
 import { serverKeyRoutes } from './routes/server-key.ts'
 import { vaultRoutes } from './routes/vault.ts'
+import { quickInfoRoutes } from './routes/quick-info.ts'
 import { fileRoutes } from './routes/files.ts'
 import { maintainFiles } from './file-maintenance.ts'
 import type { ServerKey } from './server-key.ts'
@@ -113,6 +114,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   fileRoutes(api, services)
   serverKeyRoutes(api, services)
   vaultRoutes(api, services)
+  quickInfoRoutes(api, services)
 
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     void dispatch(services, router, req, res)
