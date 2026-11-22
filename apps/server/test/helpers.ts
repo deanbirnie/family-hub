@@ -8,6 +8,7 @@ import type { Config } from '../src/config.ts'
 import { openDb } from '../src/db.ts'
 import { loadServerKey } from '../src/server-key.ts'
 import { totpAt } from '../src/totp.ts'
+import type { PushFetch } from '../src/webpush.ts'
 
 export const PASSWORD = 'correct horse battery staple'
 
@@ -19,7 +20,7 @@ export interface TestServer {
   close(): Promise<void>
 }
 
-export async function startServer(overrides: Partial<Config> = {}): Promise<TestServer> {
+export async function startServer(overrides: Partial<Config> = {}, options: { pushFetch?: PushFetch } = {}): Promise<TestServer> {
   const clock = { now: Date.UTC(2026, 10, 20, 12, 0, 0) }
   const config: Config = {
     port: 0,
@@ -33,6 +34,8 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Test
     maxFileBytes: 100 * 1024 * 1024,
     // Kept apart from the data folder, as in production.
     keyFile: join(mkdtempSync(join(tmpdir(), 'family-hub-key-')), 'server.key'),
+    timeZone: 'Africa/Johannesburg',
+    publicUrl: 'https://hub.example.com',
     ...overrides,
   }
   const db = openDb(':memory:')
@@ -42,6 +45,7 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Test
     serverKey: loadServerKey(config.keyFile, db, config.dataDir),
     argon2: { memory: 1024, passes: 1, parallelism: 1 },
     now: () => clock.now,
+    pushFetch: options.pushFetch,
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as AddressInfo

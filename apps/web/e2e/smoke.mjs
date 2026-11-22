@@ -298,6 +298,36 @@ try {
   await alexCard.getByLabel('First call').selectOption({ label: 'Gran Tester' })
   await alexCard.getByRole('button', { name: 'Save', exact: true }).click()
   await alexCard.getByRole('link', { name: 'Call Gran Tester' }).waitFor()
+  // A passport expiry date becomes a reminder (only the date leaves the device) and shows under "Coming up".
+  await alexCard.getByRole('button', { name: 'Add passport' }).click()
+  const expiry = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10)
+  await page.getByRole('dialog').getByLabel('Passport number').fill('A12345678')
+  await page.getByRole('dialog').getByLabel('Expiry date').fill(expiry)
+  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('dialog').waitFor({ state: 'detached' })
+  for (let i = 0; ; i++) {
+    const dates = await page.evaluate(async () => (await fetch('/api/reminders/quick-info')).json())
+    if (dates.dates.some((d) => d.field === 'expiry' && d.date)) {
+      if (JSON.stringify(dates).includes('A12345678')) throw new Error('the passport number reached the server')
+      break
+    }
+    if (i > 50) throw new Error(`the passport reminder was not registered: ${JSON.stringify(dates)}`)
+    await page.waitForTimeout(100)
+  }
+  await page.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Home' }).click()
+  const comingUp = page.locator('section.card', { has: page.getByRole('heading', { name: 'Coming up' }) })
+  await comingUp.getByText('Passport renewal').waitFor()
+  await comingUp.getByText('Alex Tester').waitFor()
+  await comingUp.getByText('in 4 weeks').waitFor()
+  await shot(page, '07h-coming-up')
+  // Settings has the notifications card; the service worker that shows them is served.
+  await page.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Settings' }).click()
+  await page.locator('section.card', { has: page.getByRole('heading', { name: 'Notifications' }) }).getByText('Send reminders from').waitFor()
+  const sw = await page.evaluate(async () => {
+    const r = await fetch('/sw.js')
+    return { status: r.status, type: r.headers.get('content-type'), text: await r.text() }
+  })
+  if (sw.status !== 200 || !sw.type?.includes('javascript') || !sw.text.includes("addEventListener('push'")) throw new Error(`service worker not served: ${JSON.stringify(sw)}`)
   // Locking the vault hides it all (in-app navigation: a reload would already forget the key).
   const nav = page.getByRole('navigation', { name: 'Main' }).first()
   await nav.getByRole('link', { name: 'Settings' }).click()

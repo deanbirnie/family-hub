@@ -199,6 +199,55 @@ const MIGRATIONS: string[] = [
   );
   ALTER TABLE family_profiles ADD COLUMN emergency TEXT;
   `,
+  // 8: Notifications (see notifications.ts and docs/DATA-PROTECTION.md).
+  // Reminder records hold only what, whose and when, so the server can send
+  // them; push addresses are sealed with the server key.
+  `
+  CREATE TABLE reminders (
+    id TEXT PRIMARY KEY,
+    -- where it came from: 'quick-info' (the record, and which date in it)
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    field TEXT NOT NULL,
+    profile_id TEXT REFERENCES family_profiles(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    -- YYYY-MM-DD, or --MM-DD for a yearly date without a year
+    due TEXT NOT NULL,
+    yearly INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (source, source_id, field)
+  );
+  CREATE TABLE push_subscriptions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    -- set for a phone, so removing the phone removes its push address
+    device_id TEXT REFERENCES devices(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('webpush', 'unifiedpush')),
+    -- SHA-256 of the address, to recognise a browser registering again
+    endpoint_hash TEXT NOT NULL UNIQUE,
+    -- the address and the receiver's keys, sealed with the server key
+    sealed TEXT NOT NULL,
+    label TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    last_ok_at INTEGER,
+    last_error TEXT,
+    failures INTEGER NOT NULL DEFAULT 0,
+    failing_since INTEGER
+  );
+  CREATE INDEX push_subscriptions_user ON push_subscriptions (user_id);
+  -- which reminders each person has been sent (IDs and times only)
+  CREATE TABLE reminder_deliveries (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    occurrence TEXT NOT NULL,
+    sent_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, occurrence)
+  );
+  CREATE TABLE notification_settings (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    settings TEXT NOT NULL
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

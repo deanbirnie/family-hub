@@ -144,14 +144,18 @@ when linking.
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Reminder records: what, whose, when (Quick Info expiry dates; created by the parent's device, as the server cannot read the record) | Reminders | P (the server sends them) | 🔜 |
-| Push addresses (UnifiedPush and Web Push endpoints) and their keys | Push subscriptions | S | 🔜 |
-| Push health: last success, failure count, when a route stopped working | Push subscriptions | P | 🔜 |
-| Which reminders were sent or shown, to which device | Delivery records | P (IDs and times only) | 🔜 |
-| Notification settings per person (which reminders, how far ahead) | Settings | P | 🔜 |
+| Reminder records: what, whose, when (Quick Info expiry dates; created by the parent's device, as the server cannot read the record) | `reminders` (title, person, date) | P (the server sends them) | ✅ |
+| Push addresses (UnifiedPush and Web Push endpoints) and their keys | `push_subscriptions.sealed` (bound to its ID) | S | ✅ (browsers) |
+| A fingerprint of each push address, to recognise a browser registering again | `push_subscriptions.endpoint_hash` (SHA-256) | H | ✅ |
+| Push health: last success, failure count, when a route stopped working, the last error | `push_subscriptions` columns | P | ✅ |
+| Device name for each push route ("Chrome on Windows") | `push_subscriptions.label` | P | ✅ |
+| Which reminders were sent to which person | `reminder_deliveries` | P (IDs and times only) | ✅ |
+| Notification settings per person (which reminders, from what hour) | `notification_settings` | P | ✅ |
+| The hub's push signing key (VAPID private key) | `settings` | S | ✅ |
+| The hub's https address, when learnt from a browser | `settings` | P | ✅ |
 | Background-check tokens (read reminders only) | Tokens | H | 🔜 |
 | Reminders shown by the phone's daily check | Android notification, and the IDs already shown (so each shows once) | On the phone; IDs only | 🔜 |
-| Notification text | Sent to the push service | Encrypted in transit (RFC 8291); generic wording only | 🔜 |
+| Notification text | Sent to the push service | Encrypted to the device (RFC 8291), so the push service cannot read it; generic wording only | ✅ (browsers) |
 
 ### People and dates, a family CRM (phase 3; proposed, confirm before building)
 

@@ -26,6 +26,10 @@ services:
       # trusted for the client address and https). 1 for a single proxy.
       FAMILY_HUB_TRUST_PROXY: "1"
       FAMILY_HUB_MAX_FILE_BYTES: "${FAMILY_HUB_MAX_FILE_BYTES:-104857600}"
+      # The family's time zone: which day reminders are due, and when they are sent.
+      TZ: "${TZ:-Africa/Johannesburg}"
+      # The hub's https address (the one you open in the browser), for push notifications.
+      FAMILY_HUB_PUBLIC_URL: "${FAMILY_HUB_PUBLIC_URL:-}"
     volumes:
       # The database and the family's documents. Back this up.
       - family-hub-data:/data

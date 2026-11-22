@@ -146,6 +146,34 @@ The vault holds Quick Info, end-to-end encrypted: the server cannot read it.
 - [ ] 4. Optional: **Export** saves a `.vcf` file your phone's contacts app
       can import. Notes are left out unless you tick the box.
 
+## 9. Turn on reminders (after the notifications pull request is merged and deployed)
+
+- [ ] 1. On the home server, in the folder with `docker-compose.yml`, check
+      two lines under `environment:` (copy them from the repository's
+      `docker-compose.yml` if your copy is older):
+
+      ```yaml
+      TZ: "${TZ:-Africa/Johannesburg}"
+      FAMILY_HUB_PUBLIC_URL: "${FAMILY_HUB_PUBLIC_URL:-}"
+      ```
+
+      Put your hub's https address after `:-` on the second line, e.g.
+      `"${FAMILY_HUB_PUBLIC_URL:-https://hub.example.com}"`. Then:
+
+      ```bash
+      docker compose pull && docker compose up -d
+      ```
+
+- [ ] 2. In each browser you use the hub in: **Settings → Notifications →
+      Turn on notifications in this browser**, allow them when the browser
+      asks, then select the send button (paper plane) next to it to send a
+      test.
+- [ ] 3. Optional: in the same card, choose which reminders you get and from
+      what time of day.
+- [ ] 4. In **Quick Info**, check passports and vehicles have their expiry
+      dates: each one now shows under **Coming up** on the home page.
+
 ## Later steps (added as features land)
 
-- Notifications (phase 2, part 4): installing ntfy on each phone.
+- Notifications on the phones (phase 2, part 4b): installing ntfy on each
+  phone. The phone's daily check works without it.

@@ -5,6 +5,7 @@ import { RecoveryCodesList } from '../auth/screens.tsx'
 import { describeAgent, EVENT_NAMES, formatDateTime, timeAgo } from '../format.ts'
 import type { HubContext } from '../Shell.tsx'
 import { VaultCard } from '../vault/VaultCard.tsx'
+import { NotificationsCard } from '../notify/NotificationsCard.tsx'
 import { Badge, Banner, Button, Card, Field, PageHeader, Spinner, useAction, useLoad } from '../ui.tsx'
 
 export function SettingsPage({ ctx }: { ctx: HubContext }) {
@@ -13,6 +14,7 @@ export function SettingsPage({ ctx }: { ctx: HubContext }) {
       <PageHeader title="Settings" />
       {ctx.platform.updates && <UpdatesCard ctx={ctx} />}
       {ctx.user.role === 'admin' && ctx.serverKeySaved === false && <ServerKeyCard ctx={ctx} />}
+      <NotificationsCard ctx={ctx} />
       <ProfileCard ctx={ctx} />
       <PasswordCard ctx={ctx} />
       <TwoFactorCard ctx={ctx} />

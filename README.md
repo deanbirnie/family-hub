@@ -63,6 +63,8 @@ for commands and verification.
 | `PORT` | `8080` | |
 | `FAMILY_HUB_KEY_FILE` | `/keys/server.key` | The server key that encrypts documents and sign-in secrets at rest. Keep it on its own mount (not inside `/data`) and copy it to a password manager: see [backups](docs/BACKUPS.md). |
 | `FAMILY_HUB_MAX_FILE_BYTES` | `104857600` (100 MiB) | Maximum size of one document upload; up to 2 GiB. Set a matching or larger request limit on your reverse proxy. |
+| `TZ` | `UTC` (the compose file sets `Africa/Johannesburg`) | The family's time zone: which day reminders are due, and from what time of day they are sent. |
+| `FAMILY_HUB_PUBLIC_URL` | (learnt) | The hub's https address, e.g. `https://hub.example.com`. Push services are told it as the sender of notifications. If unset, the address a browser uses when turning notifications on is remembered. |
 
 ### Shared documents
 

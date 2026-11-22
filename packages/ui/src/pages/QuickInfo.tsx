@@ -20,6 +20,7 @@ import {
   type SectionDef,
   type StoredRecord,
 } from '../quickinfo/model.ts'
+import { syncReminders } from '../quickinfo/reminders.ts'
 import type { HubContext } from '../Shell.tsx'
 import { contactSummary, type Contact } from './Contacts.tsx'
 import { Badge, Banner, Button, Card, Dialog, Field, PageHeader, Spinner, errorText, useAction } from '../ui.tsx'
@@ -103,6 +104,8 @@ function QuickInfoBody({ ctx }: { ctx: HubContext }) {
         }),
       )
       setData({ profiles: raw.profiles, records })
+      // Keeps expiry reminders in step with the records (only dates leave the device).
+      void syncReminders(api, records).catch(() => undefined)
     } catch (e) {
       setError(errorText(e))
     }

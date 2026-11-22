@@ -230,12 +230,12 @@ and tradespeople. Encrypted at rest with the server key.
 **4. Notifications and expiry reminders** (two pull requests: 4a server,
 browser and home page; 4b Android)
 
-- [ ] Reminder records, created from Quick Info passport and vehicle licence
+- [x] Reminder records, created from Quick Info passport and vehicle licence
       dates (from 90 days before, then 30 and 7), including yearly and
       year-less dates for phase 3.
-- [ ] Browser: Web Push (RFC 8291, built-in crypto), with push health and a
+- [x] Browser: Web Push (RFC 8291, built-in crypto), with push health and a
       test button.
-- [ ] Notification settings per person, and a "Coming up" card on the home
+- [x] Notification settings per person, and a "Coming up" card on the home
       page for parents.
 - [ ] Android: UnifiedPush registration (ntfy and other distributors), and
       the always-on daily background check.
