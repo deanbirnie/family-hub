@@ -160,7 +160,7 @@ when linking.
 | Reminders shown on the phone | Android notification (generic text; hidden on a locked screen), and the tags already shown, so each shows once | On the phone; tags only | ✅ |
 | Notification text | Sent to the push service | Encrypted to the device (RFC 8291), so the push service (ntfy, Google, Mozilla, Apple) cannot read it; generic wording only | ✅ |
 
-### People and dates, a family CRM (phase 3; agreed, being built)
+### People and dates, a family CRM (phase 3)
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
@@ -170,13 +170,13 @@ when linking.
 | Notes, timeline entries, life events and times you were in touch | `contact_notes.sealed` (one value per entry, bound to the contact and entry ID); entry IDs, contact and times in plain | S | ✅ |
 | Stay-in-touch interval, when it was set, last-contacted date and who is reminded | Inside the sealed contact | S | ✅ |
 | Gift ideas and gifts given (idea, occasion, link, when given) | `contact_gifts.sealed` (one value per gift, bound to the contact and gift ID) | S | ✅ |
-| Group names and members | Sealed | S | 🔜 |
+| Group names (`contact_groups.sealed`, bound to the group ID) and who is in each (inside each sealed contact) | Sealed | S | ✅ |
 | Link from a contact to a Quick Info person | `contacts.profile_id` (both are IDs) | P | ✅ |
 | Reminders for these dates | **Not stored.** The server works them out from the sealed contacts when it checks; only delivery records (IDs and times) are kept | P (IDs only) | ✅ |
 | Notification text | Always generic, never a name or date: a few rotating variations such as "Tap to see whose birthday is coming up", "Someone's birthday is coming up. Tap to see who." and "An anniversary is coming up. Tap to see whose." No option to show names on the lock screen | Encrypted to the device (RFC 8291) | ✅ |
-| vCard and calendar (`.ics`) exports, address-label CSV | Downloaded to the parent's device; notes and gift ideas left out unless chosen | Plain file on the device | 🔜 |
-| vCard imports | Read in memory, shown for review, then discarded | Not stored | 🔜 |
-| CRM events (person, note, gift or date added or changed, relationship added or removed, "we spoke", import, export; never details) | `audit_log` | P | ✅ (3a, 3b) |
+| vCard and calendar (`.ics`) exports, address-label CSV | Downloaded to the parent's device; shared notes left out unless chosen; timeline notes and gift ideas never exported | Plain file on the device | ✅ |
+| vCard imports | Read in memory for the preview, then discarded; only the people the parent chooses are saved (as sealed contacts) | Not stored | ✅ |
+| CRM events (person, note, gift or date added or changed, relationship added or removed, "we spoke", import, export; never details) | `audit_log` | P | ✅ |
 
 Reminders for these dates are deliberately not copied into the plain
 reminder records used for Quick Info: a list of names with birthdays is

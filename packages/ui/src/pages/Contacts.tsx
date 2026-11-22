@@ -2,15 +2,15 @@
  * Family Contacts: the parents' shared address book. Stored encrypted with
  * the server key (docs/DATA-PROTECTION.md, "Family Contacts").
  */
-import { Cake, Download, Mail, Phone, Plus, Search, Trash2, UserRound } from 'lucide-react'
+import { Cake, Download, FileUp, Mail, Phone, Plus, Search, Tags, Trash2, UserRound } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ApiError } from '../api.ts'
-import { saveFromApi } from '../download.ts'
 import type { HubContext } from '../Shell.tsx'
 import { Badge, Banner, Button, Card, Dialog, Field, PageHeader, Spinner, useAction, useLoad } from '../ui.tsx'
 import { DATE_KINDS, formatImportantDate, nextComing, whenWords, type ImportantDate, type Relation } from '../people/dates.ts'
 import { AboutEditor, DatesEditor, emptyAbout, RelativesSection, type About, type Parent } from '../people/PeopleSections.tsx'
 import { emptyKeepInTouch, KeepInTouchEditor, TimelineSection, type KeepInTouch } from '../people/Timeline.tsx'
+import { ExportDialog, GroupsDialog, ImportDialog, type Group } from '../people/ImportExport.tsx'
 
 export const CATEGORIES = {
   family: 'Family',
@@ -40,12 +40,13 @@ export interface Contact {
   deceased: boolean
   about: About
   keepInTouch: KeepInTouch
+  groups: string[]
   /** The Quick Info person this contact is, for the family themselves. */
   profileId: string | null
 }
 
 export const useContacts = (ctx: HubContext) =>
-  useLoad(() => ctx.platform.api.get<{ contacts: Contact[]; relations: Relation[] }>('/api/contacts'), [ctx.platform.api])
+  useLoad(() => ctx.platform.api.get<{ contacts: Contact[]; relations: Relation[]; groups: Group[] }>('/api/contacts'), [ctx.platform.api])
 
 /** The contact's next date coming round within `days` days. */
 function nextDate(c: Contact, days = 31) {
@@ -89,8 +90,12 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
   }, [ctx.platform.api])
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<Category | 'all'>('all')
+  const [group, setGroup] = useState<string>('')
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [managingGroups, setManagingGroups] = useState(false)
+  const groups = contacts.data?.groups ?? []
   const editing = editingId === 'new' ? 'new' : (contacts.data?.contacts.find((c) => c.id === editingId) ?? null)
   const comingUp = useMemo(
     () =>
@@ -106,9 +111,10 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
     return (contacts.data?.contacts ?? []).filter(
       (c) =>
         (category === 'all' || c.category === category) &&
+        (!group || c.groups.includes(group)) &&
         (!q || [c.name, c.organisation, c.role, ...c.phones.map((p) => p.number), ...c.emails].some((v) => v.toLowerCase().includes(q))),
     )
-  }, [contacts.data, query, category])
+  }, [contacts.data, query, category, group])
 
   return (
     <div className="page">
@@ -120,8 +126,14 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
             <Button icon={<Plus size={16} aria-hidden />} onClick={() => setEditingId('new')}>
               Add contact
             </Button>
+            <Button variant="secondary" icon={<FileUp size={16} aria-hidden />} onClick={() => setImporting(true)}>
+              Import
+            </Button>
             <Button variant="secondary" icon={<Download size={16} aria-hidden />} disabled={!contacts.data?.contacts.length} onClick={() => setExporting(true)}>
               Export
+            </Button>
+            <Button variant="ghost" icon={<Tags size={16} aria-hidden />} onClick={() => setManagingGroups(true)}>
+              Groups
             </Button>
           </div>
         }
@@ -171,6 +183,15 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
               </button>
             ))}
           </div>
+          {groups.length > 0 && (
+            <div className="row chips" role="group" aria-label="Group">
+              {groups.map((g) => (
+                <button key={g.id} className={`chip ${group === g.id ? 'chip-on' : ''}`} aria-pressed={group === g.id} onClick={() => setGroup(group === g.id ? '' : g.id)}>
+                  {g.name}
+                </button>
+              ))}
+            </div>
+          )}
           {contacts.data.contacts.length === 0 && <p className="muted">No contacts yet. Add the people and places the family needs to reach.</p>}
           {contacts.data.contacts.length > 0 && shown.length === 0 && <p className="muted">No contacts match.</p>}
           <ul className="contact-list">
@@ -214,6 +235,7 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
           contact={editing === 'new' ? null : editing}
           contacts={contacts.data.contacts}
           relations={contacts.data.relations}
+          groups={groups}
           parents={others.data?.parents ?? []}
           profiles={others.data?.profiles ?? []}
           onRelationsChanged={() => contacts.reload()}
@@ -224,37 +246,19 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
           }}
         />
       )}
-      {exporting && <ExportDialog ctx={ctx} onClose={() => setExporting(false)} />}
+      {exporting && <ExportDialog platform={ctx.platform} groups={groups} onClose={() => setExporting(false)} />}
+      {importing && (
+        <ImportDialog
+          api={ctx.platform.api}
+          groups={groups}
+          onClose={(changed) => {
+            setImporting(false)
+            if (changed) contacts.reload()
+          }}
+        />
+      )}
+      {managingGroups && <GroupsDialog api={ctx.platform.api} groups={groups} onChanged={() => contacts.reload()} onClose={() => setManagingGroups(false)} />}
     </div>
-  )
-}
-
-function ExportDialog({ ctx, contact, onClose }: { ctx: HubContext; contact?: Contact; onClose: () => void }) {
-  const [notes, setNotes] = useState(false)
-  const save = useAction(async () => {
-    const which = contact ? contact.id : 'all'
-    await saveFromApi(ctx.platform, `/api/contacts/export/${which}${notes ? '-notes' : ''}.vcf`, contact ? `${contact.name}.vcf` : 'family-contacts.vcf')
-    onClose()
-  })
-  return (
-    <Dialog open title={contact ? `Export ${contact.name}` : 'Export the address book'} onClose={onClose}>
-      <div className="stack">
-        <p>Saves a vCard (.vcf) file that phones, Google Contacts and Outlook can import.</p>
-        <label className="check">
-          <input type="checkbox" checked={notes} onChange={(e) => setNotes(e.target.checked)} />
-          <span>Include the shared notes (they are left out unless you tick this)</span>
-        </label>
-        {save.error && <Banner kind="error">{save.error}</Banner>}
-        <div className="row">
-          <Button busy={save.busy} icon={<Download size={16} aria-hidden />} onClick={() => void save.run()}>
-            Save .vcf file
-          </Button>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    </Dialog>
   )
 }
 
@@ -263,6 +267,7 @@ function ContactDialog({
   contact,
   contacts,
   relations,
+  groups,
   parents,
   profiles,
   onRelationsChanged,
@@ -273,6 +278,7 @@ function ContactDialog({
   contact: Contact | null
   contacts: Contact[]
   relations: Relation[]
+  groups: Group[]
   parents: Parent[]
   profiles: { id: string; displayName: string }[]
   onRelationsChanged: () => void
@@ -285,6 +291,7 @@ function ContactDialog({
     deceased: contact?.deceased ?? false,
     about: contact?.about ?? emptyAbout(),
     keepInTouch: contact?.keepInTouch ?? emptyKeepInTouch(),
+    groups: contact?.groups ?? ([] as string[]),
     profileId: contact?.profileId ?? '',
     name: contact?.name ?? '',
     organisation: contact?.organisation ?? '',
@@ -313,7 +320,7 @@ function ContactDialog({
     await api.del(`/api/contacts/${contact.id}`)
     onClose(true)
   })
-  if (exporting && contact) return <ExportDialog ctx={ctx} contact={contact} onClose={() => setExporting(false)} />
+  if (exporting && contact) return <ExportDialog platform={ctx.platform} groups={groups} contact={contact} onClose={() => setExporting(false)} />
   return (
     <Dialog open title={contact ? `Edit ${contact.name}` : 'Add a contact'} onClose={() => onClose(false)}>
       <form
@@ -376,6 +383,23 @@ function ContactDialog({
           <RelativesSection api={api} contact={contact} contacts={contacts} relations={relations} onChanged={onRelationsChanged} onOpen={onOpen} />
         ) : (
           <p className="muted small">Save first, then add their partner, children and other relationships.</p>
+        )}
+        {groups.length > 0 && (
+          <fieldset className="radio-group">
+            <legend>Groups</legend>
+            <div className="row">
+              {groups.map((g) => (
+                <label key={g.id} className="check">
+                  <input
+                    type="checkbox"
+                    checked={form.groups.includes(g.id)}
+                    onChange={(e) => set('groups', e.target.checked ? [...form.groups, g.id] : form.groups.filter((x) => x !== g.id))}
+                  />
+                  <span>{g.name}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
         )}
         <AboutEditor about={form.about} onChange={(about) => set('about', about)} />
         <KeepInTouchEditor value={{ ...form.keepInTouch, lastContact: contact?.keepInTouch.lastContact ?? form.keepInTouch.lastContact }} parents={parents} onChange={(v) => set('keepInTouch', v)} />

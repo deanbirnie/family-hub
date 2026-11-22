@@ -211,6 +211,23 @@ On each parent's phone, once it has the app version with notifications
 - [ ] 2. Optional: jot down news with **Add a note or life event** (a new
       job, a move, a new baby), and gift ideas with **Add a gift idea**.
 
+## 13. Bring in your contacts (after the "import and export" pull request is merged and deployed)
+
+- [ ] 1. Export your contacts as a vCard (.vcf) file from where they are now:
+      **Google Contacts** (contacts.google.com → Export → vCard), your
+      **phone's contacts app** (Settings → Export), or **Monica**.
+- [ ] 2. In Family Hub: **Contacts → Import**, choose the file, untick anyone
+      you don't want (people who look like existing contacts are already
+      unticked), choose a category, then **Add**.
+- [ ] 3. Optional: **Groups** (e.g. "Christmas card list"), tick people into
+      them, then **Export → Address labels** for that group.
+- [ ] 4. Optional: **Export → Birthdays and anniversaries (.ics)** and import
+      the file into Google Calendar or your phone's calendar. (Phase 4 adds
+      a calendar feed that stays up to date by itself.)
+- [ ] 5. Please check one exported .vcf in your phone's contacts app and in
+      Google Contacts: birthdays without a year and children's names should
+      come through. Tell Claude if anything is missing.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

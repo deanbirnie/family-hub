@@ -289,7 +289,7 @@ try {
   await page.getByRole('link', { name: 'Call Gran Tester (Mobile)' }).waitFor()
   await shot(page, '07g-contacts')
   await page.getByRole('button', { name: 'Export' }).click()
-  const [vcf] = await Promise.all([page.waitForEvent('download'), page.getByRole('dialog').getByRole('button', { name: 'Save .vcf file' }).click()])
+  const [vcf] = await Promise.all([page.waitForEvent('download'), page.getByRole('dialog').getByRole('button', { name: 'Save file' }).click()])
   const vcard = readFileSync(await vcf.path(), 'utf8')
   if (!vcard.includes('FN:Gran Tester') || vcard.includes('Spare key')) throw new Error(`unexpected vCard export:\n${vcard}`)
   // People and dates: Gran's birthday (year known) in five days, and a grandchild added in one step.
@@ -335,6 +335,42 @@ try {
   // Nothing readable about Gran in what the server stores is checked by the server tests; the home page lists her birthday.
   await page.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Home' }).click()
   await page.locator('section.card', { has: page.getByRole('heading', { name: 'Coming up' }) }).getByText('Gran Tester’s birthday').waitFor()
+  // Import from a vCard file: a preview first, then the chosen people, with family linked by name.
+  await page.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Contacts' }).click()
+  await page.getByRole('button', { name: 'Import' }).click()
+  const importing = page.getByRole('dialog')
+  await importing.getByLabel('vCard file').setInputFiles({
+    name: 'contacts.vcf',
+    mimeType: 'text/vcard',
+    buffer: Buffer.from(
+      'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Sipho Tester\r\nBDAY:--03-15\r\nitem1.X-ABRELATEDNAMES:Thandi Tester\r\nitem1.X-ABLabel:_$!<Spouse>!$_\r\nEND:VCARD\r\n' +
+        'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Gran Tester\r\nEND:VCARD\r\n',
+    ),
+  })
+  await importing.getByText('Looks like Gran Tester').waitFor()
+  await importing.getByRole('button', { name: 'Add 1 person' }).click()
+  await importing.getByText('Added 1 person, and linked 1 relationship').waitFor()
+  await importing.getByRole('button', { name: 'Done' }).click()
+  await page.getByRole('button', { name: 'Edit Sipho Tester' }).waitFor()
+  // A group, Gran in it, and its address labels.
+  await page.getByRole('button', { name: 'Groups' }).click()
+  await page.getByRole('dialog').getByLabel('New group name').fill('Christmas cards')
+  await page.getByRole('dialog').getByRole('button', { name: 'Add group' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Rename Christmas cards' }).waitFor()
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).last().click()
+  await page.getByRole('button', { name: 'Edit Gran Tester' }).click()
+  await page.getByRole('dialog').getByLabel('Christmas cards').check()
+  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('dialog').waitFor({ state: 'detached' })
+  await page.getByRole('group', { name: 'Group' }).getByRole('button', { name: 'Christmas cards' }).click()
+  if (await page.getByRole('button', { name: 'Edit Sipho Tester' }).count()) throw new Error('the group filter shows people outside the group')
+  await page.getByRole('button', { name: 'Export' }).click()
+  await page.getByRole('dialog').getByLabel('Who').selectOption({ label: 'Group: Christmas cards' })
+  await page.getByRole('dialog').getByLabel(/Birthdays and anniversaries \(\.ics\)/).check()
+  const [ics] = await Promise.all([page.waitForEvent('download'), page.getByRole('dialog').getByRole('button', { name: 'Save file' }).click()])
+  const calendar = readFileSync(await ics.path(), 'utf8')
+  if (!calendar.includes('SUMMARY:Gran Tester’s birthday') || calendar.includes('Sipho')) throw new Error(`unexpected calendar export:\n${calendar}`)
+  await page.getByRole('group', { name: 'Group' }).getByRole('button', { name: 'Christmas cards' }).click()
   const nav2 = page.getByRole('navigation', { name: 'Main' }).first()
   await nav2.getByRole('link', { name: 'Quick Info' }).click()
   await alexCard.getByRole('button', { name: 'Choose emergency contacts' }).click()
