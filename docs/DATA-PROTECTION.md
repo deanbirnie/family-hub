@@ -183,11 +183,33 @@ reminder records used for Quick Info: a list of names with birthdays is
 exactly what identity thieves look for, and the server can read the sealed
 contacts anyway.
 
+### Family calendar (phase 4; agreed, not built yet)
+
+| Data | Where | Tier | Status |
+|---|---|---|---|
+| Events: title, start and end, all-day, repeat rule and exceptions, tags (people or Family), location, notes, links to contacts and files, reminder choices | One sealed value per event, bound to its ID (times included, so routines cannot be read from the database) | S | 🔜 |
+| Event IDs, versions, when and by whom changed | `events` columns | P | 🔜 |
+| Each person's colour | Family people | P | 🔜 |
+| Reminders for events | **Not stored.** Worked out from the sealed events; only delivery records (IDs and times) are kept | P (IDs only) | 🔜 |
+| Reminder notification text | Generic ("An event starts in 1 hour. Tap to see."), encrypted to the device | RFC 8291 | 🔜 |
+| Birthdays on the calendar | Read from Contacts each time; never copied | (Contacts' tiers) | 🔜 |
+| Family members kept on a contact (e.g. a friend's young child: name, birthday, reminder) | Inside the parent contact's sealed value | S | 🔜 |
+| Subscription links, names, default tags and colours | One sealed value per subscription | S (links can contain secret tokens) | 🔜 |
+| Events fetched from subscriptions, waiting in the inbox | Sealed per item; cleared after 30 days | S | 🔜 |
+| Which subscribed events were ignored or accepted | Source event IDs (hashed) and the accepted event's ID | H / P | 🔜 |
+| Subscription health: last fetched, last error | Subscription columns | P | 🔜 |
+| `.ics` exports | Downloaded to the person's device; notes left out unless chosen | Plain file on the device | 🔜 |
+| `.ics` imports | Read in memory into the inbox (sealed); the file is not kept | Not stored | 🔜 |
+| Calendar events (added, changed, removed, exported, subscriptions added or removed; never details) | `audit_log` | P | 🔜 |
+
+Nothing outside the hub reads the calendar live (no iCal feed or CalDAV):
+exports are files a person chooses to send, so two-factor sign-in remains
+the only way in.
+
 ### Later phases (proposed; confirm at the start of each phase)
 
 | Phase | Data | Proposed tier | Why |
 |---|---|---|---|
-| 4 Calendar | Events, locations, notes | S | Calendar sync (iCal feeds, maybe CalDAV) needs the server to read them. |
 | 5 Lists, chores, noticeboard | Items, chores, notices | P | Everyday and low-risk; live sync is simpler. |
 | 6 Meals | Plans, recipes | P | Not personal. Allergies come from Health, not stored here. |
 | 7 Household admin | Bills, amounts, budgets | S | Financial, but the server must send due-date reminders. |
