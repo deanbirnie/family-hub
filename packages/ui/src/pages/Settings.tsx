@@ -11,6 +11,7 @@ export function SettingsPage({ ctx }: { ctx: HubContext }) {
     <div className="page">
       <PageHeader title="Settings" />
       {ctx.platform.updates && <UpdatesCard ctx={ctx} />}
+      {ctx.user.role === 'admin' && ctx.serverKeySaved === false && <ServerKeyCard ctx={ctx} />}
       <ProfileCard ctx={ctx} />
       <PasswordCard ctx={ctx} />
       <TwoFactorCard ctx={ctx} />
@@ -18,8 +19,99 @@ export function SettingsPage({ ctx }: { ctx: HubContext }) {
       <DevicesCard ctx={ctx} />
       <ActivityCard ctx={ctx} />
       {ctx.user.role === 'admin' && <FamilyCard ctx={ctx} />}
+      {ctx.user.role === 'admin' && ctx.serverKeySaved === true && <ServerKeyCard ctx={ctx} />}
       <AboutCard ctx={ctx} />
     </div>
+  )
+}
+
+/**
+ * The server key, for a parent to copy into a password manager. Shown at the
+ * top of Settings until someone confirms it is saved, then lower down.
+ */
+function ServerKeyCard({ ctx }: { ctx: HubContext }) {
+  const [code, setCode] = useState('')
+  const [key, setKey] = useState<{ key: string; file: string } | null>(null)
+  const [copied, setCopied] = useState(false)
+  const reveal = useAction(async () => {
+    setKey(await ctx.platform.api.post<{ key: string; file: string }>('/api/server-key/reveal', { code }))
+    setCode('')
+  })
+  const confirm = useAction(async () => {
+    await ctx.platform.api.post('/api/server-key/saved')
+    ctx.setServerKeySaved(true)
+    setKey(null)
+  })
+  const copy = () => {
+    if (!key) return
+    void navigator.clipboard?.writeText(key.key).then(() => {
+      setCopied(true)
+      // Do not leave the key on the clipboard.
+      setTimeout(() => {
+        void navigator.clipboard?.writeText('').catch(() => undefined)
+        setCopied(false)
+      }, 30_000)
+    })
+  }
+  const pending = ctx.serverKeySaved === false
+  return (
+    <Card title="Server key" actions={pending ? <Badge tone="warning">Not saved yet</Badge> : <Badge tone="success">Saved</Badge>}>
+      <p>
+        Family Hub encrypts documents and sign-in secrets with this key. It is kept apart from the hub’s data, so a stolen backup
+        cannot be read, but it also means <strong>a backup cannot be restored without it</strong>. Keep a copy in your password manager.
+      </p>
+      {key ? (
+        <div className="stack">
+          <div className="secret secret-wrap" aria-label="Server key">
+            {key.key}
+          </div>
+          <p className="muted small">
+            Save it as a secure note, for example “Family Hub server key”. On the server it is <code>{key.file}</code>.
+          </p>
+          <div className="row">
+            <Button variant="secondary" onClick={copy}>
+              {copied ? 'Copied (clears in 30 s)' : 'Copy key'}
+            </Button>
+            {pending && (
+              <Button busy={confirm.busy} onClick={() => void confirm.run()}>
+                I’ve saved it in my password manager
+              </Button>
+            )}
+            {!pending && (
+              <Button variant="ghost" onClick={() => setKey(null)}>
+                Hide
+              </Button>
+            )}
+          </div>
+          {confirm.error && <Banner kind="error">{confirm.error}</Banner>}
+        </div>
+      ) : (
+        <form
+          className="stack"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void reveal.run()
+          }}
+        >
+          <Field
+            label={pending ? 'Enter a code from your authenticator app to show the key' : 'Show the key again: code from your authenticator app'}
+            className="code-input"
+            inputMode="numeric"
+            maxLength={7}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            required
+            autoComplete="one-time-code"
+          />
+          {reveal.error && <Banner kind="error">{reveal.error}</Banner>}
+          <div>
+            <Button type="submit" variant={pending ? 'primary' : 'secondary'} busy={reveal.busy}>
+              Show the key
+            </Button>
+          </div>
+        </form>
+      )}
+    </Card>
   )
 }
 

@@ -8,7 +8,10 @@ key** (`/keys/server.key`, in the `family-hub-keys` volume). It is deliberately
 also means **a backup cannot be restored without the key**.
 
 The hub creates the key on first start. Copy it to your password manager
-once, straight away (it is one line of text and never changes):
+once (it is one line of text and never changes). Until a parent confirms
+this, every parent sees a reminder in the app: **Settings → Server key**
+shows the key after a fresh authenticator code, with a button to confirm it
+is saved. From the server instead:
 
 ```sh
 docker compose run --rm --no-deps --entrypoint cat family-hub /keys/server.key

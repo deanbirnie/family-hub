@@ -32,6 +32,8 @@ export interface ServerKey {
   open(sealed: string, purpose: string, aad: string): string
   /** The key for one document's contents. */
   fileKey(fileId: string, salt: Buffer): Buffer
+  /** The key itself, as stored in the key file, for a parent to copy to a password manager. */
+  exportKey(): string
 }
 
 export const isSealed = (value: string) => value.startsWith(SEALED_PREFIX)
@@ -63,6 +65,9 @@ export function serverKeyFrom(master: Buffer): ServerKey {
     },
     fileKey(fileId, salt) {
       return subkey(master, `file/${fileId}`, salt)
+    },
+    exportKey() {
+      return master.toString('base64')
     },
   }
 }

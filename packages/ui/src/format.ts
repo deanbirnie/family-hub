@@ -90,4 +90,7 @@ export const EVENT_NAMES: Record<string, string> = {
   'member.updated': 'Changed a member',
   'member.two_factor_reset': 'Reset a member’s two-factor sign-in',
   'family.renamed': 'Renamed the family',
+  'server_key.revealed': 'Showed the server key',
+  'server_key.reveal_failed': 'Wrong code when showing the server key',
+  'server_key.saved': 'Confirmed the server key is saved',
 }

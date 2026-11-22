@@ -119,6 +119,8 @@ try {
   // The hub.
   await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
   await page.getByText('Important family documents, stored on your own server.').waitFor()
+  // Parents are reminded to save the server key until one confirms it.
+  await page.getByText('Save the server key to your password manager.').waitFor()
   await shot(page, '04-home')
   await page.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Files' }).click()
   await page.getByRole('heading', { name: 'No documents yet' }).waitFor()
@@ -166,6 +168,23 @@ try {
   await sam.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Family' }).click()
   await sam.getByText('Alex Tester').waitFor()
   if (await sam.getByRole('button', { name: 'Invite someone' }).count()) throw new Error('a member can see the invite button')
+
+  // Members are not reminded about the server key.
+  if (await sam.getByText('Save the server key to your password manager.').count()) throw new Error('a member sees the server key reminder')
+
+  // The reminder leads to Settings: show the key with a fresh code, confirm it is saved.
+  await page.getByRole('button', { name: 'Save it now' }).click()
+  await page.getByRole('heading', { name: 'Server key' }).waitFor()
+  await page.getByLabel('Enter a code from your authenticator app to show the key').fill(await nextCode(secret))
+  await page.getByRole('button', { name: 'Show the key' }).click()
+  const shownKey = (await page.getByLabel('Server key').textContent()).trim()
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(shownKey)) throw new Error(`unexpected server key ${shownKey}`)
+  await shot(page, '07a-server-key')
+  await page.getByRole('button', { name: 'I’ve saved it in my password manager' }).click()
+  await page.getByText('Saved', { exact: true }).waitFor()
+  await page.goto(base)
+  await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
+  if (await page.getByText('Save the server key to your password manager.').count()) throw new Error('the server key reminder is still shown after saving')
 
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)

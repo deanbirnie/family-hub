@@ -14,6 +14,7 @@ import { accountRoutes } from './routes/account.ts'
 import { authRoutes } from './routes/auth.ts'
 import { deviceRoutes } from './routes/devices.ts'
 import { memberRoutes } from './routes/members.ts'
+import { serverKeyRoutes } from './routes/server-key.ts'
 import { fileRoutes } from './routes/files.ts'
 import { maintainFiles } from './file-maintenance.ts'
 import type { ServerKey } from './server-key.ts'
@@ -109,6 +110,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   memberRoutes(api, services)
   deviceRoutes(api, services)
   fileRoutes(api, services)
+  serverKeyRoutes(api, services)
 
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     void dispatch(services, router, req, res)

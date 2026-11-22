@@ -48,7 +48,7 @@ about what a **stolen database, backup or disk** reveals, and about what the
 | Key | Where it lives | Backed up to |
 |---|---|---|
 | Family key | Wrapped per parent device: Android Keystore (fingerprint or face), browser passkey (WebAuthn PRF). Shared between parents through per-parent key pairs. | The **recovery key**, shown once when the family key is created, kept in the owner's password manager. |
-| Server key | A key file outside the `/data` volume (a separate mount or a Docker secret). | The owner's password manager. **Never back it up alongside `/data`**, or S data in that backup is as good as plain. |
+| Server key | A key file outside the `/data` volume (a separate mount or a Docker secret). | The owner's password manager. Parents are reminded in the app until one confirms it is saved; **Settings → Server key** shows it after a fresh authenticator code (each showing is logged). **Never back it up alongside `/data`**, or S data in that backup is as good as plain. |
 
 ## Register
 
@@ -66,7 +66,7 @@ Status: ✅ in place · 🔜 planned for the phase shown · ❓ to decide.
 | Phone public keys, device names | `devices` | P (public keys are not secret) | ✅ |
 | Phone private keys | Android Keystore, on the phone | Never leaves the hardware | ✅ |
 | Audit log: events, times, IP addresses | `audit_log` | P (kept one year) | ✅ |
-| Family name, settings | `settings` | P | ✅ |
+| Family name, settings (including when the server key was confirmed saved, and by whom) | `settings` | P | ✅ |
 
 ### Shared documents (phase 1)
 

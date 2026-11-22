@@ -23,6 +23,9 @@ export interface HubContext {
   setFamilyName: (name: string) => void
   setUser: (user: User) => void
   signOut: () => void
+  /** Parents only: whether a parent has confirmed the server key is in a password manager (null while loading or for members). */
+  serverKeySaved: boolean | null
+  setServerKeySaved: (saved: boolean) => void
 }
 
 function NavLink({ to, icon, label, path }: { to: string; icon: ReactNode; label: string; path: string }) {
@@ -55,7 +58,17 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
   const [user, setUser] = useState(session.user)
   const [familyName, setFamilyName] = useState(session.familyName)
   const [lowCodes, setLowCodes] = useState<number | null>(null)
+  const [serverKeySaved, setServerKeySaved] = useState<boolean | null>(null)
   const update = useUpdates(platform.updates)
+
+  // Parents are reminded until one of them has saved the server key.
+  useEffect(() => {
+    if (user.role !== 'admin') return
+    platform.api.get<{ saved: boolean }>('/api/server-key').then(
+      (k) => setServerKeySaved(k.saved),
+      () => undefined,
+    )
+  }, [platform.api, user.role])
 
   useEffect(() => {
     platform.api.get<{ recoveryCodesLeft: number }>('/api/account').then(
@@ -70,7 +83,7 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
       onSignOut()
     })
   }
-  const ctx: HubContext = { platform, user, familyName, setFamilyName, setUser, signOut }
+  const ctx: HubContext = { platform, user, familyName, setFamilyName, setUser, signOut, serverKeySaved, setServerKeySaved }
   const ready = MODULES.filter((m) => m.status !== 'planned')
 
   let page: ReactNode
@@ -142,6 +155,18 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
                 <span>Family Hub {update.version} is ready to install.</span>
                 <Button variant="secondary" icon={<Download size={16} aria-hidden />} onClick={() => navigate('/settings')}>
                   See what’s new
+                </Button>
+              </div>
+            </Banner>
+          )}
+          {serverKeySaved === false && path !== '/settings' && (
+            <Banner kind="warning">
+              <div className="row-between">
+                <span>
+                  <strong>Save the server key to your password manager.</strong> Without it, a backup of Family Hub cannot be restored.
+                </span>
+                <Button variant="secondary" onClick={() => navigate('/settings')}>
+                  Save it now
                 </Button>
               </div>
             </Banner>

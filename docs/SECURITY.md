@@ -107,7 +107,11 @@ recent-apps list), backups are off, and plain-http traffic is refused.
   bound to its owner (a secret to its user, a document's chunks to that
   document, in order, with the end marked), so it cannot be moved, swapped or
   cut short unnoticed. The server refuses to start if encrypted data exists
-  and the key is missing or wrong, rather than making a new key. Details:
+  and the key is missing or wrong, rather than making a new key. A parent
+  can show the key in Settings to copy it to a password manager, only after
+  entering a fresh authenticator code; each showing is in the audit log. (A
+  signed-in parent can already open every document, so this adds no access
+  to current data; it is what makes restoring a backup possible.) Details:
   [DATA-PROTECTION.md](DATA-PROTECTION.md) and [BACKUPS.md](BACKUPS.md).
 - The audit log records sign-ins, failures, lockouts and account changes with
   the client address; each person sees their own in Settings. Entries older
