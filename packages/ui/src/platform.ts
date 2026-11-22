@@ -22,6 +22,24 @@ export interface Updates {
   subscribe(listener: () => void): () => void
 }
 
+/** Push notifications on this device: Web Push in browsers, UnifiedPush on Android. */
+export interface PushSupport {
+  kind: 'webpush' | 'unifiedpush'
+  /** 'unsupported' when this device cannot, 'denied' when notifications were blocked. */
+  state(): Promise<'unsupported' | 'denied' | 'off' | 'on'>
+  /**
+   * Asks permission if needed and returns this device's push address and keys;
+   * null on a phone without a push app (it still gets the daily check).
+   */
+  enable(vapidPublicKey: string): Promise<{ endpoint: string; keys: { p256dh: string; auth: string } } | null>
+  current(): Promise<{ endpoint: string; keys: { p256dh: string; auth: string } } | null>
+  disable(): Promise<void>
+  /** Android: the daily check and the push app (ntfy or another), for Settings. */
+  phone?: () => Promise<{ daily: boolean; lastCheck: number | null; pushApp: string | null; pushApps: string[]; problem: string | null }>
+  /** Android: checks for due reminders now (when the app is opened). */
+  checkNow?: () => Promise<void>
+}
+
 export interface Platform {
   kind: 'web' | 'android'
   /** This build's version. */
@@ -45,6 +63,8 @@ export interface Platform {
     /** Forgets the keystore key (when the phone is signed out). */
     forget(): Promise<void>
   }
+  /** Push notifications, where this device has them. */
+  push?: PushSupport
   /** A name for this device in lists, e.g. "Pixel 8" or "Chrome on Windows". */
   deviceLabel?: string
   /** Native Android: saves an export from the API (e.g. a vCard file) where the person chooses. */

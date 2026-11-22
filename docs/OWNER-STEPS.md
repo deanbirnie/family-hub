@@ -146,6 +146,50 @@ The vault holds Quick Info, end-to-end encrypted: the server cannot read it.
 - [ ] 4. Optional: **Export** saves a `.vcf` file your phone's contacts app
       can import. Notes are left out unless you tick the box.
 
+## 9. Turn on reminders (after the notifications pull request is merged and deployed)
+
+- [ ] 1. On the home server, in the folder with `docker-compose.yml`, check
+      two lines under `environment:` (copy them from the repository's
+      `docker-compose.yml` if your copy is older):
+
+      ```yaml
+      TZ: "${TZ:-Africa/Johannesburg}"
+      FAMILY_HUB_PUBLIC_URL: "${FAMILY_HUB_PUBLIC_URL:-}"
+      ```
+
+      Put your hub's https address after `:-` on the second line, e.g.
+      `"${FAMILY_HUB_PUBLIC_URL:-https://hub.example.com}"`. Then:
+
+      ```bash
+      docker compose pull && docker compose up -d
+      ```
+
+- [ ] 2. In each browser you use the hub in: **Settings → Notifications →
+      Turn on notifications in this browser**, allow them when the browser
+      asks, then select the send button (paper plane) next to it to send a
+      test.
+- [ ] 3. Optional: in the same card, choose which reminders you get and from
+      what time of day.
+- [ ] 4. In **Quick Info**, check passports and vehicles have their expiry
+      dates: each one now shows under **Coming up** on the home page.
+
+## 10. Turn on reminders on the phones (after the phone notifications release is installed)
+
+On each parent's phone, once it has the app version with notifications
+(Settings → App updates):
+
+- [ ] 1. Optional, for instant notifications: install **ntfy** from F-Droid
+      or Google Play and open it once. No account or settings are needed;
+      it uses the free ntfy.sh service. (A self-hosted ntfy server can
+      replace it later.)
+- [ ] 2. In Family Hub: **Settings → Notifications → Turn on notifications
+      on this phone**, and allow notifications when Android asks.
+- [ ] 3. Check the card says **Daily check: on**, and, if you installed
+      ntfy, **Instant notifications: on, through ntfy**. Then select the
+      send button (paper plane) next to the phone to send a test.
+- [ ] 4. If Android asks about battery use for ntfy, allow it to run in the
+      background, so instant notifications are not delayed.
+
 ## Later steps (added as features land)
 
-- Notifications (phase 2, part 4): installing ntfy on each phone.
+- Nothing yet.

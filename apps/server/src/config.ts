@@ -28,6 +28,37 @@ export interface Config {
    * the data folder, on its own mount, and copy it to a password manager.
    */
   keyFile: string
+  /** The family's time zone (TZ), for which day reminders are due and when they are sent. */
+  timeZone: string
+  /**
+   * The hub's https address (FAMILY_HUB_PUBLIC_URL). Push services are told it
+   * as the sender; if unset, the address browsers use is learnt when one
+   * turns notifications on.
+   */
+  publicUrl: string
+}
+
+function timeZone(): string {
+  const tz = process.env.TZ?.trim() || 'UTC'
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: tz })
+  } catch {
+    throw new Error(`TZ must be a time zone such as Africa/Johannesburg, got "${tz}"`)
+  }
+  return tz
+}
+
+function publicUrl(): string {
+  const raw = process.env.FAMILY_HUB_PUBLIC_URL?.trim()
+  if (!raw) return ''
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    throw new Error(`FAMILY_HUB_PUBLIC_URL must be an https address, got "${raw}"`)
+  }
+  if (url.protocol !== 'https:') throw new Error(`FAMILY_HUB_PUBLIC_URL must be an https address, got "${raw}"`)
+  return url.origin
 }
 
 function int(name: string, fallback: number, min: number, max: number): number {
@@ -59,6 +90,8 @@ export function loadConfig(): Config {
     allowHttp: bool('FAMILY_HUB_ALLOW_HTTP', false),
     maxFileBytes: int('FAMILY_HUB_MAX_FILE_BYTES', 100 * 1024 * 1024, 1, 2 * 1024 * 1024 * 1024),
     keyFile: resolve(process.env.FAMILY_HUB_KEY_FILE || './keys/server.key'),
+    timeZone: timeZone(),
+    publicUrl: publicUrl(),
     // Capacitor serves the Android app from https://localhost.
     appOrigins: (process.env.FAMILY_HUB_APP_ORIGINS || 'https://localhost')
       .split(',')

@@ -21,6 +21,9 @@ import { contactRoutes } from './routes/contacts.ts'
 import { fileRoutes } from './routes/files.ts'
 import { maintainFiles } from './file-maintenance.ts'
 import type { ServerKey } from './server-key.ts'
+import { notificationRoutes } from './routes/notifications.ts'
+import { runReminders } from './notifications.ts'
+import { defaultPushFetch, type PushFetch } from './webpush.ts'
 
 export interface AppOptions {
   db: Db
@@ -30,6 +33,8 @@ export interface AppOptions {
   /** Lower Argon2 settings make tests fast; production uses the default. */
   argon2?: Argon2Params
   now?: () => number
+  /** How push notifications are sent; tests replace it. */
+  pushFetch?: PushFetch
 }
 
 /** Everything a route needs. */
@@ -39,6 +44,7 @@ export interface Services {
   serverKey: ServerKey
   argon2: Argon2Params
   now: () => number
+  pushFetch: PushFetch
   limits: {
     /** Sign-in attempts per address. */
     signIn: RateLimiter
@@ -81,6 +87,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
     serverKey: opts.serverKey,
     argon2: opts.argon2 ?? DEFAULT_ARGON2,
     now: opts.now ?? Date.now,
+    pushFetch: opts.pushFetch ?? defaultPushFetch,
     limits: {
       signIn: new RateLimiter(30, 15 * 60_000),
       open: new RateLimiter(60, 15 * 60_000),
@@ -117,6 +124,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   vaultRoutes(api, services)
   quickInfoRoutes(api, services)
   contactRoutes(api, services)
+  notificationRoutes(api, services)
 
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     void dispatch(services, router, req, res)
@@ -142,7 +150,15 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
     }
   }, 10 * 60_000)
   prune.unref()
-  server.on('close', () => clearInterval(prune))
+  // Reminders: checked every few minutes, each sent once (notifications.ts).
+  const remind = setInterval(() => {
+    void runReminders(services).catch((e) => console.error('Sending reminders failed', e))
+  }, 5 * 60_000)
+  remind.unref()
+  server.on('close', () => {
+    clearInterval(prune)
+    clearInterval(remind)
+  })
 
   return { server, services, handle }
 }

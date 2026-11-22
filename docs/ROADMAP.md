@@ -83,7 +83,7 @@ under which, for this and every later phase, is
 
 | Key | Protects | Who can decrypt |
 |---|---|---|
-| **Family key** (end-to-end) | Quick Info, and Health in phase 7 | Only parents' unlocked devices. The server stores ciphertext and never sees the key. |
+| **Family key** (end-to-end) | Quick Info, and Health in phase 8 | Only parents' unlocked devices. The server stores ciphertext and never sees the key. |
 | **Server key** (at rest) | Family Contacts, authenticator (TOTP) secrets, reminder delivery addresses | The server. A key file outside the database volume, so a copied database or backup alone reveals nothing. |
 
 Contacts use the server key on purpose: they are shared between parents and
@@ -134,22 +134,39 @@ family address book) needs the server to read them.
   ntfy can replace it later), NextPush, Sunup or any other distributor.
   Needs the `org.unifiedpush.android:connector` library (agreed).
 - **Fallback, always on:** every phone also checks for due reminders once a
-  day in the background, whether or not push is set up. A reminder is shown
-  once, by whichever route arrives first. If ntfy is down, misconfigured or
-  never installed, reminders still arrive within a day.
-- **Browser:** standard Web Push through the browser's own push service.
+  day in the background (Android's job scheduler, whenever the phone has a
+  network),
+  whether or not push is set up, and again whenever the app is opened. A
+  reminder is shown once, by whichever route arrives first. If ntfy is down,
+  misconfigured, uninstalled or never set up, reminders still arrive within
+  about a day. Limits: the phone must be able to reach the hub (if it can
+  only do so at home, it catches up when it is back), and Android's battery
+  saving can move the check by a few hours.
+- **Browser:** standard Web Push through the browser's own push service
+  (not ntfy), for whoever turns it on.
+- **Always in the app:** a "Coming up" card on the home page lists what is
+  due, so nothing depends on a notification arriving at all.
+- **Push health:** each phone and browser shows whether push is working,
+  with a "Send a test notification" button. When a push service refuses or
+  stops answering, the server marks that route as failing (Settings says
+  so, and that the daily check is still on) and stops using an address the
+  push service says is gone.
 - Both push routes use RFC 8291 encryption, implemented with Node's built-in
   crypto (the server stays dependency-free), so the push service cannot read
   the notification. The server sends only to https addresses registered by a
   signed-in device.
 - The background check uses a token that can only read reminder titles and
   dates, since the device key needs a fingerprint for every use.
-- Notification text is generic ("A family document expires soon"); details
-  show only inside the unlocked app.
+- Notification text is generic ("A family document expires soon", "A
+  birthday is coming up"); details show only inside the unlocked app.
 - **Reminder records are not end-to-end encrypted:** saving a passport or
   licence date also saves a reminder holding only what, whose and when
   ("Passport renewal · Sam · 1 March 2027"), so the server can send it. The
-  number itself stays encrypted. Phase 4 and later reuse this system.
+  number itself stays encrypted. Phase 3 (people and dates) and later reuse
+  this system.
+- **Built for yearly dates too:** a reminder can repeat every year and can
+  have a day and month without a year (a friend's birthday when you don't
+  know the year), so phase 3 plugs straight in.
 
 ### Build order (one pull request each)
 
@@ -208,32 +225,108 @@ and tradespeople. Encrypted at rest with the server key.
 - [x] **vCard export:** export one contact or the whole address book as a
       `.vcf` file. Include standard contact fields and omit internal notes
       by default.
-- [ ] Later (not phase 2): **CardDAV**, so phones' own contacts apps sync
-      the family address book.
+- CardDAV (the phones' own contacts apps syncing the family address book)
+  is planned in phase 3.
 
-**4. Notifications and expiry reminders**
+**4. Notifications and expiry reminders** (two pull requests: 4a server,
+browser and home page; 4b Android)
 
-- [ ] Reminder records, created from Quick Info passport and vehicle licence
-      dates (from 90 days before, then 30 and 7).
-- [ ] Android: UnifiedPush registration (ntfy and other distributors), and
-      the always-on daily background check.
-- [ ] Browser: Web Push.
-- [ ] Notification settings per person, and a "Coming up" card on the home
+- [x] Reminder records, created from Quick Info passport and vehicle licence
+      dates (from 90 days before, then 30 and 7), including yearly and
+      year-less dates for phase 3.
+- [x] Browser: Web Push (RFC 8291, built-in crypto), with push health and a
+      test button.
+- [x] Notification settings per person, and a "Coming up" card on the home
       page for parents.
+- [x] Android: UnifiedPush registration (ntfy and other distributors), and
+      the always-on daily background check.
 
-## Phase 3 — Family calendar
+## Phase 3 — People and dates (a family CRM)
+
+Family Contacts grows into a personal relationship manager for the people
+the family cares about, in the spirit of open-source personal CRMs such as
+Monica and Nametag: who is who, how they are related, the dates that matter
+to them, and reminders so none are missed. Parents only, like Contacts, and
+built on the same address book (no second list of people). Everything here
+is encrypted with the server key, because the server has to read it to send
+reminders, export it and, later, sync it.
+
+**People and relationships**
+
+- [ ] **Relationships** between contacts, both ways: partner or spouse,
+      child and parent, sibling, grandparent, friend, colleague, plus a
+      custom label. A person's page shows their family ("Thandi's partner
+      Sipho; their children Lwazi (7) and Ayanda (4)").
+- [ ] **Quick add a child or partner** from a person's page: just a name and
+      a birthday, creating a linked contact without phone numbers.
+- [ ] **Groups:** e.g. "Book club", "School parents", "Christmas card list";
+      filter and export by group.
+- [ ] **About them:** how we met, interests, food preferences and
+      allergies (for hosting), and clothing and shoe sizes (for gifts,
+      mainly children's).
+- [ ] **The family themselves:** link a contact to a Quick Info person, so
+      the family's own birthdays and anniversaries appear here too without
+      copying ID numbers out of the vault.
+
+**Important dates**
+
+- [ ] **Birthdays, anniversaries and custom dates** (a memorial, a name day,
+      "moved to Perth"). The year is optional: a day and month is enough.
+      Age or years are shown when the year is known ("turns 40").
+- [ ] **Reminders for each date**, through the phase 2 notification system:
+      by default a week before and on the day, adjustable per date, and
+      chosen per parent (both, or just one of you). Marking someone as
+      deceased stops birthday reminders; a memorial reminder is optional.
+      The notification never names anyone: it is one of a few generic
+      lines, such as "Tap to see whose birthday is coming up", and the
+      details are in the app.
+- [ ] **Upcoming dates** on the home page "Coming up" card and a "This month"
+      list on the Contacts page.
+
+**Keeping in touch**
+
+- [ ] **Notes and a timeline per person:** dated entries ("Lunch at the
+      Waterfront", "expecting a baby in May") and life events (new job,
+      moved house, new baby, which can add the date for you).
+- [ ] **Stay in touch:** an optional "catch up every few weeks / months" per
+      person, a "We spoke" button that records the last contact, and a
+      reminder when it is overdue.
+- [ ] **Gift ideas and gifts given** per person and occasion, so you remember
+      what you gave last year. (Moved here from the extras phase.)
+
+**Getting data in and out**
+
+- [ ] **Import from vCard** (Google Contacts, the phone's contacts app,
+      Monica's export), with a preview and duplicate matching before
+      anything is saved. Imported files are read and discarded, not kept.
+- [ ] **vCard export** of a person, a group or everyone, including
+      birthdays (with or without the year), anniversaries and related names,
+      tested against Google Contacts, Android's contacts app and Apple
+      Contacts (each handles year-less dates and relationships slightly
+      differently, so the export uses the forms each one reads).
+- [ ] **Calendar export:** an `.ics` file of birthdays and anniversaries as
+      yearly events, for any calendar app. The phase 4 private calendar
+      feed then includes them automatically.
+- [ ] **Address labels:** export a group's postal addresses as CSV (the
+      Christmas card list).
+- [ ] Later: **CardDAV**, so the phone's own contacts app (and through it,
+      the phone's calendar) syncs the family address book, birthdays
+      included.
+
+## Phase 4 — Family calendar
 
 - [ ] Events with a colour per person, all-day and timed, recurring, with
       locations and notes; month, week and agenda views.
 - [ ] Reminders (needs the notification work below).
-- [ ] Birthdays and anniversaries from member profiles, shown every year.
+- [ ] Birthdays and anniversaries from phase 3 shown every year (for the
+      family, and for anyone else you choose).
 - [ ] Subscribe to outside calendars (school terms, sports fixtures, public
       holidays) by iCal URL, read-only.
 - [ ] A private iCal feed per person so the family calendar shows in Google
       Calendar, Outlook or the phone's own calendar.
 - [ ] "Who's where" today on the home page.
 
-## Phase 4 — Lists, chores and noticeboard
+## Phase 5 — Lists, chores and noticeboard
 
 - [ ] **Shopping lists** that update live on every phone, with
       categories (aisle order) and "who's at the shop" mode.
@@ -245,7 +338,7 @@ and tradespeople. Encrypted at rest with the server key.
 - [ ] **Notifications** for lists, chores and the noticeboard, through the
       push system built in phase 2.
 
-## Phase 5 — Meals
+## Phase 6 — Meals
 
 - [ ] Weekly meal planner (drag recipes onto days).
 - [ ] Recipe box: ingredients, steps, photos, tags; import from a recipe
@@ -253,7 +346,7 @@ and tradespeople. Encrypted at rest with the server key.
 - [ ] "Add this week's ingredients to the shopping list", merging duplicates.
 - [ ] Dietary notes per person (allergies from Health when available).
 
-## Phase 6 — Household admin
+## Phase 7 — Household admin
 
 - [ ] **Bills and renewals:** due dates, amounts and reminders for
       subscriptions, insurance, rates, school fees; who pays what. No bank
@@ -265,7 +358,7 @@ and tradespeople. Encrypted at rest with the server key.
       trusted tradespeople in Family Contacts.
 - [ ] **Pets:** vet, vaccinations, medication schedule.
 
-## Phase 7 — Health
+## Phase 8 — Health
 
 A parent-managed health profile for each family member. Apply the parent
 access rules from Phase 2, enforce them on the server, and encrypt health
@@ -290,7 +383,7 @@ records end to end with the family key from phase 2. Show medical aid details fr
       and emergency contacts. Encrypt the card on the phone and require
       biometric verification to open it.
 
-## Phase 8 — Family life extras (pick and choose)
+## Phase 9 — Family life extras (pick and choose)
 
 - [ ] **Kids' accounts:** a `child` role that sees chosen modules only (lists,
       chores, calendar), with a simpler home page. Keep Quick Info and Health
@@ -301,8 +394,9 @@ records end to end with the family key from phase 2. Show medical aid details fr
       info), packing lists per person, shared expenses.
 - [ ] **School hub:** term dates, timetables, homework, uniform and kit lists,
       teacher contacts.
-- [ ] **Gift ideas and wishlists:** ideas hidden from the person they are
-      for; birthday reminders link to them.
+- [ ] **Wishlists:** family members with accounts keep their own wishlist;
+      ideas others add for them stay hidden from them. (Gift ideas for
+      friends and family are in phase 3.)
 - [ ] **"I'm home safe" check-ins:** one tap to tell the family you arrived
       (no location tracking).
 - [ ] **Memories:** explore showing an "on this day" view from Immich on the

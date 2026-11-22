@@ -167,6 +167,7 @@ export function quickInfoRoutes(api: Api, s: Services): void {
   api.authed('DELETE', '/api/quick-info/records/:id', parents, (ctx) => {
     const r = findRecord(ctx.params.id!)
     db.prepare('DELETE FROM quick_info WHERE id = ?').run(r.id)
+    db.prepare("DELETE FROM reminders WHERE source = 'quick-info' AND source_id = ?").run(r.id)
     s.audit('quick_info.record_deleted', ctx, ctx.user.id, r.kind)
     return undefined
   })

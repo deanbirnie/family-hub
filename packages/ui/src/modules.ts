@@ -66,7 +66,7 @@ export const MODULES: HubModule[] = [
     icon: CalendarDays,
     description: 'One family calendar: school, sport, appointments and birthdays, with reminders.',
     status: 'planned',
-    phase: 3,
+    phase: 4,
   },
   {
     id: 'lists',
@@ -75,7 +75,7 @@ export const MODULES: HubModule[] = [
     icon: ListChecks,
     description: 'Shopping lists, to-dos and a chore rota everyone can tick off.',
     status: 'planned',
-    phase: 4,
+    phase: 5,
   },
   {
     id: 'meals',
@@ -84,7 +84,7 @@ export const MODULES: HubModule[] = [
     icon: ChefHat,
     description: 'Plan the week’s meals, keep favourite recipes, and send ingredients to the shopping list.',
     status: 'planned',
-    phase: 5,
+    phase: 6,
   },
   {
     id: 'board',
@@ -93,7 +93,7 @@ export const MODULES: HubModule[] = [
     icon: Megaphone,
     description: 'Announcements and notes for the whole family, with push notifications.',
     status: 'planned',
-    phase: 4,
+    phase: 5,
   },
   {
     id: 'money',
@@ -102,7 +102,7 @@ export const MODULES: HubModule[] = [
     icon: PiggyBank,
     description: 'Due dates for bills and renewals, and a simple shared budget.',
     status: 'planned',
-    phase: 6,
+    phase: 7,
   },
   {
     id: 'home',
@@ -111,6 +111,6 @@ export const MODULES: HubModule[] = [
     icon: Wrench,
     description: 'Service dates, warranties, manuals and contacts for the house and cars.',
     status: 'planned',
-    phase: 6,
+    phase: 7,
   },
 ]

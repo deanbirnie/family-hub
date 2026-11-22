@@ -18,6 +18,7 @@ import type { Platform, Updates } from './platform.ts'
 import { href, navigate, usePath } from './router.ts'
 import { vault } from './vault/store.ts'
 import { Banner, Button } from './ui.tsx'
+import { refreshPush, turnOff } from './notify/push.ts'
 
 export interface HubContext {
   platform: Platform
@@ -80,12 +81,24 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
     )
   }, [platform.api])
 
+  // If this device already has notifications on, make sure the server has its current address.
+  // A phone also checks for due reminders whenever the app is opened.
+  useEffect(() => {
+    void refreshPush(platform).catch(() => undefined)
+    void platform.push?.checkNow?.().catch(() => undefined)
+  }, [platform])
+
   const signOut = () => {
     vault.lock()
-    void platform.api.logout().finally(() => {
-      navigate('/', true)
-      onSignOut()
-    })
+    // A browser that is signed out stops getting this person's notifications.
+    // (A phone keeps its own until it is removed: its push address belongs to the phone.)
+    const off = platform.kind === 'web' ? turnOff(platform).catch(() => undefined) : Promise.resolve()
+    void off
+      .then(() => platform.api.logout())
+      .finally(() => {
+        navigate('/', true)
+        onSignOut()
+      })
   }
   const ctx: HubContext = { platform, user, familyName, setFamilyName, setUser, signOut, serverKeySaved, setServerKeySaved }
   const ready = MODULES.filter((m) => m.status !== 'planned' && (!m.parentsOnly || user.role === 'admin'))

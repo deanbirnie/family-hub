@@ -8,6 +8,7 @@ import type { Config } from '../src/config.ts'
 import { openDb } from '../src/db.ts'
 import { loadServerKey } from '../src/server-key.ts'
 import { totpAt } from '../src/totp.ts'
+import type { PushFetch } from '../src/webpush.ts'
 
 export const PASSWORD = 'correct horse battery staple'
 
@@ -19,7 +20,7 @@ export interface TestServer {
   close(): Promise<void>
 }
 
-export async function startServer(overrides: Partial<Config> = {}): Promise<TestServer> {
+export async function startServer(overrides: Partial<Config> = {}, options: { pushFetch?: PushFetch } = {}): Promise<TestServer> {
   const clock = { now: Date.UTC(2026, 10, 20, 12, 0, 0) }
   const config: Config = {
     port: 0,
@@ -33,6 +34,8 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Test
     maxFileBytes: 100 * 1024 * 1024,
     // Kept apart from the data folder, as in production.
     keyFile: join(mkdtempSync(join(tmpdir(), 'family-hub-key-')), 'server.key'),
+    timeZone: 'Africa/Johannesburg',
+    publicUrl: 'https://hub.example.com',
     ...overrides,
   }
   const db = openDb(':memory:')
@@ -42,6 +45,7 @@ export async function startServer(overrides: Partial<Config> = {}): Promise<Test
     serverKey: loadServerKey(config.keyFile, db, config.dataDir),
     argon2: { memory: 1024, passes: 1, parallelism: 1 },
     now: () => clock.now,
+    pushFetch: options.pushFetch,
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as AddressInfo
@@ -154,4 +158,23 @@ export async function signIn(server: TestServer, username: string, secret: strin
   const code = await client.post('/api/auth/totp', { code: totpAt(secret, server.clock.now) })
   if (code.status !== 200) throw new Error(`code failed: ${JSON.stringify(code.body)}`)
   return client
+}
+
+/** A phone signed in the way the app does it: password, code, its keystore key, then an unlock. */
+export async function signedInPhone(server: TestServer, secret: string, username = 'parent'): Promise<{ client: Client; deviceId: string }> {
+  const { generateKeyPairSync, sign } = await import('node:crypto')
+  const { unlockMessage } = await import('../src/routes/devices.ts')
+  const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' })
+  const client = new Client(server.url, { origin: 'https://localhost' })
+  await client.post('/api/auth/login', { username, password: PASSWORD, client: 'app' })
+  nextStep(server)
+  await client.post('/api/auth/totp', { code: totpAt(secret, server.clock.now) })
+  const added = await client.post<{ deviceId: string }>('/api/devices', { name: 'Pixel', publicKey: publicKey.export({ format: 'der', type: 'spki' }).toString('base64') })
+  if (added.status !== 200) throw new Error(`device registration failed: ${JSON.stringify(added.body)}`)
+  const deviceId = added.body.deviceId
+  const c = await client.post<{ challengeId: string; challenge: string }>('/api/devices/challenge', { deviceId })
+  const signature = sign('sha256', unlockMessage(c.body.challenge, deviceId), { key: privateKey, dsaEncoding: 'der' }).toString('base64')
+  const unlocked = await client.post('/api/devices/unlock', { deviceId, challengeId: c.body.challengeId, signature })
+  if (unlocked.status !== 200) throw new Error(`unlock failed: ${JSON.stringify(unlocked.body)}`)
+  return { client, deviceId }
 }

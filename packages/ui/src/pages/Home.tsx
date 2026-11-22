@@ -4,6 +4,7 @@ import { MODULES } from '../modules.ts'
 import { href, navigate } from '../router.ts'
 import type { HubContext } from '../Shell.tsx'
 import { Badge, Card, useLoad } from '../ui.tsx'
+import { ComingUpCard } from '../notify/ComingUp.tsx'
 
 interface Member {
   id: string
@@ -27,6 +28,8 @@ export function HomePage({ ctx }: { ctx: HubContext }) {
         </h1>
         <p className="muted">Everything the family shares, in one private place on your own server.</p>
       </div>
+
+      {ctx.user.role === 'admin' && <ComingUpCard ctx={ctx} />}
 
       <h2 className="section-title">Your hub</h2>
       <div className="module-grid">

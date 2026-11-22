@@ -10,6 +10,7 @@ import { loadConfig } from './config.ts'
 import { openDb } from './db.ts'
 import { prepareDataDir } from './privileges.ts'
 import { maintainFiles } from './file-maintenance.ts'
+import { runReminders } from './notifications.ts'
 
 const config = loadConfig()
 prepareDataDir(config.dataDir, [dirname(config.keyFile)])
@@ -31,6 +32,7 @@ server.listen(config.port, config.host, () => {
   console.log(`Family Hub ${config.version} listening on ${config.host}:${config.port}`)
   if (config.allowHttp) console.warn('FAMILY_HUB_ALLOW_HTTP is on: sign-in works over plain http. Use https for real use.')
   if (!config.webDir) console.log('No web app folder set (FAMILY_HUB_WEB_DIR): serving the API only.')
+  void runReminders(services).catch((e) => console.error('Sending reminders failed', e))
 })
 
 const stop = () => {
