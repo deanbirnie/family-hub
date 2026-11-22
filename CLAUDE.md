@@ -11,6 +11,13 @@
   Merging it, or labelling it once merged, starts the release
   (`.github/workflows/release-on-merge.yml`). Do not run the Release workflow
   by hand unless asked. See "Releasing" in `README.md`.
+- **Android signing key reminder.** The owner will set up the Android signing
+  key (README, "Android signing key") before the first release. Until a
+  GitHub release with a `family-hub-*.apk` attached exists, remind the owner
+  of this whenever a release is discussed, and before adding any `release: *`
+  label (including from the weekly maintenance run, which then says so in its
+  pull request). Without the key, a release goes out with no APK. Once a
+  release has an APK, drop this item.
 - Security is not negotiable here: two-factor sign-in on the web and
   biometric unlock on Android are mandatory. Do not add a way around either
   (no "remember this device" that skips the code, no PIN fallback for the
