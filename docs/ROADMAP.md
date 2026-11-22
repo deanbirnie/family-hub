@@ -285,13 +285,13 @@ reminders, export it and, later, sync it.
 
 **Keeping in touch**
 
-- [ ] **Notes and a timeline per person:** dated entries ("Lunch at the
+- [x] **Notes and a timeline per person:** dated entries ("Lunch at the
       Waterfront", "expecting a baby in May") and life events (new job,
       moved house, new baby, which can add the date for you).
-- [ ] **Stay in touch:** an optional "catch up every few weeks / months" per
+- [x] **Stay in touch:** an optional "catch up every few weeks / months" per
       person, a "We spoke" button that records the last contact, and a
       reminder when it is overdue.
-- [ ] **Gift ideas and gifts given** per person and occasion, so you remember
+- [x] **Gift ideas and gifts given** per person and occasion, so you remember
       what you gave last year. (Moved here from the extras phase.)
 
 **Getting data in and out**

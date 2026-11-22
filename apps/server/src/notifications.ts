@@ -27,11 +27,13 @@ export interface NotificationSettings {
   expiry: boolean
   /** Birthdays, anniversaries and other dates (Contacts). */
   dates: boolean
+  /** "Time to catch up with …" (Contacts, stay in touch). */
+  touch: boolean
   /** Hour of the day (family time zone) from which reminders are sent. */
   sendHour: number
 }
 
-export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, dates: true, sendHour: 8 }
+export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, dates: true, touch: true, sendHour: 8 }
 
 export function getSettings(s: Services, userId: string): NotificationSettings {
   const row = s.db.prepare('SELECT settings FROM notification_settings WHERE user_id = ?').get(userId) as { settings: string } | undefined
@@ -42,6 +44,7 @@ export function getSettings(s: Services, userId: string): NotificationSettings {
       enabled: typeof raw.enabled === 'boolean' ? raw.enabled : DEFAULT_SETTINGS.enabled,
       expiry: typeof raw.expiry === 'boolean' ? raw.expiry : DEFAULT_SETTINGS.expiry,
       dates: typeof raw.dates === 'boolean' ? raw.dates : DEFAULT_SETTINGS.dates,
+      touch: typeof raw.touch === 'boolean' ? raw.touch : DEFAULT_SETTINGS.touch,
       sendHour: Number.isInteger(raw.sendHour) && raw.sendHour! >= 0 && raw.sendHour! <= 23 ? raw.sendHour! : DEFAULT_SETTINGS.sendHour,
     }
   } catch {
@@ -139,7 +142,7 @@ export const subscriptionsOf = (s: Services, userId: string) =>
 
 // ---- what can be due --------------------------------------------------------------------
 
-export type Category = 'expiry' | 'dates'
+export type Category = 'expiry' | 'dates' | 'touch'
 
 export interface ReminderItem {
   /** Stable across runs: which reminder this is. */
@@ -162,11 +165,13 @@ export interface ReminderItem {
   horizon: number
   /** Extra detail inside the app, e.g. "turns 40". */
   detail?: (date: string) => string | null
+  /** Already past when first seen (a catch-up that is overdue): remind once anyway. */
+  catchUp?: boolean
 }
 
 /** Whether a person wants this reminder, by their settings and the reminder's audience. */
 const wants = (settings: NotificationSettings, item: ReminderItem, userId: string) =>
-  (item.audience === 'all' || item.audience === userId) && (item.category === 'expiry' ? settings.expiry : settings.dates)
+  (item.audience === 'all' || item.audience === userId) && settings[item.category]
 
 export const EXPIRY_LEADS = [90, 30, 7]
 
@@ -229,6 +234,10 @@ const DATE_TITLES: Record<ImportantDate['kind'], string> = { birthday: 'birthday
  * sealed contacts each time: never copied into plain reminder records
  * (docs/DATA-PROTECTION.md, "People and dates").
  */
+const TOUCH_NOTICES = ['Time to catch up with someone. Tap to see who.', 'Someone would love to hear from you. Tap to see who.']
+
+const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
+
 function contactDateItems(s: Services): ReminderItem[] {
   const out: ReminderItem[] = []
   for (const row of s.db.prepare('SELECT id, sealed FROM contacts').all() as { id: string; sealed: string }[]) {
@@ -237,6 +246,29 @@ function contactDateItems(s: Services): ReminderItem[] {
       c = openContact(s, row)
     } catch {
       continue
+    }
+    // Stay in touch: due a set time after the last contact (or after it was set up).
+    const k = c.keepInTouch
+    const from = k.lastContact ?? k.since
+    if (k.everyDays > 0 && from && !c.deceased) {
+      const due = addDays(from, k.everyDays)
+      out.push({
+        key: `t:${row.id}:${due}`,
+        category: 'touch',
+        title: `Catch up with ${c.name}`,
+        whose: null,
+        due: { date: due, yearly: false },
+        leads: [0],
+        notice: (_lead, occurrence) => {
+          let h = 0
+          for (const ch of occurrence) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+          return TOUCH_NOTICES[h % TOUCH_NOTICES.length]!
+        },
+        url: '/contacts',
+        audience: k.remindFor || 'all',
+        horizon: 7,
+        catchUp: true,
+      })
     }
     for (const d of c.dates) {
       const leads = [...REMIND[d.remind]]
@@ -289,7 +321,7 @@ export function dueNow(s: Services, today: string, items = allItems(s)): DueNow[
     const date = nextOccurrence(item.due, today)
     if (!date) continue
     const daysLeft = daysBetween(today, date)
-    const lead = applicableLead(daysLeft, item.leads)
+    const lead = applicableLead(daysLeft, item.leads) ?? (item.catchUp && daysLeft < 0 ? 0 : null)
     if (lead === null) continue
     out.push({ item, date, daysLeft, lead, occurrence: `${item.key}@${date}/${lead}` })
   }
