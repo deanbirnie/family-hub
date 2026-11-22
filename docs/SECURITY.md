@@ -123,18 +123,41 @@ See [DATA-PROTECTION.md](DATA-PROTECTION.md): every piece of stored data and
 whether it is end-to-end encrypted, encrypted with the server key, hashed or
 plain.
 
+## The family vault (end to end)
+
+Quick Info (and later Health) is encrypted on parents' devices with a
+**family key** the server never sees (`packages/ui/src/vault/`,
+`apps/server/src/routes/vault.ts`). Parents only; members cannot reach any
+of it, and a parent changed to a member loses their ways in.
+
+- **Ways to open it**, each a wrapped copy of the family key (AES-256-GCM):
+  - **Android:** wrapped by an AES key in the phone's keystore, usable only
+    for 30 seconds after a strong fingerprint or face check, so the check
+    that opens the app opens the vault too. A new enrolment destroys it.
+  - **Browser:** wrapped by a secret from a **passkey** (WebAuthn PRF), which
+    only that passkey produces after user verification.
+  - **Recovery key:** 256 random bits kept only in the owner's password
+    manager. Fetching its wrapped copy needs a fresh authenticator code too.
+  - None of these is a password: a password alone never opens the vault.
+- **A new device** (another browser, the other parent's phone) gets the
+  family key by **pairing**: it posts a one-time ECDH P-256 public key and
+  shows a code and six words derived from that key; an unlocked parent
+  device enters the code, the person checks the six words match on both
+  screens, and the family key is sent encrypted to that public key (HKDF,
+  AES-256-GCM). The server relays it once and deletes it. A server that
+  swapped in its own key would show different words.
+- **In memory only:** the unlocked family key is held in memory, and dropped
+  after 15 minutes unused, on Lock now, sign-out, and when the app locks.
+- **Each wrapped copy goes only to its owner** (a phone's copy only to that
+  phone), and each opening is in the audit log.
+- **Limits:** someone who once opened the vault knows the family key;
+  removing their ways in stops future openings on new devices but cannot make
+  them forget it. Rotating the family key is a planned addition.
+
 ## Planned in phase 2 (not built yet)
 
 Agreed design; details in docs/ROADMAP.md, "Phase 2 → Design (agreed)".
 
-- **Family key, end to end:** Quick Info (and later Health) is encrypted on
-  parents' devices with a family key the server never sees. Parents only;
-  members cannot read it. A recovery key, kept in a password manager, is the
-  only way back if every parent device is lost.
-- **Unlocking it never takes a password alone:** a biometric check on
-  Android (the one that opens the app), and a passkey or approval from the
-  parent's phone in a browser. Unlocked once per session; the browser vault
-  locks after 15 minutes unused.
 - **Server key at rest** (TOTP secrets and documents already, above): Family
   Contacts and push addresses join them.
 - **Notifications** (UnifiedPush and Web Push, RFC 8291 encrypted) carry

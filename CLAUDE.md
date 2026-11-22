@@ -2,6 +2,11 @@
 
 - Plan, phases and status: `docs/ROADMAP.md`. Dependency and security upkeep:
   `docs/MAINTENANCE.md`. How sign-in works and why: `docs/SECURITY.md`.
+- **Owner steps.** `docs/OWNER-STEPS.md` is the owner's checklist of things
+  only they can do (keys, secrets, deployment), with exact commands. When a
+  change needs the owner to do something, add or update the step there in
+  the same pull request, and point to it in the pull request and in chat.
+  Tick a step only when the owner says it is done.
 - **Data protection is decided before building.** `docs/DATA-PROTECTION.md`
   lists everything the hub stores and its tier (E2E family key, server key,
   hashed, plain). Before writing code for a phase or module, add its rows

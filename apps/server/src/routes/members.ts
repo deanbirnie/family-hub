@@ -74,6 +74,11 @@ export function memberRoutes(api: Api, services: Services): void {
     tx(db, () => {
       db.prepare('UPDATE users SET role = ?, disabled = ? WHERE id = ?').run(newRole, disabled ? 1 : 0, id)
       if (disabled) deleteUserSessions(db, id)
+      // Only parents can open the family vault: a former parent's ways in go.
+      if (newRole !== 'admin') {
+        db.prepare('DELETE FROM vault_keys WHERE user_id = ?').run(id)
+        db.prepare('DELETE FROM vault_pairings WHERE user_id = ?').run(id)
+      }
     })
     services.audit('member.updated', ctx, ctx.user.id, `${target.username}: role=${newRole} disabled=${disabled}`)
     return undefined

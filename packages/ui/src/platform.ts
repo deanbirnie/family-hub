@@ -34,6 +34,19 @@ export interface Platform {
   forgetDevice?: () => Promise<void>
   /** Android: locks the app now (biometric unlock needed again). */
   lock?: () => void
+  /**
+   * Android: wraps and unwraps the family key with a key in the phone's
+   * hardware keystore that only works shortly after a fingerprint or face
+   * check (the one that opened the app, or a new prompt).
+   */
+  vaultDevice?: {
+    wrap(familyKey: Uint8Array): Promise<string>
+    unwrap(wrapped: string): Promise<Uint8Array>
+    /** Forgets the keystore key (when the phone is signed out). */
+    forget(): Promise<void>
+  }
+  /** A name for this device in lists, e.g. "Pixel 8" or "Chrome on Windows". */
+  deviceLabel?: string
   /** Native Android save/open, using the already-unlocked session. */
   downloadFile?: (file: { id: string; name: string; mediaType: string }, action: 'save' | 'open') => Promise<void>
 }

@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from 'react'
 import { RecoveryCodesList } from '../auth/screens.tsx'
 import { describeAgent, EVENT_NAMES, formatDateTime, timeAgo } from '../format.ts'
 import type { HubContext } from '../Shell.tsx'
+import { VaultCard } from '../vault/VaultCard.tsx'
 import { Badge, Banner, Button, Card, Field, PageHeader, Spinner, useAction, useLoad } from '../ui.tsx'
 
 export function SettingsPage({ ctx }: { ctx: HubContext }) {
@@ -18,6 +19,7 @@ export function SettingsPage({ ctx }: { ctx: HubContext }) {
       <SessionsCard ctx={ctx} />
       <DevicesCard ctx={ctx} />
       <ActivityCard ctx={ctx} />
+      {ctx.user.role === 'admin' && <VaultCard ctx={ctx} />}
       {ctx.user.role === 'admin' && <FamilyCard ctx={ctx} />}
       {ctx.user.role === 'admin' && ctx.serverKeySaved === true && <ServerKeyCard ctx={ctx} />}
       <AboutCard ctx={ctx} />

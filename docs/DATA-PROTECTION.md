@@ -96,6 +96,21 @@ of it. In phase 2, once the server key exists:
   them in the database. A name such as "Sam passport.pdf" reveals little;
   moving names to S later is cheap if wanted.
 
+### The family vault (phase 2)
+
+| Data | Where | Tier | Status |
+|---|---|---|---|
+| The family key | Only in memory on an unlocked parent device; never sent in the clear | E2E | ✅ |
+| Wrapped copies of the family key (recovery, each passkey, each phone) | `vault_keys.wrapped` | E2E (each is the family key encrypted under a key the server never has: the recovery key, a passkey's PRF secret, a phone's keystore key) | ✅ |
+| Vault check value | `settings` (`vault`) | E2E (a known text under the family key) | ✅ |
+| Which parent has which passkeys and phones, their labels, passkey credential IDs and PRF salts | `vault_keys` | P (none of these opens anything alone) | ✅ |
+| Pairing requests: the new device's one-time public key, its label, and the approval (the family key encrypted to that public key) | `vault_pairings`, deleted on delivery or after 10 minutes | P; the approval is E2E | ✅ |
+| Phone's vault key | Android Keystore on the phone, usable 30 s after a strong biometric check | Never leaves the hardware | ✅ |
+| Vault events (set up, opened, method added or removed, recovery used, pairing requested and approved) | `audit_log` | P | ✅ |
+
+The recovery key itself is never stored anywhere but the owner's password
+manager.
+
 ### Quick Info (phase 2)
 
 | Data | Where | Tier | Status |

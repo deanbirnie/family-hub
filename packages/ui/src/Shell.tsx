@@ -14,6 +14,7 @@ import { MembersPage } from './pages/Members.tsx'
 import { SettingsPage } from './pages/Settings.tsx'
 import type { Platform, Updates } from './platform.ts'
 import { href, navigate, usePath } from './router.ts'
+import { vault } from './vault/store.ts'
 import { Banner, Button } from './ui.tsx'
 
 export interface HubContext {
@@ -78,6 +79,7 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
   }, [platform.api])
 
   const signOut = () => {
+    vault.lock()
     void platform.api.logout().finally(() => {
       navigate('/', true)
       onSignOut()
