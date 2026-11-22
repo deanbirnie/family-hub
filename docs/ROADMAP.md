@@ -7,7 +7,9 @@ work in a fresh session: what exists, what is next, and what was decided.
 Each phase is one or more pull requests into `main`, and usually ends in a
 release (`release: minor`). The order after phase 1 is a proposal: reorder
 freely. Routine upkeep has its own procedure in [MAINTENANCE.md](MAINTENANCE.md);
-the security model is in [SECURITY.md](SECURITY.md).
+the security model is in [SECURITY.md](SECURITY.md). **Each phase starts by
+deciding how its data is protected** in
+[DATA-PROTECTION.md](DATA-PROTECTION.md), before any code.
 
 ## Architecture (decided)
 
@@ -75,7 +77,9 @@ their permissions can be defined. The server enforces all of this.
 
 ### Design (agreed)
 
-**Two keys, for two kinds of data.**
+**Two keys, for two kinds of data.** The full register of what is stored
+under which, for this and every later phase, is
+[DATA-PROTECTION.md](DATA-PROTECTION.md).
 
 | Key | Protects | Who can decrypt |
 |---|---|---|

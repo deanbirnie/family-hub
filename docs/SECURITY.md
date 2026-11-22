@@ -108,6 +108,12 @@ recent-apps list), backups are off, and plain-http traffic is refused.
   the client address; each person sees their own in Settings. Entries older
   than a year are removed.
 
+## What a stolen database or backup reveals
+
+See [DATA-PROTECTION.md](DATA-PROTECTION.md): every piece of stored data and
+whether it is end-to-end encrypted, encrypted with the server key, hashed or
+plain.
+
 ## Planned in phase 2 (not built yet)
 
 Agreed design; details in docs/ROADMAP.md, "Phase 2 → Design (agreed)".
