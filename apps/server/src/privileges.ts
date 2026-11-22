@@ -1,4 +1,4 @@
-import { chownSync, mkdirSync, readdirSync } from 'node:fs'
+import { chownSync, lstatSync, mkdirSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 function idFrom(name: string, fallback: number): number {
@@ -30,8 +30,15 @@ export function prepareDataDir(dataDir: string): void {
   const gid = idFrom('PGID', 1000)
   if (uid === 0) return // explicitly asked to stay root
 
-  chownSync(dataDir, uid, gid)
-  for (const entry of readdirSync(dataDir)) chownSync(join(dataDir, entry), uid, gid)
+  const pending = [dataDir]
+  while (pending.length) {
+    const path = pending.pop()!
+    const info = lstatSync(path)
+    // Never follow a backup's symlink outside the data directory.
+    if (info.isSymbolicLink()) continue
+    chownSync(path, uid, gid)
+    if (info.isDirectory()) for (const entry of readdirSync(path)) pending.push(join(path, entry))
+  }
 
   // Order matters: groups and gid can only be changed while still root.
   process.setgroups!([gid])

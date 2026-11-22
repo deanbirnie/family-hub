@@ -15,6 +15,7 @@ import { authRoutes } from './routes/auth.ts'
 import { deviceRoutes } from './routes/devices.ts'
 import { memberRoutes } from './routes/members.ts'
 import { fileRoutes } from './routes/files.ts'
+import { maintainFiles } from './file-maintenance.ts'
 
 export interface AppOptions {
   db: Db
@@ -122,6 +123,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
       services.limits.signIn.prune()
       services.limits.open.prune()
       services.limits.accounts.prune()
+      void maintainFiles(services).catch((e) => console.error('Document cleanup failed', e))
     } catch {
       // the next run will try again
     }
