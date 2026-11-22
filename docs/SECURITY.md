@@ -102,11 +102,35 @@ recent-apps list), backups are off, and plain-http traffic is refused.
 - `/data/family-hub.db` (SQLite) holds account data, password hashes, TOTP
   secrets and the audit log. **Protect and back up this volume.** TOTP
   secrets are not encrypted at rest (anyone with the database could generate
-  codes, but would still need passwords); encrypting sensitive data at rest is
-  on the roadmap with the Quick info module.
+  codes, but would still need passwords). Phase 2 moves them under a server
+  key file kept outside the database (see below).
 - The audit log records sign-ins, failures, lockouts and account changes with
   the client address; each person sees their own in Settings. Entries older
   than a year are removed.
+
+## What a stolen database or backup reveals
+
+See [DATA-PROTECTION.md](DATA-PROTECTION.md): every piece of stored data and
+whether it is end-to-end encrypted, encrypted with the server key, hashed or
+plain.
+
+## Planned in phase 2 (not built yet)
+
+Agreed design; details in docs/ROADMAP.md, "Phase 2 → Design (agreed)".
+
+- **Family key, end to end:** Quick Info (and later Health) is encrypted on
+  parents' devices with a family key the server never sees. Parents only;
+  members cannot read it. A recovery key, kept in a password manager, is the
+  only way back if every parent device is lost.
+- **Unlocking it never takes a password alone:** a biometric check on
+  Android (the one that opens the app), and a passkey or approval from the
+  parent's phone in a browser. Unlocked once per session; the browser vault
+  locks after 15 minutes unused.
+- **Server key at rest:** Family Contacts, TOTP secrets and push addresses
+  are encrypted with a key file kept outside the database volume.
+- **Notifications** (UnifiedPush and Web Push, RFC 8291 encrypted) carry
+  generic text only. Reminder records (what, whose, when) are readable by the
+  server so it can send them; the underlying numbers are not.
 
 ## Reporting a problem
 

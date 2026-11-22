@@ -7,7 +7,9 @@ work in a fresh session: what exists, what is next, and what was decided.
 Each phase is one or more pull requests into `main`, and usually ends in a
 release (`release: minor`). The order after phase 1 is a proposal: reorder
 freely. Routine upkeep has its own procedure in [MAINTENANCE.md](MAINTENANCE.md);
-the security model is in [SECURITY.md](SECURITY.md).
+the security model is in [SECURITY.md](SECURITY.md). **Each phase starts by
+deciding how its data is protected** in
+[DATA-PROTECTION.md](DATA-PROTECTION.md), before any code.
 
 ## Architecture (decided)
 
@@ -63,19 +65,117 @@ libraries and backups.
 - [x] **Recover:** keep deleted documents for 30 days and document how to
       back up and restore the shared folder alongside the hub database.
 
-## Phase 2 — Quick Info and Family Contacts ← next
+## Phase 2 — Quick Info, Family Contacts and notifications ← next
 
-Family Hub initially supports parents managing family administration. Either
-signed-in parent can view and edit all records in Quick Info, Family Contacts
-and Health, including their own, the other parent's and each child's. Family
-profiles can exist without login accounts. Access for other family members
-comes later, when their permissions can be defined.
+Family Hub initially supports parents managing family administration.
+**Parents are the family's admins** (the interface calls the role
+"Parent"). Either parent can view and edit all records in Quick Info,
+Family Contacts and later Health, including their own, the other parent's
+and each child's; members see none of them. Family profiles can exist
+without login accounts. Access for other family members comes later, when
+their permissions can be defined. The server enforces all of this.
 
-### Quick Info
+### Design (agreed)
+
+**Two keys, for two kinds of data.** The full register of what is stored
+under which, for this and every later phase, is
+[DATA-PROTECTION.md](DATA-PROTECTION.md).
+
+| Key | Protects | Who can decrypt |
+|---|---|---|
+| **Family key** (end-to-end) | Quick Info, and Health in phase 7 | Only parents' unlocked devices. The server stores ciphertext and never sees the key. |
+| **Server key** (at rest) | Family Contacts, authenticator (TOTP) secrets, reminder delivery addresses | The server. A key file outside the database volume, so a copied database or backup alone reveals nothing. |
+
+Contacts use the server key on purpose: they are shared between parents and
+synced, and a later CardDAV option (the phone's own contacts app syncing the
+family address book) needs the server to read them.
+
+**The family key, end to end.**
+
+- A random 256-bit key encrypts each Quick Info record (AES-256-GCM, with the
+  record ID as associated data) in the browser or app before it is sent.
+- Each parent has an ECDH key pair. The family key is shared with a parent by
+  encrypting it to their public key. The first parent creates the family key;
+  the second receives it from the first parent's unlocked device.
+- **Recovery kit:** when the family key is created, the app shows a recovery
+  key to keep in a password manager (the owner's plan). The recovery key
+  alone can restore access on a new device. **If every parent loses every
+  device and the recovery key, Quick Info cannot be recovered by anyone**,
+  including the server's owner.
+- The server can see which person a record belongs to, its type and when it
+  changed; never the values.
+
+**Unlocking, once per session; never with a password alone.**
+
+- **Android:** the family key is wrapped by a hardware-keystore key that
+  needs a strong fingerprint or face check. The check that opens the app
+  unlocks it too: no extra prompt. The app already locks after 2 minutes in
+  the background.
+- **Browser**, in order of preference:
+  1. **Passkey** (Windows Hello, Touch ID, a phone or a security key), using
+     the WebAuthn PRF extension to unwrap the family key. One touch.
+  2. **Approve with your phone:** the browser shows a QR code; the parent
+     scans it in the Family Hub app and confirms with their fingerprint; the
+     phone sends the family key, encrypted to that browser tab's one-time key.
+     Works in browsers without passkey support.
+  - A passphrase-plus-fresh-code fallback was considered and left out: the
+    two options above cover every case, without another passphrase.
+- In the browser the key lives only in the tab's memory, and the vault locks
+  after **15 minutes unused** or when the tab closes.
+- Sensitive fields stay masked against shoulder-surfing; showing one is a
+  tap, with no further check. Copied values are cleared from the clipboard
+  after 30 seconds. The audit log records each vault unlock (the server
+  cannot see individual reveals, as decryption happens on the device).
+
+**Notifications: user-chosen push, with a fallback that always works.**
+
+- **Android:** UnifiedPush, so each phone uses the push service its owner
+  chooses: ntfy (the goal; the public ntfy.sh needs no server, a self-hosted
+  ntfy can replace it later), NextPush, Sunup or any other distributor.
+  Needs the `org.unifiedpush.android:connector` library (agreed).
+- **Fallback, always on:** every phone also checks for due reminders once a
+  day in the background, whether or not push is set up. A reminder is shown
+  once, by whichever route arrives first. If ntfy is down, misconfigured or
+  never installed, reminders still arrive within a day.
+- **Browser:** standard Web Push through the browser's own push service.
+- Both push routes use RFC 8291 encryption, implemented with Node's built-in
+  crypto (the server stays dependency-free), so the push service cannot read
+  the notification. The server sends only to https addresses registered by a
+  signed-in device.
+- The background check uses a token that can only read reminder titles and
+  dates, since the device key needs a fingerprint for every use.
+- Notification text is generic ("A family document expires soon"); details
+  show only inside the unlocked app.
+- **Reminder records are not end-to-end encrypted:** saving a passport or
+  licence date also saves a reminder holding only what, whose and when
+  ("Passport renewal · Sam · 1 March 2027"), so the server can send it. The
+  number itself stays encrypted. Phase 4 and later reuse this system.
+
+### Build order (one pull request each)
+
+**1. Parents, keys and unlocking**
+
+- [ ] Admin role shown as "Parent"; Quick Info, Contacts and Health routes
+      limited to parents on the server.
+- [ ] Server key file: created on first start, its location configurable
+      and documented for backup; TOTP secrets moved under it (migration).
+- [ ] Shared document contents encrypted with the server key: streamed,
+      chunked encryption for uploads, downloads and previews, and a
+      resumable migration of existing files; backup and restore steps
+      updated to include the key. (May land as its own pull request.)
+- [ ] Family key creation, the recovery kit, and sharing with the second
+      parent.
+- [ ] Android: family key unwrapped by the same biometric check that opens
+      the app.
+- [ ] Browser: passkey (WebAuthn PRF) unlock, and approve-with-your-phone.
+- [ ] Vault lock after 15 minutes unused; unlocks in the audit log.
+
+**2. Quick Info**
 
 A reference card per person and one household card for information needed
-when filling in forms or handling family paperwork.
+when filling in forms or handling family paperwork, all end-to-end encrypted.
 
+- [ ] **Family profiles**, including people without login accounts (children).
 - [ ] **Personal details:** full legal name, South African ID number and date
       of birth. Optional SARS income tax reference number for each adult.
 - [ ] **Medical aid:** scheme, plan, membership number, main member and each
@@ -87,18 +187,13 @@ when filling in forms or handling family paperwork.
       accountant contacts where relevant.
 - [ ] **Documents:** link scans and certificates from Shared Family Documents
       when suitable for everyone who can access the shared folder.
-- [ ] **Encryption at rest** for Quick Info and TOTP secrets, with a key kept
-      outside the database. Agree the encryption design before building.
-- [ ] **Sensitive fields:** require a fresh code on the web or biometric
-      verification on Android to reveal hidden fields. Clear copied values
-      from the clipboard after 30 seconds and audit each reveal.
-- [ ] **Expiry reminders:** remind parents when recorded passport or vehicle
-      licence renewal dates approach.
+- [ ] **Masked fields** with tap-to-show and copy that clears after 30 seconds.
 
-### Family Contacts
+**3. Family Contacts**
 
 One shared address book for people and organisations the parents need to
-reach, including schools, healthcare practices, insurers and tradespeople.
+reach, including family and friends, schools, healthcare practices, insurers
+and tradespeople. Encrypted at rest with the server key.
 
 - [ ] **Contact cards:** name, organisation, role, phone numbers, email,
       address and a short shared note.
@@ -110,6 +205,18 @@ reach, including schools, healthcare practices, insurers and tradespeople.
 - [ ] **vCard export:** export one contact or the whole address book as a
       `.vcf` file. Include standard contact fields and omit internal notes
       by default.
+- [ ] Later (not phase 2): **CardDAV**, so phones' own contacts apps sync
+      the family address book.
+
+**4. Notifications and expiry reminders**
+
+- [ ] Reminder records, created from Quick Info passport and vehicle licence
+      dates (from 90 days before, then 30 and 7).
+- [ ] Android: UnifiedPush registration (ntfy and other distributors), and
+      the always-on daily background check.
+- [ ] Browser: Web Push.
+- [ ] Notification settings per person, and a "Coming up" card on the home
+      page for parents.
 
 ## Phase 3 — Family calendar
 
@@ -132,10 +239,8 @@ reach, including schools, healthcare practices, insurers and tradespeople.
       with a streak, optional points that turn into pocket money.
 - [ ] **Noticeboard:** short announcements and pinned notes for everyone
       ("Plumber coming Thursday 10:00"), with read receipts.
-- [ ] **Notifications (cross-cutting, needed from here on):** web push in the
-      browser and Android notifications through a self-hostable route
-      (UnifiedPush / ntfy) so nothing depends on Google's servers; per-person
-      settings for what notifies.
+- [ ] **Notifications** for lists, chores and the noticeboard, through the
+      push system built in phase 2.
 
 ## Phase 5 — Meals
 
@@ -161,7 +266,7 @@ reach, including schools, healthcare practices, insurers and tradespeople.
 
 A parent-managed health profile for each family member. Apply the parent
 access rules from Phase 2, enforce them on the server, and encrypt health
-records at rest. Show medical aid details from Quick Info through a link.
+records end to end with the family key from phase 2. Show medical aid details from Quick Info through a link.
 
 - [ ] **At a glance:** allergies and known reactions, blood type if known,
       active conditions and essential care notes.
@@ -217,8 +322,7 @@ records at rest. Show medical aid details from Quick Info through a link.
 - [ ] **Data export** of everything a person owns, as plain files.
 - [ ] **Accessibility pass** (keyboard, screen readers, large text) and
       **translations** if the family wants them.
-- [ ] **Security hardening backlog:** encrypt the TOTP secrets at rest (with
-      phase 2's key), session list showing approximate location, e-mail or
+- [ ] **Security hardening backlog:** session list showing approximate location, e-mail or
       push alert on a new sign-in, admin view of the family's security activity.
 
 ## What has been verified, and how

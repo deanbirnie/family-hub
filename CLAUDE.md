@@ -2,6 +2,12 @@
 
 - Plan, phases and status: `docs/ROADMAP.md`. Dependency and security upkeep:
   `docs/MAINTENANCE.md`. How sign-in works and why: `docs/SECURITY.md`.
+- **Data protection is decided before building.** `docs/DATA-PROTECTION.md`
+  lists everything the hub stores and its tier (E2E family key, server key,
+  hashed, plain). Before writing code for a phase or module, add its rows
+  there (following "When building a phase") and get the owner's agreement in
+  the planning pull request. Never store new data without a row, and never
+  move data to a weaker tier without asking.
 - Work on a feature branch and open a pull request into `main` when a change
   is done. One phase item (or a coherent part of one) per pull request; tick
   it off in `docs/ROADMAP.md` in the same pull request.
