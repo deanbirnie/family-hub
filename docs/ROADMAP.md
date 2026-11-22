@@ -395,13 +395,13 @@ in the family sees them (name and day only).
 
 **4a. Events and views**
 
-- [ ] People's colours and the Family tag.
-- [ ] Events: all-day, timed and multi-day; tags; location and notes; links
+- [x] People's colours and the Family tag.
+- [x] Events: all-day, timed and multi-day; tags; location and notes; links
       to Contacts and Files; versioned edits.
-- [ ] Repeats, with "this one / this and following / all".
-- [ ] Month, week and agenda views; my view, a person's view, everyone.
-- [ ] Today on the home page.
-- [ ] Send one event, or a selection, out as `.ics`.
+- [x] Repeats, with "this one / this and following / all".
+- [x] Month, week and agenda views; my view, a person's view, everyone.
+- [x] Today on the home page.
+- [x] Send one event, or a selection, out as `.ics`.
 
 **4b. Reminders and birthdays**
 

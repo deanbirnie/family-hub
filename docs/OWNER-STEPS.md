@@ -228,6 +228,16 @@ On each parent's phone, once it has the app version with notifications
       Google Contacts: birthdays without a year and children's names should
       come through. Tell Claude if anything is missing.
 
+## 14. Set up the calendar (after the calendar pull request is merged and deployed)
+
+- [ ] 1. Make sure everyone who should be tagged is a person in **Quick Info**
+      (**Add a person**: link each account; add children by name).
+- [ ] 2. **Calendar → Colours**: pick a colour for each person.
+- [ ] 3. Add a few regular events (school runs, sport) with **New event**,
+      tag who they are for (or **Family**), and choose **Repeats**.
+- [ ] 4. Optional: **Send out** saves an .ics file your phone's calendar or
+      Google Calendar can import; it is a copy, not kept in sync.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

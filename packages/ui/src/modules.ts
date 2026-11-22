@@ -65,7 +65,7 @@ export const MODULES: HubModule[] = [
     path: '/calendar',
     icon: CalendarDays,
     description: 'One family calendar: everyone’s plans tagged by person, birthdays from Contacts, school and holidays, with reminders.',
-    status: 'next',
+    status: 'ready',
     phase: 4,
   },
   {

@@ -22,6 +22,7 @@ import { fileRoutes } from './routes/files.ts'
 import { maintainFiles } from './file-maintenance.ts'
 import type { ServerKey } from './server-key.ts'
 import { notificationRoutes } from './routes/notifications.ts'
+import { calendarRoutes } from './routes/calendar.ts'
 import { runReminders } from './notifications.ts'
 import { defaultPushFetch, type PushFetch } from './webpush.ts'
 
@@ -125,6 +126,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   quickInfoRoutes(api, services)
   contactRoutes(api, services)
   notificationRoutes(api, services)
+  calendarRoutes(api, services)
 
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     void dispatch(services, router, req, res)

@@ -52,7 +52,7 @@ public class DocumentsPlugin extends Plugin {
       try {
         URL url = new URL(call.getString("url", ""));
         // Only documents, and vCard exports of the address book, ever go to the server with the token.
-        boolean allowedPath = url.getPath().matches("/api/files/[a-f0-9-]{36}/content") || url.getPath().matches("/api/contacts/export/(all|group-[A-Za-z0-9_-]{16}|[A-Za-z0-9_-]{16})(-notes)?\\.vcf") || url.getPath().matches("/api/contacts/export/(all|group-[A-Za-z0-9_-]{16})-(dates\\.ics|labels\\.csv)");
+        boolean allowedPath = url.getPath().matches("/api/files/[a-f0-9-]{36}/content") || url.getPath().matches("/api/contacts/export/(all|group-[A-Za-z0-9_-]{16}|[A-Za-z0-9_-]{16})(-notes)?\\.vcf") || url.getPath().matches("/api/contacts/export/(all|group-[A-Za-z0-9_-]{16})-(dates\\.ics|labels\\.csv)") || url.getPath().matches("/api/calendar/export/(event-[A-Za-z0-9_-]{16}|range-[0-9]{8}-[0-9]{8}-(all|family|[A-Za-z0-9_-]{16}))(-notes)?\\.ics");
         if (!url.getProtocol().equals("https") || !allowedPath || url.getUserInfo() != null || url.getQuery() != null) {
           throw new Exception("Invalid document address");
         }
