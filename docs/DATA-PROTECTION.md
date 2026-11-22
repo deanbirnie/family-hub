@@ -145,7 +145,7 @@ when linking.
 | Data | Where | Tier | Status |
 |---|---|---|---|
 | Reminder records: what, whose, when (Quick Info expiry dates; created by the parent's device, as the server cannot read the record) | `reminders` (title, person, date) | P (the server sends them) | ✅ |
-| Push addresses (UnifiedPush and Web Push endpoints) and their keys | `push_subscriptions.sealed` (bound to its ID) | S | ✅ (browsers) |
+| Push addresses (UnifiedPush and Web Push endpoints) and their keys | `push_subscriptions.sealed` (bound to its ID) | S | ✅ |
 | A fingerprint of each push address, to recognise a browser registering again | `push_subscriptions.endpoint_hash` (SHA-256) | H | ✅ |
 | Push health: last success, failure count, when a route stopped working, the last error | `push_subscriptions` columns | P | ✅ |
 | Device name for each push route ("Chrome on Windows") | `push_subscriptions.label` | P | ✅ |
@@ -153,9 +153,12 @@ when linking.
 | Notification settings per person (which reminders, from what hour) | `notification_settings` | P | ✅ |
 | The hub's push signing key (VAPID private key) | `settings` | S | ✅ |
 | The hub's https address, when learnt from a browser | `settings` | P | ✅ |
-| Background-check tokens (read reminders only) | Tokens | H | 🔜 |
-| Reminders shown by the phone's daily check | Android notification, and the IDs already shown (so each shows once) | On the phone; IDs only | 🔜 |
-| Notification text | Sent to the push service | Encrypted to the device (RFC 8291), so the push service cannot read it; generic wording only | ✅ (browsers) |
+| Background-check tokens (read the owner's due reminders, as generic text, and nothing else) | `check_tokens.token_hash` (one per phone; removed with the phone) | H | ✅ |
+| When each phone last checked | `check_tokens.last_check_at` | P | ✅ |
+| The phone's copy of its check token and the hub's address | App-private storage on the phone (not backed up) | Plain on the phone; the token can only read generic reminder text | ✅ |
+| The phone's UnifiedPush keys (to decrypt messages) | The UnifiedPush library's storage on the phone | Plain on the phone, app-private | ✅ |
+| Reminders shown on the phone | Android notification (generic text; hidden on a locked screen), and the tags already shown, so each shows once | On the phone; tags only | ✅ |
+| Notification text | Sent to the push service | Encrypted to the device (RFC 8291), so the push service (ntfy, Google, Mozilla, Apple) cannot read it; generic wording only | ✅ |
 
 ### People and dates, a family CRM (phase 3; agreed, not built yet)
 

@@ -2,7 +2,7 @@ import { createECDH } from 'node:crypto'
 import { afterEach, describe, expect, it } from 'vitest'
 import { runReminders } from '../src/notifications.ts'
 import type { PushFetch } from '../src/webpush.ts'
-import { Client, enrollTotp, nextStep, PASSWORD, setUpAdmin, startServer, type TestServer } from './helpers.ts'
+import { Client, enrollTotp, nextStep, PASSWORD, setUpAdmin, signedInPhone, startServer, type TestServer } from './helpers.ts'
 import { decryptAsReceiver } from './push-receiver.ts'
 
 let server: TestServer
@@ -183,5 +183,64 @@ describe('notifications', () => {
     await enrollTotp(server, kid)
     expect((await kid.del(`/api/notifications/subscriptions/${a.body.route.id}`)).status).toBe(404)
     expect((await client.del(`/api/notifications/subscriptions/${a.body.route.id}`)).status).toBe(204)
+  })
+
+  it('lets a phone’s daily check read its owner’s due reminders, and nothing else', async () => {
+    server = await startServer()
+    const { client, secret } = await setUpAdmin(server)
+    await withPassport(client, '2026-12-20') // 30 days left
+    // Browsers have no daily check.
+    expect((await client.post('/api/notifications/check-token')).status).toBe(400)
+    const phone = await signedInPhone(server, secret)
+    const issued = await phone.client.post<{ checkToken: string }>('/api/notifications/check-token')
+    expect(issued.status).toBe(200)
+    const check = (token: string) => new Client(server.url, { authorization: `Check ${token}` }).get<{ items: { title: string; body: string; tag: string }[] }>('/api/notifications/due')
+
+    const due = await check(issued.body.checkToken)
+    expect(due.status).toBe(200)
+    expect(due.body.items).toEqual([expect.objectContaining({ title: 'Family Hub', body: 'A family document expires soon' })])
+    expect(JSON.stringify(due.body)).not.toContain('Sam')
+    // The same reminder carries the same tag as its push message, so the phone shows it once.
+    expect(due.body.items[0]!.tag).toMatch(/^r:.+@2026-12-20\/30$/)
+    // Settings apply; the sending hour does not (the check runs when Android lets it).
+    await client.call('PUT', '/api/notifications/settings', { sendHour: 23 })
+    expect((await check(issued.body.checkToken)).body.items).toHaveLength(1)
+    await client.call('PUT', '/api/notifications/settings', { expiry: false })
+    expect((await check(issued.body.checkToken)).body.items).toHaveLength(0)
+    await client.call('PUT', '/api/notifications/settings', { expiry: true })
+
+    // The token is not a session, and a session is not a token.
+    expect((await new Client(server.url, { authorization: `Bearer ${issued.body.checkToken}` }).get('/api/quick-info')).status).toBe(401)
+    expect((await check(phone.client.token)).status).toBe(401)
+    expect((await check('nonsense')).status).toBe(401)
+
+    // Settings show the phone's last check.
+    const state = await phone.client.get<{ checks: { deviceId: string; current: boolean; lastCheckAt: number }[] }>('/api/notifications')
+    expect(state.body.checks).toEqual([expect.objectContaining({ deviceId: phone.deviceId, current: true, lastCheckAt: server.clock.now })])
+
+    // A new token replaces the old; turning off (or removing the phone) ends it.
+    const again = await phone.client.post<{ checkToken: string }>('/api/notifications/check-token')
+    expect((await check(issued.body.checkToken)).status).toBe(401)
+    expect((await check(again.body.checkToken)).status).toBe(200)
+    expect((await phone.client.del('/api/notifications/check-token')).status).toBe(204)
+    expect((await check(again.body.checkToken)).status).toBe(401)
+    const third = await phone.client.post<{ checkToken: string }>('/api/notifications/check-token')
+    expect((await client.del(`/api/account/devices/${phone.deviceId}`)).status).toBe(204)
+    expect((await check(third.body.checkToken)).status).toBe(401)
+  })
+
+  it('lets a phone register its UnifiedPush address, which goes when the phone does', async () => {
+    server = await startServer()
+    const { client, secret } = await setUpAdmin(server)
+    const phone = await signedInPhone(server, secret)
+    const up = { ...fakeBrowser('https://ntfy.sh/upAbCdEf123?up=1').subscription, kind: 'unifiedpush', label: 'Pixel' }
+    expect((await client.post('/api/notifications/subscriptions', up)).status).toBe(400) // browsers cannot
+    const on = await phone.client.post<{ route: { phone: boolean } }>('/api/notifications/subscriptions', up)
+    expect(on.body.route.phone).toBe(true)
+    // A new address from the distributor replaces the old one.
+    await phone.client.post('/api/notifications/subscriptions', { ...up, endpoint: 'https://ntfy.sh/upNew456?up=1' })
+    expect((await client.get<{ routes: unknown[] }>('/api/notifications')).body.routes).toHaveLength(1)
+    await phone.client.del('/api/notifications/check-token')
+    expect((await client.get<{ routes: unknown[] }>('/api/notifications')).body.routes).toHaveLength(0)
   })
 })

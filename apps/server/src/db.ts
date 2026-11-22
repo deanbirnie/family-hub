@@ -248,6 +248,18 @@ const MIGRATIONS: string[] = [
     settings TEXT NOT NULL
   );
   `,
+  // 9: Phones' daily background check (routes/notifications.ts). Each phone
+  // holds a token that can only read its owner's due reminders (generic text);
+  // only its hash is stored.
+  `
+  CREATE TABLE check_tokens (
+    device_id TEXT PRIMARY KEY REFERENCES devices(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at INTEGER NOT NULL,
+    last_check_at INTEGER
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

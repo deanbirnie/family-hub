@@ -134,7 +134,8 @@ family address book) needs the server to read them.
   ntfy can replace it later), NextPush, Sunup or any other distributor.
   Needs the `org.unifiedpush.android:connector` library (agreed).
 - **Fallback, always on:** every phone also checks for due reminders once a
-  day in the background (Android WorkManager, aiming for the morning),
+  day in the background (Android's job scheduler, whenever the phone has a
+  network),
   whether or not push is set up, and again whenever the app is opened. A
   reminder is shown once, by whichever route arrives first. If ntfy is down,
   misconfigured, uninstalled or never set up, reminders still arrive within
@@ -237,7 +238,7 @@ browser and home page; 4b Android)
       test button.
 - [x] Notification settings per person, and a "Coming up" card on the home
       page for parents.
-- [ ] Android: UnifiedPush registration (ntfy and other distributors), and
+- [x] Android: UnifiedPush registration (ntfy and other distributors), and
       the always-on daily background check.
 
 ## Phase 3 — People and dates (a family CRM)

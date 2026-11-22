@@ -9,12 +9,14 @@
  */
 import type { Api, Services } from '../app.ts'
 import { HttpError, readJson, str } from '../http.ts'
-import { newId } from '../secrets.ts'
+import { hashToken, newId, newToken } from '../secrets.ts'
+import { tooMany } from './auth.ts'
 import {
   endpointHash,
   getSettings,
   learnOrigin,
   saveSettings,
+  dueMessagesFor,
   sealTarget,
   sendTo,
   subscriptionsOf,
@@ -56,7 +58,59 @@ export function notificationRoutes(api: Api, s: Services): void {
     timeZone: s.config.timeZone,
     settings: getSettings(s, ctx.user.id),
     routes: subscriptionsOf(s, ctx.user.id).map(routeInfo),
+    // Phones running the daily background check.
+    checks: (
+      db
+        .prepare('SELECT c.device_id, d.name, c.created_at, c.last_check_at FROM check_tokens c JOIN devices d ON d.id = c.device_id WHERE c.user_id = ? ORDER BY c.created_at')
+        .all(ctx.user.id) as { device_id: string; name: string; created_at: number; last_check_at: number | null }[]
+    ).map((c) => ({ deviceId: c.device_id, label: c.name, current: c.device_id === ctx.session.deviceId, createdAt: c.created_at, lastCheckAt: c.last_check_at })),
   }))
+
+  // ---- phones' daily background check ---------------------------------------------------
+
+  /**
+   * Gives this phone a token for its daily check. It can do one thing: read
+   * its owner's due reminders, as generic notification text. A new token
+   * replaces the phone's old one.
+   */
+  api.authed('POST', '/api/notifications/check-token', signedIn, (ctx) => {
+    const deviceId = ctx.session.deviceId
+    if (!deviceId) throw new HttpError(400, 'The daily check is for the phone app.', 'invalid')
+    const token = newToken()
+    db.prepare(
+      `INSERT INTO check_tokens (device_id, user_id, token_hash, created_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (device_id) DO UPDATE SET user_id = excluded.user_id, token_hash = excluded.token_hash, created_at = excluded.created_at, last_check_at = NULL`,
+    ).run(deviceId, ctx.user.id, hashToken(token), s.now())
+    s.audit('notifications.daily_check_on', ctx, ctx.user.id)
+    // Not called "token": the app would take that for a new session token.
+    return { checkToken: token }
+  })
+
+  /** Turns notifications off on this phone: the daily check and its push address. */
+  api.authed('DELETE', '/api/notifications/check-token', signedIn, (ctx) => {
+    const deviceId = ctx.session.deviceId
+    if (!deviceId) throw new HttpError(400, 'The daily check is for the phone app.', 'invalid')
+    db.prepare('DELETE FROM check_tokens WHERE device_id = ?').run(deviceId)
+    db.prepare('DELETE FROM push_subscriptions WHERE device_id = ?').run(deviceId)
+    s.audit('notifications.off', ctx, ctx.user.id, 'phone')
+    return undefined
+  })
+
+  /**
+   * The daily check itself (no session: the phone may be locked). Answers only
+   * to a check token, sent as "Authorization: Check <token>".
+   */
+  api.open('GET', '/api/notifications/due', (ctx) => {
+    if (!s.limits.open.hit(`check:${ctx.ip}`)) throw tooMany()
+    const auth = ctx.req.headers.authorization
+    const token = typeof auth === 'string' && auth.startsWith('Check ') ? auth.slice(6).trim() : ''
+    const row = token
+      ? (db.prepare('SELECT device_id, user_id FROM check_tokens WHERE token_hash = ?').get(hashToken(token)) as { device_id: string; user_id: string } | undefined)
+      : undefined
+    if (!row) throw new HttpError(401, 'This phone needs to turn notifications on again.', 'unauthenticated')
+    db.prepare('UPDATE check_tokens SET last_check_at = ? WHERE device_id = ?').run(s.now(), row.device_id)
+    return { items: dueMessagesFor(s, row.user_id, localNow(s.now(), s.config.timeZone).date) }
+  })
 
   api.authed('PUT', '/api/notifications/settings', signedIn, async (ctx) => {
     const body = await readJson(ctx.req)

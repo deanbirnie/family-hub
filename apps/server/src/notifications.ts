@@ -218,6 +218,21 @@ export function upcoming(s: Services, today: string, horizon = 90) {
   return out.sort((a, b) => a.daysLeft - b.daysLeft || a.title.localeCompare(b.title))
 }
 
+/**
+ * What one person should have been reminded of by today, as the phone's daily
+ * check shows it: generic text only. Ignores the sending hour (the check runs
+ * once a day, whenever Android lets it).
+ */
+export function dueMessagesFor(s: Services, userId: string, today: string): PushMessage[] {
+  const user = s.db.prepare('SELECT role, disabled FROM users WHERE id = ?').get(userId) as { role: string; disabled: number } | undefined
+  if (!user || user.disabled || user.role !== 'admin') return []
+  const settings = getSettings(s, userId)
+  if (!settings.enabled) return []
+  return dueNow(s, today)
+    .filter((d) => d.item.category !== 'expiry' || settings.expiry)
+    .map((d) => ({ title: 'Family Hub', body: d.item.notice, tag: d.occurrence, url: d.item.url }))
+}
+
 // ---- sending ----------------------------------------------------------------------------
 
 const running = new WeakSet<Services>()

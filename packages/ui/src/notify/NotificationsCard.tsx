@@ -2,7 +2,7 @@
  * Settings → Notifications: turn push on for this device, see whether each
  * browser and phone is getting them, send a test, and choose what to get.
  */
-import { Bell, BellOff, Globe, Send, Smartphone, Trash2 } from 'lucide-react'
+import { Bell, BellOff, CalendarCheck, Globe, Send, Smartphone, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { timeAgo } from '../format.ts'
 import type { HubContext } from '../Shell.tsx'
@@ -26,6 +26,8 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
   const [here, setHere] = useState<HereState>('checking')
   const [mine, setMine] = useState<string | null>(null)
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
+  type PhoneInfo = Awaited<ReturnType<NonNullable<NonNullable<typeof platform.push>['phone']>>>
+  const [phone, setPhone] = useState<PhoneInfo | null>(null)
 
   const checkHere = async () => {
     if (!platform.push) return setHere('unsupported')
@@ -33,6 +35,7 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
       setHere(await platform.push.state())
       const current = await platform.push.current()
       setMine(current ? await fingerprint(current.endpoint) : null)
+      setPhone(platform.push.phone ? await platform.push.phone() : null)
     } catch {
       setHere('unsupported')
     }
@@ -44,9 +47,12 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
   const on = useAction(async () => {
     if (!state.data) return
     setMessage(null)
-    await turnOn(platform, state.data.vapidPublicKey)
+    const route = await turnOn(platform, state.data.vapidPublicKey)
     await checkHere()
     state.reload()
+    if (platform.kind === 'android' && !route) {
+      setMessage({ kind: 'success', text: 'Daily check turned on: this phone asks the hub once a day, and when you open the app.' })
+    }
   })
   const off = useAction(async () => {
     setMessage(null)
@@ -100,17 +106,58 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
               </Button>
             )}
           </div>
-          {here === 'denied' && <Banner kind="warning">Notifications are blocked for this site. Allow them in the browser’s site settings, then reload.</Banner>}
+          {here === 'denied' && (
+            <Banner kind="warning">
+              {platform.kind === 'android'
+                ? 'Notifications are turned off for Family Hub. Allow them in Android’s settings (Apps → Family Hub → Notifications), then come back.'
+                : 'Notifications are blocked for this site. Allow them in the browser’s site settings, then reload.'}
+            </Banner>
+          )}
           {here === 'unsupported' && (
             <p className="muted small">
               {platform.kind === 'android'
-                ? 'Notifications on this phone arrive with the next app update. Until then, see “Coming up” on the home page.'
+                ? 'This version of the app cannot show notifications. See “Coming up” on the home page.'
                 : 'This browser cannot show notifications here (it needs https and a browser with Web Push).'}
             </p>
           )}
+          {here === 'on' && phone && (
+            <div className="stack-sm">
+              <p className="small">
+                <strong>Daily check: on.</strong> This phone asks the hub once a day, and whenever you open the app, so reminders arrive even without a push app.
+              </p>
+              {phone.pushApp ? (
+                <p className="small">
+                  <strong>Instant notifications: on</strong>, through {phone.pushApp}.
+                </p>
+              ) : phone.pushApps.length > 0 ? (
+                <div className="row">
+                  <Button variant="secondary" busy={on.busy} onClick={() => void on.run()}>
+                    Use {phone.pushApps[0]} for instant notifications
+                  </Button>
+                </div>
+              ) : (
+                <p className="muted small">
+                  For notifications as soon as something is due, install <strong>ntfy</strong> (F-Droid or Google Play), then come back to this page to connect it.
+                </p>
+              )}
+              {phone.problem && !phone.pushApp && <p className="field-error small">{phone.problem}</p>}
+            </div>
+          )}
 
-          {data.routes.length > 0 && (
+          {(data.routes.length > 0 || data.checks.length > 0) && (
             <ul className="item-list">
+              {data.checks.map((c) => (
+                <li key={`check-${c.deviceId}`}>
+                  <CalendarCheck size={20} aria-hidden />
+                  <div className="item-main">
+                    <div>
+                      {c.label} · daily check
+                      {c.current && <Badge tone="accent">This phone</Badge>}
+                    </div>
+                    <div className="muted small">{c.lastCheckAt ? `Last checked ${timeAgo(c.lastCheckAt)}` : 'Not checked yet'}</div>
+                  </div>
+                </li>
+              ))}
               {data.routes.map((r) => {
                 const status = routeStatus(r)
                 return (

@@ -27,10 +27,17 @@ export interface PushSupport {
   kind: 'webpush' | 'unifiedpush'
   /** 'unsupported' when this device cannot, 'denied' when notifications were blocked. */
   state(): Promise<'unsupported' | 'denied' | 'off' | 'on'>
-  /** Asks permission if needed and returns this device's push address and keys. */
-  enable(vapidPublicKey: string): Promise<{ endpoint: string; keys: { p256dh: string; auth: string } }>
+  /**
+   * Asks permission if needed and returns this device's push address and keys;
+   * null on a phone without a push app (it still gets the daily check).
+   */
+  enable(vapidPublicKey: string): Promise<{ endpoint: string; keys: { p256dh: string; auth: string } } | null>
   current(): Promise<{ endpoint: string; keys: { p256dh: string; auth: string } } | null>
   disable(): Promise<void>
+  /** Android: the daily check and the push app (ntfy or another), for Settings. */
+  phone?: () => Promise<{ daily: boolean; lastCheck: number | null; pushApp: string | null; pushApps: string[]; problem: string | null }>
+  /** Android: checks for due reminders now (when the app is opened). */
+  checkNow?: () => Promise<void>
 }
 
 export interface Platform {

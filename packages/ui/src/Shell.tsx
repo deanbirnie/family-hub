@@ -82,8 +82,10 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
   }, [platform.api])
 
   // If this device already has notifications on, make sure the server has its current address.
+  // A phone also checks for due reminders whenever the app is opened.
   useEffect(() => {
     void refreshPush(platform).catch(() => undefined)
+    void platform.push?.checkNow?.().catch(() => undefined)
   }, [platform])
 
   const signOut = () => {

@@ -28,7 +28,7 @@ changing, plus a new row in the [run log](#run-log) at the bottom of this file.
 | Node.js | `engines` in `package.json`, `.nvmrc`, `node-version` in `.github/workflows/*.yml`, `FROM node:…` in `Dockerfile` | The server relies on Node 24 built-ins: type stripping, `node:sqlite`, `crypto.argon2`. Keep all four places on the same major. |
 | GitHub Actions | `uses:` lines in `.github/workflows/*.yml` | Pinned by full commit SHA with the version in a comment. Review permissions, especially for actions that publish, sign or delete. |
 | Android toolchain | `apps/mobile/android` (`variables.gradle`, `build.gradle`, `app/build.gradle`, `gradle/wrapper/gradle-wrapper.properties`), `java-version` in the workflows | Capacitor sets the expected Gradle, Android Gradle Plugin, JDK and SDK levels. Upgrade Capacitor majors with its migration guide (`npx cap migrate`), and raise `targetSdkVersion` when Google's requirement moves. |
-| Android libraries | `androidx.biometric` in `apps/mobile/android/app/build.gradle` | Security-critical: the biometric prompt that unlocks the device key. Not covered by `npm audit`; CI scans the release classpath with OSV-Scanner. |
+| Android libraries | `androidx.biometric` and `org.unifiedpush.android:connector` in `apps/mobile/android/app/build.gradle` | Security-critical: the biometric prompt that unlocks the device key, and UnifiedPush, which decrypts push messages on the phone (it brings in `kotlin-stdlib` and Google's `tink`). Not covered by `npm audit`; CI scans the release classpath with OSV-Scanner. |
 | Docker base image | `Dockerfile` | Built on every relevant PR and release; scanned, OS packages included. |
 | Cryptography | `apps/server/src/secrets.ts`, `apps/server/src/totp.ts`, `apps/server/src/routes/devices.ts`, `apps/mobile/android/.../DeviceAuthPlugin.java` | Argon2id parameters, TOTP, device keys. See "Cryptography review". |
 
@@ -129,7 +129,7 @@ npm outdated
 |---|---|
 | Server | Unit tests, web e2e, image build and health check (CI "Server image and web app"). |
 | Shared interface or web app | Typecheck, web and mobile e2e. |
-| Android dependencies or native code | Mobile e2e and an APK build (CI "Android app"). Changes to `DeviceAuthPlugin`, `AppUpdatePlugin`, signing or the manifest also need an installed-app check on a real phone: register, unlock, lock, update from the previous release. |
+| Android dependencies or native code | Mobile e2e and an APK build (CI "Android app"). Changes to `DeviceAuthPlugin`, `AppUpdatePlugin`, signing or the manifest also need an installed-app check on a real phone: register, unlock, lock, update from the previous release. Changes to `PushPlugin`, `FamilyPushService`, `DailyCheckJob` or the UnifiedPush library: turn notifications on with ntfy installed, send a test, and check a reminder arrives with ntfy uninstalled (the daily check, or opening the app). |
 | Actions, release or cleanup scripts | actionlint, shellcheck and the script tests (CI "Workflow and script checks"); preview cleanup with its dry-run mode. |
 
 CI skips jobs whose files did not change: a green run with a skipped job is

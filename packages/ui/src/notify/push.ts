@@ -26,11 +26,21 @@ export interface NotificationSettings {
   sendHour: number
 }
 
+/** A phone running the daily background check. */
+export interface DailyCheck {
+  deviceId: string
+  label: string
+  current: boolean
+  createdAt: number
+  lastCheckAt: number | null
+}
+
 export interface NotificationState {
   vapidPublicKey: string
   timeZone: string
   settings: NotificationSettings
   routes: PushRoute[]
+  checks: DailyCheck[]
 }
 
 export async function fingerprint(endpoint: string): Promise<string> {
@@ -45,12 +55,15 @@ async function register(api: Api, push: PushSupport, target: { endpoint: string;
   return route
 }
 
-/** Turns notifications on for this device (asks the browser's permission first). */
-export async function turnOn(platform: Platform, vapidPublicKey: string): Promise<PushRoute> {
+/**
+ * Turns notifications on for this device (asks permission first). Returns the
+ * push route, or null for a phone without a push app (daily check only).
+ */
+export async function turnOn(platform: Platform, vapidPublicKey: string): Promise<PushRoute | null> {
   const push = platform.push
   if (!push) throw new Error('This device cannot show notifications.')
   const target = await push.enable(vapidPublicKey)
-  return register(platform.api, push, target, platform.deviceLabel ?? 'This device')
+  return target ? register(platform.api, push, target, platform.deviceLabel ?? 'This device') : null
 }
 
 /** Turns them off here: on the server and in the browser. */

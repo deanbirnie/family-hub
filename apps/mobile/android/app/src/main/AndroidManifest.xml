@@ -39,6 +39,21 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Notifications: UnifiedPush messages from the distributor (ntfy or another)... -->
+        <service
+            android:name=".FamilyPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- ...and the daily check, which works without any push service. -->
+        <service
+            android:name=".DailyCheckJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->
@@ -47,4 +62,8 @@
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Opens Android's installer for a downloaded update; Android still asks the person to confirm. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Reminders. Android 13+ asks the person before the app may show any. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Keeps the daily reminder check scheduled after the phone restarts. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 </manifest>

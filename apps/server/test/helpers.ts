@@ -159,3 +159,22 @@ export async function signIn(server: TestServer, username: string, secret: strin
   if (code.status !== 200) throw new Error(`code failed: ${JSON.stringify(code.body)}`)
   return client
 }
+
+/** A phone signed in the way the app does it: password, code, its keystore key, then an unlock. */
+export async function signedInPhone(server: TestServer, secret: string, username = 'parent'): Promise<{ client: Client; deviceId: string }> {
+  const { generateKeyPairSync, sign } = await import('node:crypto')
+  const { unlockMessage } = await import('../src/routes/devices.ts')
+  const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' })
+  const client = new Client(server.url, { origin: 'https://localhost' })
+  await client.post('/api/auth/login', { username, password: PASSWORD, client: 'app' })
+  nextStep(server)
+  await client.post('/api/auth/totp', { code: totpAt(secret, server.clock.now) })
+  const added = await client.post<{ deviceId: string }>('/api/devices', { name: 'Pixel', publicKey: publicKey.export({ format: 'der', type: 'spki' }).toString('base64') })
+  if (added.status !== 200) throw new Error(`device registration failed: ${JSON.stringify(added.body)}`)
+  const deviceId = added.body.deviceId
+  const c = await client.post<{ challengeId: string; challenge: string }>('/api/devices/challenge', { deviceId })
+  const signature = sign('sha256', unlockMessage(c.body.challenge, deviceId), { key: privateKey, dsaEncoding: 'der' }).toString('base64')
+  const unlocked = await client.post('/api/devices/unlock', { deviceId, challengeId: c.body.challengeId, signature })
+  if (unlocked.status !== 200) throw new Error(`unlock failed: ${JSON.stringify(unlocked.body)}`)
+  return { client, deviceId }
+}

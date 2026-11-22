@@ -173,7 +173,23 @@ The vault holds Quick Info, end-to-end encrypted: the server cannot read it.
 - [ ] 4. In **Quick Info**, check passports and vehicles have their expiry
       dates: each one now shows under **Coming up** on the home page.
 
+## 10. Turn on reminders on the phones (after the phone notifications release is installed)
+
+On each parent's phone, once it has the app version with notifications
+(Settings → App updates):
+
+- [ ] 1. Optional, for instant notifications: install **ntfy** from F-Droid
+      or Google Play and open it once. No account or settings are needed;
+      it uses the free ntfy.sh service. (A self-hosted ntfy server can
+      replace it later.)
+- [ ] 2. In Family Hub: **Settings → Notifications → Turn on notifications
+      on this phone**, and allow notifications when Android asks.
+- [ ] 3. Check the card says **Daily check: on**, and, if you installed
+      ntfy, **Instant notifications: on, through ntfy**. Then select the
+      send button (paper plane) next to the phone to send a test.
+- [ ] 4. If Android asks about battery use for ntfy, allow it to run in the
+      background, so instant notifications are not delayed.
+
 ## Later steps (added as features land)
 
-- Notifications on the phones (phase 2, part 4b): installing ntfy on each
-  phone. The phone's daily check works without it.
+- Nothing yet.

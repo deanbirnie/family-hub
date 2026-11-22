@@ -36,6 +36,7 @@ import { CANCELLED, DeviceAuth, INVALIDATED, toBase64, type DeviceStatus } from 
 import { createUpdates } from './updates.ts'
 import { vaultDevice } from './vault-key.ts'
 import { clearDocumentCache, exportDownload, fileDownload } from './files.ts'
+import { phonePush } from './push.ts'
 
 const SERVER_KEY = 'familyhub.server'
 const DEVICE_KEY = 'familyhub.deviceId'
@@ -73,6 +74,7 @@ type State =
 export function MobileGate({ version }: { version: string }) {
   const [server, setServer] = useState(() => read(SERVER_KEY))
   const api = useMemo(() => new Api({ baseUrl: server, client: 'app' }), [server])
+  const push = useMemo(() => phonePush(api), [api])
   const updates = useMemo(() => createUpdates(version), [version])
   const [state, setState] = useState<State>(() => (!server ? { kind: 'server' } : read(DEVICE_KEY) ? { kind: 'locked' } : { kind: 'signin' }))
   const hiddenAt = useRef(0)
@@ -130,6 +132,8 @@ export function MobileGate({ version }: { version: string }) {
 
   const forgetDevice = async () => {
     vault.lock()
+    // Notifications stop on a phone that is signed out.
+    await push?.disable().catch(() => undefined)
     await vaultDevice.forget().catch(() => undefined)
     clearDocumentCache()
     await api.logout().catch(() => undefined)
@@ -214,6 +218,7 @@ export function MobileGate({ version }: { version: string }) {
         downloadFile: fileDownload(api),
         saveExport: exportDownload(api),
         vaultDevice,
+        push,
         deviceLabel: read(DEVICE_NAME_KEY) || 'This phone',
       }
       return <Shell platform={platform} session={state.session} onSignOut={() => lock()} />
