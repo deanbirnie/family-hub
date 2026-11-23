@@ -229,11 +229,13 @@ export function notificationRoutes(api: Api, s: Services): void {
     if (!db.prepare('SELECT 1 FROM family_profiles WHERE id = ?').get(profileId)) throw new HttpError(404, 'That person is no longer in the family.', 'not_found')
     const body = await readJson(ctx.req)
     const items = body.items
-    if (!Array.isArray(items) || items.length > 200) throw new HttpError(400, '"items" must be a list.', 'invalid')
+    if (!Array.isArray(items) || items.length > 400) throw new HttpError(400, '"items" must be a list.', 'invalid')
     const clean = items.map((raw) => {
       const o = (raw ?? {}) as Record<string, unknown>
       const key = typeof o.key === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(o.key) ? o.key : null
-      const date = typeof o.date === 'string' && !o.date.startsWith('--') && parseDate(o.date) ? o.date : null
+      // A date, or a date and time (a dose) in the family's time zone.
+      const when = typeof o.date === 'string' ? o.date : ''
+      const date = /^\d{4}-\d{2}-\d{2}(T([01]\d|2[0-3]):[0-5]\d)?$/.test(when) && parseDate(when.slice(0, 10)) ? when : null
       const leads = Array.isArray(o.leads) && o.leads.length <= 5 && o.leads.every((n) => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 90) ? (o.leads as number[]) : null
       if (!key || !date || !leads) throw new HttpError(400, 'Each reminder needs a key, a date and how far ahead.', 'invalid')
       return { key, date, leads }

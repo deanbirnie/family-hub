@@ -121,4 +121,34 @@ describe('health reminders', () => {
     }
     expect((await kid.call('PUT', `/api/reminders/health/${sam}`, { items })).status).toBe(403)
   })
+
+  it('send doses to the minute, to parents, with generic text, and not hours late', async () => {
+    const { client, kid, sam } = await family()
+    const { runReminders, dueMessagesFor } = await import('../src/notifications.ts')
+    // 14:00 in Johannesburg now. A dose at 14:30 and another at 20:00, plus a date-only reminder far off.
+    const items = [
+      { key: 'dose1abcdef', date: '2026-11-20T14:30', leads: [0] },
+      { key: 'dose2abcdef', date: '2026-11-20T20:00', leads: [0] },
+      { key: 'datek1abcde', date: '2027-03-01', leads: [0] },
+    ]
+    expect((await client.call('PUT', `/api/reminders/health/${sam}`, { items })).status).toBe(204)
+    // Doses are not "coming up" items.
+    expect((await client.get<{ items: unknown[] }>('/api/reminders/upcoming')).body.items).toEqual([])
+    expect(await runReminders(server.services)).toBe(0)
+    server.clock.now += 30 * 60_000 // 14:30
+    expect(await runReminders(server.services)).toBe(1)
+    expect(await runReminders(server.services)).toBe(0)
+    const parent = (await client.get<{ user: { id: string } }>('/api/auth/session')).body.user.id
+    expect(dueMessagesFor(server.services, parent, '2026-11-20')).toEqual([expect.objectContaining({ body: 'A medicine is due. Tap to see.', url: '/health' })])
+    // The children's account never hears of it.
+    const kidId = (await kid.get<{ user: { id: string } }>('/api/auth/session')).body.user.id
+    expect(dueMessagesFor(server.services, kidId, '2026-11-20')).toEqual([])
+    // More than 2 hours late: dropped (the 20:00 dose, checked at 22:30).
+    server.clock.now += 8 * 3_600_000
+    expect(await runReminders(server.services)).toBe(0)
+    expect(dueMessagesFor(server.services, parent, '2026-11-20')).toEqual([])
+    for (const bad of ['2026-11-20T24:00', '2026-11-20 14:30', '2026-11-20T14:3']) {
+      expect((await client.call('PUT', `/api/reminders/health/${sam}`, { items: [{ key: 'dose3abcdef', date: bad, leads: [0] }] })).status).toBe(400)
+    }
+  })
 })

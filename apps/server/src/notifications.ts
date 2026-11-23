@@ -213,7 +213,7 @@ function healthItems(s: Services): ReminderItem[] {
   const rows = s.db
     .prepare(
       `SELECT r.id, r.due, r.leads, p.display_name AS whose
-       FROM reminders r LEFT JOIN family_profiles p ON p.id = r.profile_id WHERE r.source = 'health'`,
+       FROM reminders r LEFT JOIN family_profiles p ON p.id = r.profile_id WHERE r.source = 'health' AND length(r.due) = 10`,
     )
     .all() as { id: string; due: string; leads: string | null; whose: string | null }[]
   return rows.map((r) => {
@@ -237,6 +237,16 @@ function healthItems(s: Services): ReminderItem[] {
       horizon: 30,
     }
   })
+}
+
+/**
+ * Health reminders with a time (doses in an episode's medicine plan): sent to
+ * the minute to every parent, like calendar reminders. The server knows only
+ * the person and the time; the text is "A medicine is due."
+ */
+export function timedHealthReminders(s: Services): { key: string; fireAt: number }[] {
+  const rows = s.db.prepare("SELECT id, due FROM reminders WHERE source = 'health' AND length(due) = 16").all() as { id: string; due: string }[]
+  return rows.map((r) => ({ key: `ht:${r.id}:${r.due}`, fireAt: zonedToEpoch(r.due, s.config.timeZone) }))
 }
 
 /**
@@ -455,7 +465,14 @@ export function dueMessagesFor(s: Services, userId: string, today: string): Push
         .map((r) => ({ title: 'Family Hub', body: r.notice, tag: r.key, url: '/calendar' }))
     : []
   if (user.role !== 'admin') return events
+  // Doses due in the last 2 hours (a later check would be too late to help).
+  const doses: PushMessage[] = settings.health
+    ? timedHealthReminders(s)
+        .filter((r) => r.fireAt <= now && now - r.fireAt <= 2 * 3_600_000)
+        .map((r) => ({ title: 'Family Hub', body: 'A medicine is due. Tap to see.', tag: r.key, url: '/health' }))
+    : []
   return [
+    ...doses,
     ...events,
     ...dueNow(s, today)
       .filter((d) => wants(settings, d.item, userId))
@@ -491,6 +508,17 @@ export async function runReminders(s: Services): Promise<number> {
         if (Number(record.run(userId, r.key, now).changes) !== 1) continue
         sent++
         for (const route of subscriptionsOf(s, userId)) await sendTo(s, route, { title: 'Family Hub', body: r.notice, tag: r.key, url: '/calendar' })
+      }
+    }
+    // Doses: to the minute, to every parent; not if more than 2 hours late.
+    for (const r of timedHealthReminders(s)) {
+      if (r.fireAt > now || now - r.fireAt > 2 * 3_600_000) continue
+      for (const { id: userId } of parents) {
+        const settings = getSettings(s, userId)
+        if (!settings.enabled || !settings.health) continue
+        if (Number(record.run(userId, r.key, now).changes) !== 1) continue
+        sent++
+        for (const route of subscriptionsOf(s, userId)) await sendTo(s, route, { title: 'Family Hub', body: 'A medicine is due. Tap to see.', tag: r.key, url: '/health' })
       }
     }
     if (due.length === 0) return sent
