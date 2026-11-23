@@ -6,7 +6,8 @@ work in a fresh session: what exists, what is next, and what was decided.
 
 Each phase is one or more pull requests into `main`, and usually ends in a
 release (`release: minor`). The order after phase 1 is a proposal: reorder
-freely. Routine upkeep has its own procedure in [MAINTENANCE.md](MAINTENANCE.md);
+freely. (On 23 November 2026 the owner moved Health and Household admin
+ahead of lists and meals.) Routine upkeep has its own procedure in [MAINTENANCE.md](MAINTENANCE.md);
 the security model is in [SECURITY.md](SECURITY.md). **Each phase starts by
 deciding how its data is protected** in
 [DATA-PROTECTION.md](DATA-PROTECTION.md), before any code.
@@ -65,7 +66,7 @@ libraries and backups.
 - [x] **Recover:** keep deleted documents for 30 days and document how to
       back up and restore the shared folder alongside the hub database.
 
-## Phase 2 — Quick Info, Family Contacts and notifications ← next
+## Phase 2 — Quick Info, Family Contacts and notifications ✅
 
 Family Hub initially supports parents managing family administration.
 **Parents are the family's admins** (the interface calls the role
@@ -83,7 +84,7 @@ under which, for this and every later phase, is
 
 | Key | Protects | Who can decrypt |
 |---|---|---|
-| **Family key** (end-to-end) | Quick Info, and Health in phase 8 | Only parents' unlocked devices. The server stores ciphertext and never sees the key. |
+| **Family key** (end-to-end) | Quick Info, and Health in phase 5 | Only parents' unlocked devices. The server stores ciphertext and never sees the key. |
 | **Server key** (at rest) | Family Contacts, authenticator (TOTP) secrets, reminder delivery addresses | The server. A key file outside the database volume, so a copied database or backup alone reveals nothing. |
 
 Contacts use the server key on purpose: they are shared between parents and
@@ -241,7 +242,7 @@ browser and home page; 4b Android)
 - [x] Android: UnifiedPush registration (ntfy and other distributors), and
       the always-on daily background check.
 
-## Phase 3 — People and dates (a family CRM)
+## Phase 3 — People and dates (a family CRM) ✅ (CardDAV later)
 
 Family Contacts grows into a personal relationship manager for the people
 the family cares about, in the spirit of open-source personal CRMs such as
@@ -421,39 +422,7 @@ in the family sees them (name and day only).
       always accept, changed and cancelled events) and clean-up.
 - [x] One-off `.ics` import through the inbox.
 
-## Phase 5 — Lists, chores and noticeboard
-
-- [ ] **Shopping lists** that update live on every phone, with
-      categories (aisle order) and "who's at the shop" mode.
-- [ ] **To-dos** with an assignee and a due date; "my tasks" on the home page.
-- [ ] **Chore rota:** recurring chores that rotate between people, tick-off
-      with a streak, optional points that turn into pocket money.
-- [ ] **Noticeboard:** short announcements and pinned notes for everyone
-      ("Plumber coming Thursday 10:00"), with read receipts.
-- [ ] **Notifications** for lists, chores and the noticeboard, through the
-      push system built in phase 2.
-
-## Phase 6 — Meals
-
-- [ ] Weekly meal planner (drag recipes onto days).
-- [ ] Recipe box: ingredients, steps, photos, tags; import from a recipe
-      website link (optional, as it fetches from outside).
-- [ ] "Add this week's ingredients to the shopping list", merging duplicates.
-- [ ] Dietary notes per person (allergies from Health when available).
-
-## Phase 7 — Household admin
-
-- [ ] **Bills and renewals:** due dates, amounts and reminders for
-      subscriptions, insurance, rates, school fees; who pays what. No bank
-      connections: amounts are typed in.
-- [ ] **Simple budget:** monthly categories, planned vs. actual, entered by hand
-      or imported from a bank CSV export.
-- [ ] **Home & car:** service history, warranties and manuals (linked to
-      Files), next service due, licence and roadworthy dates, links to
-      trusted tradespeople in Family Contacts.
-- [ ] **Pets:** vet, vaccinations, medication schedule.
-
-## Phase 8 — Health
+## Phase 5 — Health ← next
 
 A parent-managed health profile for each family member. Apply the parent
 access rules from Phase 2, enforce them on the server, and encrypt health
@@ -477,6 +446,51 @@ records end to end with the family key from phase 2. Show medical aid details fr
 - [ ] **Offline emergency card:** selected allergies, essential medications
       and emergency contacts. Encrypt the card on the phone and require
       biometric verification to open it.
+
+## Phase 6 — Household admin
+
+- [ ] **Bills and renewals:** due dates, amounts and reminders for
+      subscriptions, insurance, rates, school fees; who pays what. No bank
+      connections: amounts are typed in.
+- [ ] **Simple budget:** monthly categories, planned vs. actual, entered by hand
+      or imported from a bank CSV export.
+- [ ] **Home & car:** service history, warranties and manuals (linked to
+      Files), next service due, licence and roadworthy dates, links to
+      trusted tradespeople in Family Contacts.
+- [ ] **Pets:** vet, vaccinations, medication schedule.
+
+## Phase 7 — Lists, chores and noticeboard
+
+- [ ] **Shopping lists** that update live on every phone, with
+      categories (aisle order) and "who's at the shop" mode.
+- [ ] **To-dos** with an assignee and a due date; "my tasks" on the home page.
+- [ ] **Chore rota:** recurring chores that rotate between people, tick-off
+      with a streak, optional points that turn into pocket money.
+- [ ] **Noticeboard:** short announcements and pinned notes for everyone
+      ("Plumber coming Thursday 10:00"), with read receipts.
+- [ ] **Notifications** for lists, chores and the noticeboard, through the
+      push system built in phase 2.
+
+A first draft was discussed on 23 November 2026, before Health and Household
+admin were moved ahead: several shopping lists that update live (Server-Sent
+Events, polling as a fallback), sorted by a built-in South African category
+list; "I'm at the shop"; to-dos with people, due dates and repeats, shown on
+the calendar; a rotating chore rota with streaks and optional pocket money;
+a noticeboard with pinned and expiring posts and read receipts. Open
+questions to settle when this phase starts: server key or plain storage
+(server key suggested); whether "I'm at the shop" may name who; whether a
+child's chore tick counts at once or needs a parent; points or rand for
+chores; who may set up chores and mark pocket money paid; an offline copy of
+shopping lists on the phone; replies or reactions on posts; anything missing
+(e.g. lend and borrow).
+
+## Phase 8 — Meals
+
+- [ ] Weekly meal planner (drag recipes onto days).
+- [ ] Recipe box: ingredients, steps, photos, tags; import from a recipe
+      website link (optional, as it fetches from outside).
+- [ ] "Add this week's ingredients to the shopping list", merging duplicates.
+- [ ] Dietary notes per person (allergies from Health when available).
 
 ## Phase 9 — Family life extras (pick and choose)
 
