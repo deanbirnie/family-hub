@@ -361,6 +361,11 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX health_records_profile ON health_records (profile_id);
   `,
+  // 16: Health reminders (phase 5b): a parent's device registers only "a
+  // health reminder · person · date", with how many days ahead to remind.
+  `
+  ALTER TABLE reminders ADD COLUMN leads TEXT;
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

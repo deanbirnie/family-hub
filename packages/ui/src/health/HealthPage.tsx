@@ -28,6 +28,8 @@ import {
   type LinkedDocument,
   type StoredHealthRecord,
 } from './model.ts'
+import { Appointments, Checkups, ComingUpHealth, Growth, syncAppointmentEvent, Vaccinations, type Opener } from './Extras.tsx'
+import { syncHealthReminders } from './reminders.ts'
 
 interface Person {
   id: string
@@ -43,6 +45,8 @@ interface Loaded {
   contacts: Contact[]
   /** Medical aid from Quick Info, per person. */
   medical: Record<string, Record<string, string>>
+  /** Date of birth from Quick Info, per person. */
+  births: Record<string, string>
 }
 
 export function HealthPage({ ctx }: { ctx: HubContext }) {
@@ -90,14 +94,26 @@ function HealthBody({ ctx }: { ctx: HubContext }) {
         }
       }
       const medical: Loaded['medical'] = {}
-      for (const r of qi.records.filter((x) => x.kind === 'medical' && x.profileId)) {
+      const births: Loaded['births'] = {}
+      for (const r of qi.records.filter((x) => (x.kind === 'medical' || x.kind === 'personal') && x.profileId)) {
         try {
-          medical[r.profileId!] = (await decryptRecord(key, r)).fields
+          const fields = (await decryptRecord(key, r)).fields
+          if (r.kind === 'medical') medical[r.profileId!] = fields
+          else if (fields.dateOfBirth) births[r.profileId!] = fields.dateOfBirth
         } catch {
           // ignore
         }
       }
-      setData({ people: raw.profiles, records, contacts: book.contacts, medical })
+      setData({ people: raw.profiles, records, contacts: book.contacts, medical, births })
+      // Keep the server's health reminders in step (it learns only person, date and how far ahead).
+      void syncHealthReminders(
+        api,
+        raw.profiles.map((p) => ({
+          id: p.id,
+          records: records.filter((r) => r.profileId === p.id),
+          birthDate: births[p.id] || records.find((r) => r.profileId === p.id && r.content.kind === 'basics')?.content.fields.birthDate,
+        })),
+      ).catch(() => undefined)
       setPersonId((p) => p ?? raw.profiles.find((x) => x.userId === ctx.user.id)?.id ?? raw.profiles[0]?.id ?? null)
     } catch (e) {
       setError(errorText(e))
@@ -130,13 +146,15 @@ function HealthBody({ ctx }: { ctx: HubContext }) {
 const contactName = (contacts: Contact[], id: string | undefined) => (id ? (contacts.find((c) => c.id === id)?.name ?? 'Removed contact') : '')
 
 function PersonHealth({ ctx, data, person, reload }: { ctx: HubContext; data: Loaded; person: Person; reload: () => Promise<void> }) {
-  const [editing, setEditing] = useState<{ kind: HealthKind; record?: Rec } | null>(null)
+  const [editing, setEditing] = useState<{ kind: HealthKind; record?: Rec; initial?: Record<string, string> } | null>(null)
+  const opener: Opener = { open: (kind, record, initial) => setEditing({ kind, record: record as Rec | undefined, initial }) }
   const mine = data.records.filter((r) => r.profileId === person.id)
   const of = (kind: HealthKind) => mine.filter((r) => r.content.kind === kind)
   const allergies = of('allergy').sort((a, b) => severityRank(a.content.fields.severity ?? '') - severityRank(b.content.fields.severity ?? ''))
   const severe = allergies.filter((a) => severityRank(a.content.fields.severity ?? '') <= 1)
   const basics = of('basics')[0]
   const medical = data.medical[person.id]
+  const birthDate = data.births[person.id] || basics?.content.fields.birthDate
   const add = (kind: HealthKind) => setEditing({ kind })
   const edit = (record: Rec) => setEditing({ kind: record.content.kind, record })
 
@@ -148,6 +166,7 @@ function PersonHealth({ ctx, data, person, reload }: { ctx: HubContext; data: Lo
           <strong>Severe allergies:</strong> {severe.map((a) => `${a.content.fields.substance}${a.content.fields.epipen === 'yes' ? ' (carries an EpiPen)' : ''}`).join('; ')}
         </Banner>
       )}
+      <ComingUpHealth records={mine} birthDate={birthDate} />
 
       <div className="grid-2">
         <Section title="Allergies" icon={<AlertTriangle size={18} aria-hidden />} onAdd={() => add('allergy')} addLabel="Add an allergy" empty="No allergies recorded.">
@@ -221,6 +240,10 @@ function PersonHealth({ ctx, data, person, reload }: { ctx: HubContext; data: Lo
       </Section>
 
       <Medicines records={of('medicine')} contacts={data.contacts} onAdd={() => add('medicine')} onEdit={edit} />
+      <Appointments ctx={ctx} person={person} records={mine} contacts={data.contacts} opener={opener} onChanged={() => void reload()} />
+      <Vaccinations records={mine} birthDate={birthDate} opener={opener} />
+      <Growth records={mine} opener={opener} />
+      <Checkups records={mine} contacts={data.contacts} opener={opener} />
       <History ctx={ctx} records={of('history')} contacts={data.contacts} onAdd={() => add('history')} onEdit={edit} />
 
       {editing && (
@@ -229,6 +252,7 @@ function PersonHealth({ ctx, data, person, reload }: { ctx: HubContext; data: Lo
           kind={editing.kind}
           person={person}
           record={editing.record}
+          initial={editing.initial}
           contacts={data.contacts}
           onClose={(changed) => {
             setEditing(null)
@@ -461,16 +485,32 @@ function FieldInput({ def, value, onChange, contacts }: { def: FieldDef; value: 
   )
 }
 
-function RecordDialog({ ctx, kind, person, record, contacts, onClose }: { ctx: HubContext; kind: HealthKind; person: Person; record?: Rec; contacts: Contact[]; onClose: (changed: boolean) => void }) {
+function RecordDialog({
+  ctx,
+  kind,
+  person,
+  record,
+  initial: preset,
+  contacts,
+  onClose,
+}: {
+  ctx: HubContext
+  kind: HealthKind
+  person: Person
+  record?: Rec
+  initial?: Record<string, string>
+  contacts: Contact[]
+  onClose: (changed: boolean) => void
+}) {
   const { api } = ctx.platform
   const def = KINDS[kind]
   const [fields, setFields] = useState<Record<string, string>>(() => {
-    if (record) return { ...record.content.fields }
+    if (record) return { ...record.content.fields, ...(preset ?? {}) }
     const initial: Record<string, string> = {}
     for (const f of def.fields) if (f.type === 'select' && f.options?.length) initial[f.key] = f.options[0]![0]
     if (kind === 'history') initial.date = new Date().toISOString().slice(0, 10)
     if (kind === 'condition') initial.status = 'ongoing'
-    return initial
+    return { ...initial, ...(preset ?? {}) }
   })
   const [documents, setDocuments] = useState<LinkedDocument[]>(record?.content.documents ?? [])
   const [changes, setChanges] = useState(record?.content.changes ?? [])
@@ -483,8 +523,14 @@ function RecordDialog({ ctx, kind, person, record, contacts, onClose }: { ctx: H
     for (const f of def.fields) if (f.required && !fields[f.key]?.trim()) throw new Error(`${f.label} is needed.`)
     const key = vault.use()
     if (!key) throw new Error('The family vault has locked. Open it again, then save.')
+    // Every field, including ones not on the form (an appointment's calendar event, a vaccine's scheduled dose).
     const clean: Record<string, string> = {}
-    for (const f of def.fields) if (fields[f.key]?.trim()) clean[f.key] = fields[f.key]!.trim()
+    for (const [k, v] of Object.entries(fields)) if (typeof v === 'string' && v.trim()) clean[k] = v.trim()
+    if (kind === 'appointment') {
+      const eventId = await syncAppointmentEvent(ctx, person, clean, contacts)
+      if (eventId) clean.eventId = eventId
+      else delete clean.eventId
+    }
     const ciphertext = await encryptHealth(key, person.id, { kind, fields: clean, documents, changes: change.note.trim() ? [...changes, { date: change.date, note: change.note.trim() }] : changes })
     try {
       if (record) await api.request('PUT', `/api/health/records/${record.id}`, { ciphertext, baseVersion: record.version })
@@ -497,6 +543,7 @@ function RecordDialog({ ctx, kind, person, record, contacts, onClose }: { ctx: H
   })
   const remove = useAction(async () => {
     if (!record || !window.confirm('Delete this from the health record?')) return
+    if (kind === 'appointment' && record.content.fields.eventId) await api.del(`/api/calendar/events/${record.content.fields.eventId}`).catch(() => undefined)
     await api.del(`/api/health/records/${record.id}`)
     onClose(true)
   })

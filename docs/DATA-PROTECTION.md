@@ -212,12 +212,12 @@ the only way in.
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Allergies, conditions, blood type, care notes, medicines and their changes, providers and their roles, history entries, vaccinations, growth measurements, appointments, episodes and every entry in them (observations, doses, vitals, doctors' notes, tests), medicine plans | One encrypted record per item, bound to its person (`health_records.ciphertext`) | E2E (family key) | ✅ (5a: summary, allergies, conditions, providers, medicines, history) |
+| Allergies, conditions, blood type, care notes, medicines and their changes, providers and their roles, history entries, vaccinations, growth measurements, appointments, episodes and every entry in them (observations, doses, vitals, doctors' notes, tests), medicine plans | One encrypted record per item, bound to its person (`health_records.ciphertext`) | E2E (family key) | ✅ (summary, allergies, conditions, providers, medicines, history, vaccinations, growth, check-ups, appointments; episodes in 5c) |
 | Which person a health record is for, when and by whom it changed, its version | `health_records` columns (the kind of record is inside the encryption) | P | ✅ |
 | Health documents (results, scripts, X-rays, photos) | Files, in a Health folder only parents can open (`files.parents_only`; the server hides it, and all in it, from members everywhere) | S (server key), over https | ✅ |
-| Health reminders (prescriptions, script expiry, follow-ups, vaccinations due, measuring, check-ups, episode doses) | Reminder records holding only "health reminder · person · date and time" | P (the server sends them) | 🔜 |
-| Reminder notification text | Generic ("A health reminder is due.", "A medicine is due.") | Encrypted to the device (RFC 8291) | 🔜 |
-| Appointments on the family calendar | A calendar event the parent chooses: "Appointment – Sam" by default, "Dr Naidoo – Sam", or none | S (calendar) | 🔜 |
+| Health reminders (prescriptions, script expiry, follow-ups, vaccinations due, measuring, check-ups, episode doses) | Reminder records holding only "health reminder · person · date", how many days ahead, and an opaque key (a hash; it says nothing about what the reminder is for) | P (the server sends them) | ✅ (dates; times with episodes in 5c) |
+| Reminder notification text | Generic ("A health reminder is due.", "A medicine is due.") | Encrypted to the device (RFC 8291) | ✅ |
+| Appointments on the family calendar | A calendar event the parent chooses: "Appointment – Sam" by default, "Dr Naidoo – Sam", or none (then a health reminder) | S (calendar) | ✅ |
 | Emergency card on each parent's phone | Encrypted with a hardware-keystore key opened by fingerprint | E2E on the device | 🔜 |
 | PDF summaries and episode reports | Made on the device; saved or shared only by the parent | Plain file on the device | 🔜 |
 | Episode entries made offline (later) | Kept on the phone, encrypted with the family key, until sent | E2E | 🔜 (later) |

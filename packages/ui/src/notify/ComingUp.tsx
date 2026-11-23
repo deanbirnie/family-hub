@@ -9,7 +9,7 @@ export interface UpcomingItem {
   title: string
   whose: string | null
   detail: string | null
-  category: 'expiry' | 'dates' | 'touch'
+  category: 'expiry' | 'dates' | 'touch' | 'health'
   date: string
   daysLeft: number
   url: string

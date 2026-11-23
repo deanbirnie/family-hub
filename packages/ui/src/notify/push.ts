@@ -26,6 +26,7 @@ export interface NotificationSettings {
   dates: boolean
   touch: boolean
   events: boolean
+  health: boolean
   sendHour: number
 }
 

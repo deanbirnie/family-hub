@@ -116,7 +116,7 @@ export function notificationRoutes(api: Api, s: Services): void {
     const body = await readJson(ctx.req)
     const current = getSettings(s, ctx.user.id)
     const next = { ...current }
-    for (const key of ['enabled', 'expiry', 'dates', 'touch', 'events'] as const) {
+    for (const key of ['enabled', 'expiry', 'dates', 'touch', 'events', 'health'] as const) {
       if (body[key] === undefined) continue
       if (typeof body[key] !== 'boolean') throw new HttpError(400, `"${key}" must be true or false.`, 'invalid')
       next[key] = body[key]
@@ -208,6 +208,54 @@ export function notificationRoutes(api: Api, s: Services): void {
   })
 
   /** The expiry dates the server holds for Quick Info records, so a parent's device can bring them up to date. */
+  /** The health reminders the server holds, so a parent's device can bring them up to date. */
+  api.authed('GET', '/api/reminders/health', parents, () => ({
+    items: (
+      db.prepare("SELECT profile_id, field, due, leads FROM reminders WHERE source = 'health' ORDER BY profile_id, field").all() as {
+        profile_id: string
+        field: string
+        due: string
+        leads: string | null
+      }[]
+    ).map((r) => ({ profileId: r.profile_id, key: r.field, date: r.due, leads: JSON.parse(r.leads ?? '[0]') as number[] })),
+  }))
+
+  /**
+   * Replaces a person's health reminders: { items: [{ key, date, leads }] }. The
+   * key is an opaque ID chosen by the device; nothing says what it is for.
+   */
+  api.authed('PUT', '/api/reminders/health/:profileId', parents, async (ctx) => {
+    const profileId = ctx.params.profileId!
+    if (!db.prepare('SELECT 1 FROM family_profiles WHERE id = ?').get(profileId)) throw new HttpError(404, 'That person is no longer in the family.', 'not_found')
+    const body = await readJson(ctx.req)
+    const items = body.items
+    if (!Array.isArray(items) || items.length > 200) throw new HttpError(400, '"items" must be a list.', 'invalid')
+    const clean = items.map((raw) => {
+      const o = (raw ?? {}) as Record<string, unknown>
+      const key = typeof o.key === 'string' && /^[A-Za-z0-9_-]{8,64}$/.test(o.key) ? o.key : null
+      const date = typeof o.date === 'string' && !o.date.startsWith('--') && parseDate(o.date) ? o.date : null
+      const leads = Array.isArray(o.leads) && o.leads.length <= 5 && o.leads.every((n) => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 90) ? (o.leads as number[]) : null
+      if (!key || !date || !leads) throw new HttpError(400, 'Each reminder needs a key, a date and how far ahead.', 'invalid')
+      return { key, date, leads }
+    })
+    const now = s.now()
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      db.prepare("DELETE FROM reminders WHERE source = 'health' AND source_id = ?").run(profileId)
+      for (const r of clean) {
+        db.prepare(
+          `INSERT INTO reminders (id, source, source_id, field, profile_id, title, due, yearly, created_at, updated_at, leads)
+           VALUES (?, 'health', ?, ?, ?, 'Health reminder', ?, 0, ?, ?, ?) ON CONFLICT (source, source_id, field) DO NOTHING`,
+        ).run(newId(), profileId, r.key, profileId, r.date, now, now, JSON.stringify(r.leads))
+      }
+      db.exec('COMMIT')
+    } catch (e) {
+      db.exec('ROLLBACK')
+      throw e
+    }
+    return undefined
+  })
+
   api.authed('GET', '/api/reminders/quick-info', parents, () => ({
     dates: (
       db.prepare("SELECT source_id, field, due FROM reminders WHERE source = 'quick-info' ORDER BY source_id, field").all() as {

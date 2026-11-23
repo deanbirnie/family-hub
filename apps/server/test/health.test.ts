@@ -90,3 +90,35 @@ describe('the parents-only Health folder', () => {
     expect((await client.del(`/api/files/${folder}`)).status).toBe(400)
   })
 })
+
+describe('health reminders', () => {
+  it('keep only person, date and how far ahead; remind with generic text; parents only', async () => {
+    const { client, kid, sam } = await family()
+    const { runReminders, dueMessagesFor } = await import('../src/notifications.ts')
+    const items = [
+      { key: 'k1abcdefgh', date: '2026-11-27', leads: [7, 0] }, // a week away: due now
+      { key: 'k2abcdefgh', date: '2027-03-01', leads: [0] },
+    ]
+    expect((await client.call('PUT', `/api/reminders/health/${sam}`, { items })).status).toBe(204)
+    expect((await client.get<{ items: unknown[] }>('/api/reminders/health')).body.items).toEqual(items.map((i) => ({ profileId: sam, ...i })))
+    // Nothing but a generic title in the database.
+    const rows = server.services.db.prepare("SELECT title, field FROM reminders WHERE source = 'health'").all()
+    expect(rows).toEqual([
+      { title: 'Health reminder', field: 'k1abcdefgh' },
+      { title: 'Health reminder', field: 'k2abcdefgh' },
+    ])
+    const up = await client.get<{ items: { title: string; whose: string }[] }>('/api/reminders/upcoming')
+    expect(up.body.items).toEqual([expect.objectContaining({ title: 'Health reminder', whose: 'Sam' })])
+    expect(await runReminders(server.services)).toBe(1)
+    const parent = (await client.get<{ user: { id: string } }>('/api/auth/session')).body.user.id
+    expect(dueMessagesFor(server.services, parent, '2026-11-20').map((m) => m.body)).toContain('A health reminder is due. Tap to see.')
+
+    // Replacing the set removes what is no longer there.
+    await client.call('PUT', `/api/reminders/health/${sam}`, { items: [items[1]] })
+    expect((await client.get<{ items: unknown[] }>('/api/reminders/health')).body.items).toHaveLength(1)
+    for (const bad of [[{ key: 'short', date: '2027-01-01', leads: [0] }], [{ key: 'k3abcdefgh', date: '--01-01', leads: [0] }], [{ key: 'k3abcdefgh', date: '2027-01-01', leads: [400] }]]) {
+      expect((await client.call('PUT', `/api/reminders/health/${sam}`, { items: bad })).status).toBe(400)
+    }
+    expect((await kid.call('PUT', `/api/reminders/health/${sam}`, { items })).status).toBe(403)
+  })
+})

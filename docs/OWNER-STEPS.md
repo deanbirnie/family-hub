@@ -277,6 +277,20 @@ On each parent's phone, once it has the app version with notifications
       documents you upload there go into the **Health** folder in Files,
       which the children cannot see.
 
+## 18. Vaccinations, growth and check-ups (after the second Health pull request is merged and deployed)
+
+- [ ] 1. For each child: **Health → Vaccinations**: tap each dose in the
+      schedule and record it from their Road-to-Health booklet (given, missed,
+      held back, or not applicable). Check the built-in schedule against the
+      booklet; add anything extra with +.
+- [ ] 2. **Growth**: add the latest height and weight, and under **Blood type
+      and care notes** choose how often to be reminded to measure.
+- [ ] 3. **Regular check-ups**: add the dentist and eye tests with when they
+      were last done.
+- [ ] 4. For chronic medicines, fill in **Next repeat due** and **Script
+      expires** to be reminded.
+- [ ] 5. **Settings → Notifications**: keep **Health reminders** ticked.
+
 ## Later steps (added as features land)
 
 - Nothing yet.
