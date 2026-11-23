@@ -208,13 +208,30 @@ Nothing outside the hub reads the calendar live (no iCal feed or CalDAV):
 exports are files a person chooses to send, so two-factor sign-in remains
 the only way in.
 
+### Health (phase 5; agreed, not built yet)
+
+| Data | Where | Tier | Status |
+|---|---|---|---|
+| Allergies, conditions, blood type, care notes, medicines and their changes, providers and their roles, history entries, vaccinations, growth measurements, appointments, episodes and every entry in them (observations, doses, vitals, doctors' notes, tests), medicine plans | One encrypted record per item, bound to its person (`health_records`) | E2E (family key) | 🔜 |
+| Which person a health record is for, when and by whom it changed, its version | `health_records` columns (the kind of record is inside the encryption) | P | 🔜 |
+| Health documents (results, scripts, X-rays, photos) | Files, in a Health folder only parents can open | S (server key), over https | 🔜 |
+| Health reminders (prescriptions, script expiry, follow-ups, vaccinations due, measuring, check-ups, episode doses) | Reminder records holding only "health reminder · person · date and time" | P (the server sends them) | 🔜 |
+| Reminder notification text | Generic ("A health reminder is due.", "A medicine is due.") | Encrypted to the device (RFC 8291) | 🔜 |
+| Appointments on the family calendar | A calendar event the parent chooses: "Appointment – Sam" by default, "Dr Naidoo – Sam", or none | S (calendar) | 🔜 |
+| Emergency card on each parent's phone | Encrypted with a hardware-keystore key opened by fingerprint | E2E on the device | 🔜 |
+| PDF summaries and episode reports | Made on the device; saved or shared only by the parent | Plain file on the device | 🔜 |
+| Episode entries made offline (later) | Kept on the phone, encrypted with the family key, until sent | E2E | 🔜 (later) |
+| Health events (record added, changed or removed; report made; never details) | `audit_log` | P | 🔜 |
+
+The server never learns what kind of health record something is: a stolen
+database shows at most how many records each person has. Reminders reveal
+only that a health reminder for that person is due at a time (the owner
+chose this over phone-only dose alarms so reminders also work in browsers).
+
 ### Later phases (proposed; confirm at the start of each phase)
 
 | Phase | Data | Proposed tier | Why |
 |---|---|---|---|
-| 5 Health | Allergies, conditions, medications, history, treatment plans | E2E | Health data; already agreed. To be settled in detail at the start of the phase. |
-| 5 Health | Repeat-prescription reminders | P (what · whose · when only) | Same split as Quick Info reminders. |
-| 5 Health | Offline emergency card on the phone | E2E, opened by biometric | Already agreed. |
 | 6 Household admin | Bills, amounts, budgets | S | Financial, but the server must send due-date reminders. |
 | 6 Household admin | Bank account or card numbers | E2E, or don't store at all | Fraud risk. |
 | 6 Home & car | Service history, warranties | P or S | Low risk; decide with the phase. |

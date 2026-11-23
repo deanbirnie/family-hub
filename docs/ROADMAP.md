@@ -424,28 +424,153 @@ in the family sees them (name and day only).
 
 ## Phase 5 — Health ← next
 
-A parent-managed health profile for each family member. Apply the parent
-access rules from Phase 2, enforce them on the server, and encrypt health
-records end to end with the family key from phase 2. Show medical aid details from Quick Info through a link.
+A health record for each family member, kept by the parents. Agreed with the
+owner in the phase 5 planning pull request.
 
-- [ ] **At a glance:** allergies and known reactions, blood type if known,
-      active conditions and essential care notes.
-- [ ] **Healthcare providers:** link Family Contacts for the person's GP,
-      paediatrician, dentist, specialists and pharmacy, with a role for each.
-- [ ] **Medication list:** current and past medications, with dose, schedule,
-      start and end dates, and prescribing provider where known.
-- [ ] **Medical history:** dated diagnoses, procedures, hospital stays,
-      vaccinations and significant appointments.
-- [ ] **PDF export:** preview and export a short appointment summary or
-      selected history by date range. The default summary includes allergies,
-      current medications, relevant conditions and provider details. Parents
-      can explicitly add medical aid information, ID numbers or older history.
-- [ ] **Treatment plans:** family-recorded care instructions, the provider
-      who gave them, follow-up dates and links to suitable documents.
-- [ ] **Repeat-prescription reminders:** reminders for upcoming renewals.
-- [ ] **Offline emergency card:** selected allergies, essential medications
-      and emergency contacts. Encrypt the card on the phone and require
-      biometric verification to open it.
+### Design (agreed)
+
+**Who and how.**
+
+- **Parents only**, at least for now; members (including teenagers with an
+  account) see nothing. Both parents see and edit everyone's records,
+  including each other's. When a parent adds to their own record, the app
+  reminds them that the other parent can see it.
+- **End-to-end encrypted with the family key**, like Quick Info: the vault
+  must be open (fingerprint on the phone, passkey in a browser). One
+  encrypted record per item, entry or dose; the server sees only which
+  person a record is for and when it changed, never what kind of record it
+  is. Search, reports and the emergency card work on the device.
+- The people are the same family list as Quick Info and the calendar.
+- **Health documents** (results, scripts, X-rays, photos) go in Files, in a
+  **Health folder that only parents can open** (enforced by the server), and
+  are linked from Health. Files are encrypted at rest with the server key and
+  travel over https.
+
+**1. Summary, per person.** Allergies (what to, reaction, severity from mild
+to anaphylaxis; severe ones in red at the top; EpiPen flag); conditions
+(since, ongoing or resolved, notes); blood type; care notes ("inhaler before
+sport"); medical aid shown from Quick Info; doctors and providers linked from
+Contacts with a role (GP, paediatrician, dentist, optometrist, specialist,
+pharmacy, physio, psychologist, hospital) and a main GP; current medicines.
+
+**2. Medicines.** Name, strength and form; dose and how often; what for;
+prescriber and pharmacy; current or past (a course moves to past on its end
+date); changes over time. Chronic medicine: script date, repeats left and
+script expiry, with reminders.
+
+**3. History.** A dated timeline: visits, diagnoses, procedures, hospital
+stays, vaccinations, tests and results, illness or injury, dental and eye
+checks; each with provider, notes and linked documents. Filter by type and
+year; search.
+
+**4. Vaccinations.** South Africa's childhood schedule (Road-to-Health
+booklet) as a checklist per child, by age, with reminders when due; the
+built-in schedule can be edited, as it changes. Each dose: given (date,
+clinic, batch), missed (catch up later), held back on the doctor's advice
+(with the reason), or not applicable. Extra vaccinations (flu, chickenpox,
+travel) added freely.
+
+**5. Growth.** Height, weight and head circumference (babies), dated, with a
+chart per child, and a reminder to measure (e.g. every 3 months). No WHO
+percentile curves for now.
+
+**6. Appointments.** Person, provider, date and time, reason, things to ask.
+On the family calendar as "Appointment – Sam" by default, "Dr Naidoo – Sam",
+or not at all (the calendar is visible to the whole family). Afterwards,
+"How did it go?" becomes a history entry. (To be detailed further later.)
+
+**7. Episodes.** Everything about one illness or injury, from the first
+symptom to recovery, to help the parents give everything properly and on
+time, and to keep doctors informed.
+
+- Started by a parent ("Sam – fever and cough"): when, first symptoms. Open
+  episodes show at the top of Health and on the home page for parents.
+- **Timeline** of quick, timestamped entries by either parent: observations
+  (temperature, symptoms from a list, pain 0–10, eating, drinking, nappies,
+  notes); doses given (medicine, amount, time, by whom); doctor (who, what
+  they said, diagnosis, instructions); tests and results; photos and
+  documents (Health folder); notes.
+- **Medicine plan** as prescribed: dose; how often (every N hours, at set
+  times, or as needed with a minimum gap and a maximum per 24 hours); for how
+  long. The hub shows the next dose due, late or missed doses, and each dose
+  given with time and who. It warns when a dose is logged too soon or would
+  pass the daily maximum, **only from what the parents entered from the
+  prescription** (it never suggests doses); a warning can be overridden with
+  a reason.
+- **Dose reminders** to both parents, through the hub's notifications
+  ("A medicine is due. Tap to see."): the server knows only that a health
+  reminder for that person is due at that time.
+- **Hospital stay:** an episode can be upgraded: hospital, ward, admission;
+  vitals with times (temperature, heart rate, breathing rate, oxygen
+  saturation, blood pressure, weight); ward rounds and conversations with
+  doctors (decisions, questions to ask); how they are feeling; photos of
+  medicines, X-rays and charts; discharge (date, summary, medicines home).
+- **Reports** made on the device: a handover report (summary, timeline,
+  doses-given table, temperature and vitals charts, doctors' notes) for the
+  whole episode or from a chosen time, and a full record with the list of
+  documents.
+- **Closing:** an outcome; the episode stays in the history as one folder,
+  and a diagnosis or medicine can be added to Conditions or Medicines with
+  one tap.
+- What one parent logs appears on the other's phone; entries made offline
+  (e.g. in hospital) are kept on the phone and sent later (last).
+
+**8. Emergency card** on each parent's phone, offline, opened by fingerprint:
+severe allergies, conditions, current medicines, blood type, care notes, ID
+number, emergency contacts, medical aid scheme, number and phone. Updated
+whenever the vault is open on the phone. No printable card.
+
+**9. Reminders.** Repeat prescriptions, script expiry, follow-ups,
+vaccinations due, measuring growth, regular check-ups (dentist, eyes), and
+episode doses. The device tells the server only "a health reminder · Sam ·
+this date (and time)"; notifications are generic.
+
+**10. PDF summary** for a doctor's visit, made on the device (a small
+built-in PDF writer, so it works in the Android app): allergies, current
+medicines, ongoing conditions, blood type, doctors; optionally medical aid,
+ID number, history for a date range, vaccinations, treatment plans. Preview,
+then save or share.
+
+### Build order (one pull request each)
+
+**5a. The record**
+
+- [ ] Parents-only Health folder in Files.
+- [ ] Summary: allergies, conditions, blood type, care notes, medical aid
+      from Quick Info, doctors and providers from Contacts.
+- [ ] Medicines, with changes and chronic scripts.
+- [ ] History timeline with linked documents; filter and search.
+- [ ] The "visible to the other parent" reminder on a parent's own record.
+
+**5b. Vaccinations, growth, appointments, reminders**
+
+- [ ] The SA childhood schedule per child (editable), with missed, held
+      back, not applicable and extra vaccinations.
+- [ ] Growth measurements, chart, and measuring reminders.
+- [ ] Appointments, with the calendar choice and "How did it go?".
+- [ ] Health reminders (repeats, script expiry, follow-ups, vaccinations,
+      check-ups) through the notifications.
+
+**5c. Episodes**
+
+- [ ] Episodes with the timeline of observations, doses, doctors, tests,
+      photos and notes.
+- [ ] Medicine plans: next dose, late and missed doses, warnings from the
+      prescription's limits, dose reminders.
+- [ ] Hospital stays: vitals, ward rounds, discharge.
+- [ ] Closing, and adding to Conditions and Medicines.
+
+**5d. Reports and the emergency card**
+
+- [ ] The built-in PDF writer; the visit summary; episode handover report
+      and full record.
+- [ ] The offline emergency card on the phone.
+
+**Later**
+
+- [ ] Episode entries made offline, sent when back online.
+- [ ] End-to-end encrypted health documents, if ever wanted.
+- [ ] Daily reminders for long-term medicines outside an episode.
 
 ## Phase 6 — Household admin
 
