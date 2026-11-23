@@ -25,11 +25,43 @@ export interface FileRow {
   trash_root: string | null
   /** 1 once the contents on disk are encrypted with the server key. */
   encrypted: number
+  /** 1 for a folder only parents may see (with everything in it), such as Health. */
+  parents_only: number
 }
+
+const HEALTH_FOLDER_SETTING = 'health_folder_id'
+
+/** Whether an item is in (or is) a parents-only folder. */
+export function isParentsOnly(s: Services, id: string): boolean {
+  const r = s.db
+    .prepare(
+      `WITH RECURSIVE up(id, parent_id, parents_only, depth) AS (
+         SELECT id, parent_id, parents_only, 0 FROM files WHERE id = ?
+         UNION ALL SELECT f.id, f.parent_id, f.parents_only, up.depth + 1 FROM files f JOIN up ON f.id = up.parent_id WHERE up.depth < 200)
+       SELECT max(parents_only) AS r FROM up`,
+    )
+    .get(id) as { r: number | null }
+  return r.r === 1
+}
+
+/** The Health folder (parents only), made on first use at the top level. */
+export function healthFolder(s: Services, userId: string): string {
+  const stored = (s.db.prepare('SELECT value FROM settings WHERE key = ?').get(HEALTH_FOLDER_SETTING) as { value: string } | undefined)?.value
+  if (stored && s.db.prepare('SELECT 1 FROM files WHERE id = ? AND deleted_at IS NULL').get(stored)) return stored
+  let name = 'Health'
+  for (let i = 2; s.db.prepare('SELECT 1 FROM files WHERE parent_id IS NULL AND name = ? AND deleted_at IS NULL').get(name); i++) name = `Health (${i})`
+  const id = randomUUID()
+  const now = s.now()
+  s.db.prepare("INSERT INTO files (id, parent_id, name, kind, created_by, created_at, updated_at, parents_only) VALUES (?, NULL, ?, 'folder', ?, ?, ?, 1)").run(id, name, userId, now, now)
+  s.db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run(HEALTH_FOLDER_SETTING, id)
+  return id
+}
+const isHealthFolder = (s: Services, id: string) => (s.db.prepare('SELECT value FROM settings WHERE key = ?').get(HEALTH_FOLDER_SETTING) as { value: string } | undefined)?.value === id
 
 export const fileInfo = (f: FileRow) => ({
   id: f.id, parentId: f.parent_id, name: f.name, kind: f.kind,
   size: f.size, mediaType: f.media_type, createdAt: f.created_at, updatedAt: f.updated_at,
+  parentsOnly: f.parents_only === 1,
 })
 
 export function fileName(raw: unknown): string {
@@ -90,6 +122,11 @@ export function fileRoutes(api: Api, s: Services): void {
     }
     return chain
   }
+  /** Members cannot see anything in a parents-only folder: it is as if it were not there. */
+  const guard = (ctx: AuthedCtx, id: string | null) => {
+    if (id && ctx.user.role !== 'admin' && isParentsOnly(s, id)) throw new HttpError(404, 'That document is no longer here.', 'not_found')
+  }
+  const visible = (ctx: AuthedCtx, items: FileRow[]) => (ctx.user.role === 'admin' ? items : items.filter((f) => !isParentsOnly(s, f.id)))
   const destination = (raw: unknown): string | null => {
     if (raw === null || raw === undefined || raw === '') return null
     if (typeof raw !== 'string') throw new HttpError(400, 'Choose a folder.', 'invalid')
@@ -100,21 +137,24 @@ export function fileRoutes(api: Api, s: Services): void {
   api.authed('GET', '/api/files', {}, (ctx) => {
     const parentId = ctx.url.searchParams.get('parent') || null
     parent(parentId)
+    guard(ctx, parentId)
     const q = (ctx.url.searchParams.get('q') || '').trim()
     if (q.length > 240) throw new HttpError(400, 'Search by a shorter name.', 'invalid')
     const items = (q
       ? s.db.prepare("SELECT * FROM files WHERE deleted_at IS NULL AND instr(lower(name), lower(?)) > 0 ORDER BY kind DESC, name COLLATE NOCASE, id").all(q)
       : s.db.prepare("SELECT * FROM files WHERE deleted_at IS NULL AND parent_id IS ? ORDER BY kind DESC, name COLLATE NOCASE, id").all(parentId)) as unknown as FileRow[]
-    return { items: items.map(fileInfo), ancestors: ancestors(parentId), parentId, query: q, maxFileBytes: s.config.maxFileBytes }
+    return { items: visible(ctx, items).map(fileInfo), ancestors: ancestors(parentId), parentId, query: q, maxFileBytes: s.config.maxFileBytes }
   })
 
-  api.authed('GET', '/api/files/trash', {}, () => {
+  api.authed('GET', '/api/files/trash', {}, (ctx) => {
     const items = s.db.prepare('SELECT * FROM files WHERE id = trash_root AND deleted_at > ? ORDER BY deleted_at DESC, name COLLATE NOCASE').all(s.now() - TRASH_MS) as unknown as FileRow[]
-    return { items: items.map((f) => ({ ...fileInfo(f), deletedAt: f.deleted_at!, expiresAt: f.deleted_at! + TRASH_MS })) }
+    return { items: visible(ctx, items).map((f) => ({ ...fileInfo(f), deletedAt: f.deleted_at!, expiresAt: f.deleted_at! + TRASH_MS })) }
   })
 
   api.authed('DELETE', '/api/files/:id', {}, (ctx) => {
     const item = find(ctx.params.id!)
+    guard(ctx, item.id)
+    if (isHealthFolder(s, item.id)) throw new HttpError(400, 'The Health folder is kept for Health; delete what is in it instead.', 'invalid')
     tx(s.db, () => {
       s.db.prepare(`WITH RECURSIVE tree(id) AS (SELECT ? UNION ALL SELECT f.id FROM files f JOIN tree t ON f.parent_id = t.id WHERE f.deleted_at IS NULL)
         UPDATE files SET deleted_at = ?, trash_root = ? WHERE id IN tree AND deleted_at IS NULL`).run(item.id, s.now(), item.id)
@@ -125,6 +165,7 @@ export function fileRoutes(api: Api, s: Services): void {
   api.authed('POST', '/api/files/:id/restore', {}, (ctx) => {
     const item = s.db.prepare('SELECT * FROM files WHERE id = ? AND id = trash_root AND deleted_at > ?').get(ctx.params.id!, s.now() - TRASH_MS) as unknown as FileRow | undefined
     if (!item) throw new HttpError(404, 'That item is no longer in the recycle bin.', 'not_found')
+    guard(ctx, item.id)
     // Restore to the old parent when it still exists, otherwise to Family.
     const oldParent = item.parent_id && s.db.prepare('SELECT id FROM files WHERE id = ? AND deleted_at IS NULL').get(item.parent_id)
     const parentId = oldParent ? item.parent_id : null
@@ -151,6 +192,7 @@ export function fileRoutes(api: Api, s: Services): void {
     const body = await readJson(ctx.req)
     const name = fileName(body.name)
     const parentId = destination(body.parentId)
+    guard(ctx, parentId)
     if (ancestors(parentId).length >= 100) throw new HttpError(400, 'This folder is nested too deeply.', 'invalid')
     unique(parentId, name)
     const id = randomUUID(), now = s.now()
@@ -162,8 +204,11 @@ export function fileRoutes(api: Api, s: Services): void {
   api.authed('PATCH', '/api/files/:id', {}, async (ctx) => {
     const body = await readJson(ctx.req)
     const item = find(ctx.params.id!)
+    guard(ctx, item.id)
     const name = body.name === undefined ? item.name : fileName(body.name)
     const parentId = body.parentId === undefined ? item.parent_id : destination(body.parentId)
+    guard(ctx, parentId)
+    if (isHealthFolder(s, item.id) && (name !== item.name || parentId !== item.parent_id)) throw new HttpError(400, 'The Health folder stays where it is.', 'invalid')
     const chain = ancestors(parentId)
     if (item.kind === 'folder' && (item.id === parentId || chain.some((f) => f.id === item.id))) {
       throw new HttpError(400, 'A folder cannot be moved inside itself.', 'folder_cycle')
@@ -182,6 +227,7 @@ export function fileRoutes(api: Api, s: Services): void {
     const name = fileName(ctx.url.searchParams.get('name'))
     const parentId = ctx.url.searchParams.get('parent') || null
     parent(parentId)
+    guard(ctx, parentId)
     unique(parentId, name)
     const declared = Number(ctx.req.headers['content-length'] ?? 0)
     if (declared > s.config.maxFileBytes) {
@@ -241,6 +287,7 @@ export function fileRoutes(api: Api, s: Services): void {
 
   api.authed('GET', '/api/files/:id/content', {}, async (ctx: AuthedCtx) => {
     const f = find(ctx.params.id!)
+    guard(ctx, f.id)
     if (f.kind !== 'file') throw new HttpError(400, 'Choose a document.', 'invalid')
     // Open before sending headers, so a missing disk file is a useful error.
     let handle

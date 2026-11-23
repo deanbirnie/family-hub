@@ -266,6 +266,17 @@ On each parent's phone, once it has the app version with notifications
 - [ ] 4. The home server must be able to reach those calendar sites over
       the internet (it fetches them every 6 hours).
 
+## 17. Start the health records (after the Health pull request is merged and deployed)
+
+- [ ] 1. Add your GP, paediatrician, dentist and pharmacy to **Contacts**
+      first.
+- [ ] 2. **Health** (open the vault if asked): for each person, add
+      allergies (mark severe ones), conditions, blood type and care notes,
+      doctors, and current medicines (tick "chronic" for repeat scripts).
+- [ ] 3. Add past visits, operations and results under **History**;
+      documents you upload there go into the **Health** folder in Files,
+      which the children cannot see.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

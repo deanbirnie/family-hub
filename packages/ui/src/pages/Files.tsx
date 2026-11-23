@@ -16,6 +16,8 @@ export interface DocumentItem {
   mediaType: string
   createdAt: number
   updatedAt: number
+  /** A folder only parents can see (Health). */
+  parentsOnly?: boolean
 }
 
 export const fileSize = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
@@ -96,7 +98,7 @@ export function FilesPage({ ctx }: { ctx: HubContext }) {
           <ul className="document-list" aria-label="Family documents">
             {data?.items.map((f) => <li key={f.id}>
               {f.kind === 'folder' ? <FolderOpen size={22} aria-hidden /> : <FileText size={22} aria-hidden />}
-              <div className="document-main"><button className="link document-name" disabled={uploading} onClick={() => { if (f.kind === 'folder') browse(f.id); else if (previewable(f)) setPreview(f); else void download.run(f) }}>{f.name}</button><span className="muted small">{f.kind === 'folder' ? 'Folder' : fileSize(f.size)} · {new Date(f.updatedAt).toLocaleDateString()}</span>{query && <button className="link small" onClick={() => browse(f.parentId || '')}>Show in folder</button>}</div>
+              <div className="document-main"><button className="link document-name" disabled={uploading} onClick={() => { if (f.kind === 'folder') browse(f.id); else if (previewable(f)) setPreview(f); else void download.run(f) }}>{f.name}</button><span className="muted small">{f.kind === 'folder' ? (f.parentsOnly ? 'Folder · parents only' : 'Folder') : fileSize(f.size)} · {new Date(f.updatedAt).toLocaleDateString()}</span>{query && <button className="link small" onClick={() => browse(f.parentId || '')}>Show in folder</button>}</div>
               <div className="document-actions">
                 {f.kind === 'file' && <Button variant="secondary" busy={download.busy} aria-label={`Download ${f.name}`} icon={<Download size={16} />} onClick={() => void download.run(f)}>Download</Button>}
                 {f.kind === 'file' && !previewable(f) && ctx.platform.downloadFile && <Button variant="ghost" aria-label={`Open ${f.name}`} onClick={() => void download.run(f, 'open')}>Open</Button>}

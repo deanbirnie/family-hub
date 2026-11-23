@@ -535,12 +535,12 @@ then save or share.
 
 **5a. The record**
 
-- [ ] Parents-only Health folder in Files.
-- [ ] Summary: allergies, conditions, blood type, care notes, medical aid
+- [x] Parents-only Health folder in Files.
+- [x] Summary: allergies, conditions, blood type, care notes, medical aid
       from Quick Info, doctors and providers from Contacts.
-- [ ] Medicines, with changes and chronic scripts.
-- [ ] History timeline with linked documents; filter and search.
-- [ ] The "visible to the other parent" reminder on a parent's own record.
+- [x] Medicines, with changes and chronic scripts.
+- [x] History timeline with linked documents; filter and search.
+- [x] The "visible to the other parent" reminder on a parent's own record.
 
 **5b. Vaccinations, growth, appointments, reminders**
 

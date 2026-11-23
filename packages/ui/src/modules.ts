@@ -75,7 +75,7 @@ export const MODULES: HubModule[] = [
     path: '/health',
     icon: HeartPulse,
     description: 'Each person’s allergies, medicines, conditions, history and doctors, end-to-end encrypted, with an emergency card on the phone.',
-    status: 'next',
+    status: 'ready',
     phase: 5,
     parentsOnly: true,
   },
