@@ -345,6 +345,22 @@ const MIGRATIONS: string[] = [
     fingerprint TEXT NOT NULL
   );
   `,
+  // 15: Health (phase 5, routes/health.ts). Each health record is encrypted on
+  // a parent's device with the family key; the server keeps only whose it is
+  // and when it changed. A folder (and all in it) can be for parents only.
+  `
+  ALTER TABLE files ADD COLUMN parents_only INTEGER NOT NULL DEFAULT 0;
+  CREATE TABLE health_records (
+    id TEXT PRIMARY KEY,
+    profile_id TEXT NOT NULL REFERENCES family_profiles(id) ON DELETE CASCADE,
+    ciphertext TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE INDEX health_records_profile ON health_records (profile_id);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length
