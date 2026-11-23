@@ -112,7 +112,7 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
   else if (path === '/info') page = <QuickInfoPage ctx={ctx} />
   else if (path === '/contacts') page = <ContactsPage ctx={ctx} />
   else if (path === '/calendar') page = <CalendarPage ctx={ctx} />
-  else if (path === '/health') page = <HealthPage ctx={ctx} />
+  else if (path === '/health' || path.startsWith('/health/episodes/')) page = <HealthPage ctx={ctx} episodeId={path.startsWith('/health/episodes/') ? decodeURIComponent(path.slice('/health/episodes/'.length)) : null} />
   else if (module) page = <ComingSoon module={module} />
   else if (path === '/family') page = <MembersPage ctx={ctx} />
   else if (path === '/settings') page = <SettingsPage ctx={ctx} />

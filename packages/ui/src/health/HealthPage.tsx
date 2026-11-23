@@ -6,6 +6,7 @@
 import { AlertTriangle, FileText, HeartPulse, Paperclip, Pencil, Phone, Pill, Plus, Search, Stethoscope, Syringe, Trash2, Upload } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../api.ts'
+import { navigate } from '../router.ts'
 import type { Contact } from '../pages/Contacts.tsx'
 import { decryptRecord, type StoredRecord } from '../quickinfo/model.ts'
 import type { HubContext } from '../Shell.tsx'
@@ -28,6 +29,8 @@ import {
   type LinkedDocument,
   type StoredHealthRecord,
 } from './model.ts'
+import { AttachDocuments, Documents, FieldInput } from './parts.tsx'
+import { EpisodesCard, EpisodeView } from './Episodes.tsx'
 import { Appointments, Checkups, ComingUpHealth, Growth, syncAppointmentEvent, Vaccinations, type Opener } from './Extras.tsx'
 import { syncHealthReminders } from './reminders.ts'
 
@@ -49,7 +52,7 @@ interface Loaded {
   births: Record<string, string>
 }
 
-export function HealthPage({ ctx }: { ctx: HubContext }) {
+export function HealthPage({ ctx, episodeId = null }: { ctx: HubContext; episodeId?: string | null }) {
   const unlocked = useVaultUnlocked()
   if (ctx.user.role !== 'admin') {
     return (
@@ -64,12 +67,12 @@ export function HealthPage({ ctx }: { ctx: HubContext }) {
   return (
     <div className="page">
       <PageHeader title="Health" subtitle="Allergies, medicines, conditions, doctors and history for each of the family: end-to-end encrypted, for parents only." />
-      {unlocked ? <HealthBody ctx={ctx} /> : <VaultCard ctx={ctx} />}
+      {unlocked ? <HealthBody ctx={ctx} episodeId={episodeId} /> : <VaultCard ctx={ctx} />}
     </div>
   )
 }
 
-function HealthBody({ ctx }: { ctx: HubContext }) {
+function HealthBody({ ctx, episodeId }: { ctx: HubContext; episodeId: string | null }) {
   const { api } = ctx.platform
   const [data, setData] = useState<Loaded | null>(null)
   const [error, setError] = useState('')
@@ -127,7 +130,26 @@ function HealthBody({ ctx }: { ctx: HubContext }) {
   if (error) return <Banner kind="error">{error}</Banner>
   if (!data) return <Spinner />
   if (data.people.length === 0) return <Banner kind="info">Add the family’s people in Quick Info first (Add a person); each then has a health record here.</Banner>
-  const person = data.people.find((p) => p.id === personId) ?? data.people[0]!
+  // An episode opened by its link (from the home page, or a notification) belongs to its person.
+  const episode = episodeId ? data.records.find((r) => r.id === episodeId) : undefined
+  const person = data.people.find((p) => p.id === (episode?.profileId ?? personId)) ?? data.people[0]!
+
+  if (episodeId) {
+    return (
+      <EpisodeView
+        ctx={ctx}
+        person={person}
+        records={data.records.filter((r) => r.profileId === person.id)}
+        contacts={data.contacts}
+        episodeId={episodeId}
+        reload={load}
+        onBack={() => {
+          setPersonId(person.id)
+          navigate('/health')
+        }}
+      />
+    )
+  }
 
   return (
     <>
@@ -166,6 +188,7 @@ function PersonHealth({ ctx, data, person, reload }: { ctx: HubContext; data: Lo
           <strong>Severe allergies:</strong> {severe.map((a) => `${a.content.fields.substance}${a.content.fields.epipen === 'yes' ? ' (carries an EpiPen)' : ''}`).join('; ')}
         </Banner>
       )}
+      <EpisodesCard ctx={ctx} person={person} records={mine} onOpen={(id) => navigate(`/health/episodes/${encodeURIComponent(id)}`)} onChanged={() => void reload()} />
       <ComingUpHealth records={mine} birthDate={birthDate} />
 
       <div className="grid-2">
@@ -408,82 +431,7 @@ function History({ ctx, records, contacts, onAdd, onEdit }: { ctx: HubContext; r
   )
 }
 
-function Documents({ ctx, documents }: { ctx: HubContext; documents: LinkedDocument[] }) {
-  const open = useAction(async (d: LinkedDocument) => {
-    if (ctx.platform.downloadFile) return ctx.platform.downloadFile({ id: d.id, name: d.name, mediaType: 'application/octet-stream' }, 'open')
-    const blob = await ctx.platform.api.fileBlob(d.id)
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = d.name
-    a.click()
-    setTimeout(() => URL.revokeObjectURL(url), 60_000)
-  })
-  return (
-    <div className="row">
-      {documents.map((d) => (
-        <Button key={d.id} variant="secondary" icon={<FileText size={16} aria-hidden />} onClick={() => void open.run(d)}>
-          {d.name}
-        </Button>
-      ))}
-      {open.error && <Banner kind="error">{open.error}</Banner>}
-    </div>
-  )
-}
-
 // ---- adding and editing --------------------------------------------------------------------
-
-function FieldInput({ def, value, onChange, contacts }: { def: FieldDef; value: string; onChange: (v: string) => void; contacts: Contact[] }) {
-  const id = `hf-${def.key}`
-  if (def.type === 'checkbox') {
-    return (
-      <label className="check">
-        <input type="checkbox" checked={value === 'yes'} onChange={(e) => onChange(e.target.checked ? 'yes' : '')} />
-        <span>{def.label}</span>
-      </label>
-    )
-  }
-  const control =
-    def.type === 'textarea' ? (
-      <textarea id={id} className="textarea" rows={3} maxLength={4000} placeholder={def.placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
-    ) : def.type === 'select' ? (
-      <select id={id} className="select" value={value} onChange={(e) => onChange(e.target.value)}>
-        {def.options!.map(([v, l]) => (
-          <option key={v} value={v}>
-            {l}
-          </option>
-        ))}
-      </select>
-    ) : def.type === 'contact' ? (
-      <select id={id} className="select" value={value} onChange={(e) => onChange(e.target.value)} required={def.required}>
-        <option value="">{def.required ? 'Choose…' : 'None'}</option>
-        {contacts.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
-    ) : (
-      <input
-        id={id}
-        className="qi-search"
-        type={def.type === 'date' ? 'date' : def.type === 'number' ? 'number' : 'text'}
-        min={def.type === 'number' ? 0 : undefined}
-        maxLength={200}
-        placeholder={def.placeholder}
-        required={def.required}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    )
-  return (
-    <div className="field">
-      <label htmlFor={id}>{def.label}</label>
-      {control}
-      {def.hint && <div className="field-hint">{def.hint}</div>}
-    </div>
-  )
-}
 
 function RecordDialog({
   ctx,
@@ -592,72 +540,5 @@ function RecordDialog({
         </div>
       </form>
     </Dialog>
-  )
-}
-
-/** Link documents from the parents-only Health folder in Files, or upload one into it. */
-function AttachDocuments({ ctx, documents, onChange }: { ctx: HubContext; documents: LinkedDocument[]; onChange: (d: LinkedDocument[]) => void }) {
-  const { api } = ctx.platform
-  const [picking, setPicking] = useState<{ id: string; name: string }[] | null>(null)
-  const folder = async () => (await api.get<{ folderId: string }>('/api/health/folder')).folderId
-  const upload = useAction(async (file: File) => {
-    const parent = await folder()
-    const res = await fetch(`${api.baseUrl}/api/files/upload?${new URLSearchParams({ name: file.name, parent })}`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'X-Requested-With': 'family-hub', ...(api.token ? { Authorization: `Bearer ${api.token}` } : {}) },
-      body: file,
-    })
-    const body = (await res.json().catch(() => ({}))) as { item?: { id: string; name: string }; message?: string }
-    if (!res.ok || !body.item) throw new Error(body.message ?? 'The upload failed.')
-    onChange([...documents, { id: body.item.id, name: body.item.name }])
-  })
-  const pick = useAction(async () => {
-    const r = await api.get<{ items: { id: string; name: string; kind: string }[] }>(`/api/files?parent=${encodeURIComponent(await folder())}`)
-    setPicking(r.items.filter((i) => i.kind === 'file'))
-  })
-  return (
-    <fieldset className="radio-group">
-      <legend>Documents</legend>
-      {documents.map((d) => (
-        <div key={d.id} className="row">
-          <FileText size={16} aria-hidden /> {d.name}
-          <Button type="button" variant="ghost" aria-label={`Unlink ${d.name}`} onClick={() => onChange(documents.filter((x) => x.id !== d.id))}>
-            Remove
-          </Button>
-        </div>
-      ))}
-      <div className="row">
-        <label className="btn btn-secondary file-pick">
-          <Upload size={16} aria-hidden />
-          <span>{upload.busy ? 'Uploading…' : 'Upload to the Health folder'}</span>
-          <input
-            type="file"
-            aria-label="Upload a health document"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) void upload.run(f)
-            }}
-          />
-        </label>
-        <Button type="button" variant="ghost" icon={<Paperclip size={16} aria-hidden />} busy={pick.busy} onClick={() => void pick.run()}>
-          Link one already there
-        </Button>
-      </div>
-      {picking && (
-        <div className="stack-sm">
-          {picking.length === 0 && <p className="muted small">The Health folder is empty.</p>}
-          {picking
-            .filter((f) => !documents.some((d) => d.id === f.id))
-            .map((f) => (
-              <button key={f.id} type="button" className="link" onClick={() => (onChange([...documents, f]), setPicking(null))}>
-                {f.name}
-              </button>
-            ))}
-        </div>
-      )}
-      <p className="muted small">Documents are kept in Files, in a Health folder only parents can open.</p>
-      {(upload.error || pick.error) && <Banner kind="error">{upload.error || pick.error}</Banner>}
-    </fieldset>
   )
 }

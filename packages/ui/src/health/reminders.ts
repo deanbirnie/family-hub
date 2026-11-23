@@ -6,11 +6,13 @@
  */
 import type { Api } from '../api.ts'
 import { isCurrentMedicine, type HealthContent } from './model.ts'
+import { doseReminders, localStamp, parseStamp, type Dose } from './episodes.ts'
 import { dueDate, SA_SCHEDULE, scheduleApplies } from './vaccines.ts'
 
 export interface HealthReminder {
   /** What it is, shown only in the app. */
   title: string
+  /** A date, or a date and time for a dose ("2026-11-20T14:30"). */
   date: string
   leads: number[]
   /** Stable source for the opaque key: record ID and purpose. */
@@ -31,7 +33,7 @@ const addMonths = (date: string, months: number) => {
 const ISO = /^\d{4}-\d{2}-\d{2}$/
 
 /** Every reminder one person's records call for, still to come. */
-export function healthReminders(records: { id: string; content: HealthContent }[], birthDate: string | undefined, on = today()): HealthReminder[] {
+export function healthReminders(records: { id: string; content: HealthContent }[], birthDate: string | undefined, on = today(), now = Date.now()): HealthReminder[] {
   const out: HealthReminder[] = []
   const push = (r: HealthReminder) => {
     if (ISO.test(r.date) && r.date >= on) out.push(r)
@@ -80,6 +82,19 @@ export function healthReminders(records: { id: string; content: HealthContent }[
     const f = a.content.fields
     if (f.calendar === 'none' && f.done !== 'yes') push({ title: `Appointment: ${f.reason || 'doctor'}`, date: f.date ?? '', leads: [1, 0], source: `${a.id}:appointment` })
   }
+  // Doses in open episodes' medicine plans, to the minute.
+  const open = new Set(of('episode').filter((e) => e.content.fields.status !== 'closed').map((e) => e.id))
+  const doses: Dose[] = of('entry')
+    .filter((e) => e.content.fields.type === 'dose' && e.content.fields.planId)
+    .map((e) => ({ planId: e.content.fields.planId!, at: parseStamp(e.content.fields.at), skipped: e.content.fields.skipped === 'yes' }))
+    .filter((d) => !Number.isNaN(d.at))
+  for (const p of of('plan')) {
+    if (!open.has(p.content.fields.episodeId ?? '')) continue
+    for (const at of doseReminders({ id: p.id, fields: p.content.fields }, doses, now).slice(0, 60)) {
+      const stamp = localStamp(at)
+      out.push({ title: `Dose due: ${p.content.fields.medicine}`, date: stamp, leads: [0], source: `${p.id}:dose:${stamp}` })
+    }
+  }
   return out.sort((a, b) => a.date.localeCompare(b.date))
 }
 
@@ -95,7 +110,7 @@ async function keyOf(profileId: string, source: string): Promise<string> {
 export async function syncHealthReminders(api: Api, people: { id: string; records: { id: string; content: HealthContent }[]; birthDate?: string }[]): Promise<void> {
   const { items } = await api.get<{ items: { profileId: string; key: string; date: string; leads: number[] }[] }>('/api/reminders/health')
   for (const p of people) {
-    const want = await Promise.all(healthReminders(p.records, p.birthDate).map(async (r) => ({ key: await keyOf(p.id, r.source), date: r.date, leads: r.leads })))
+    const want = await Promise.all(healthReminders(p.records, p.birthDate).slice(0, 400).map(async (r) => ({ key: await keyOf(p.id, r.source), date: r.date, leads: r.leads })))
     const have = items.filter((i) => i.profileId === p.id).map(({ key, date, leads }) => ({ key, date, leads }))
     const norm = (list: { key: string; date: string; leads: number[] }[]) => JSON.stringify([...list].sort((a, b) => a.key.localeCompare(b.key)))
     if (norm(want) !== norm(have)) await api.request('PUT', `/api/reminders/health/${p.id}`, { items: want })

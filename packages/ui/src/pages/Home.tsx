@@ -6,6 +6,7 @@ import type { HubContext } from '../Shell.tsx'
 import { Badge, Card, useLoad } from '../ui.tsx'
 import { ComingUpCard } from '../notify/ComingUp.tsx'
 import { TodayCard } from '../calendar/TodayCard.tsx'
+import { OpenEpisodesCard } from '../health/Episodes.tsx'
 
 interface Member {
   id: string
@@ -30,6 +31,7 @@ export function HomePage({ ctx }: { ctx: HubContext }) {
         <p className="muted">Everything the family shares, in one private place on your own server.</p>
       </div>
 
+      {ctx.user.role === 'admin' && <OpenEpisodesCard ctx={ctx} />}
       <TodayCard ctx={ctx} />
       {ctx.user.role === 'admin' && <ComingUpCard ctx={ctx} />}
 

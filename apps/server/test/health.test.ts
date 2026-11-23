@@ -110,6 +110,8 @@ describe('health reminders', () => {
     const up = await client.get<{ items: { title: string; whose: string }[] }>('/api/reminders/upcoming')
     expect(up.body.items).toEqual([expect.objectContaining({ title: 'Health reminder', whose: 'Sam' })])
     expect(await runReminders(server.services)).toBe(1)
+    await client.call('PUT', `/api/reminders/health/${sam}`, { items }) // a resync: not sent again
+    expect(await runReminders(server.services)).toBe(0)
     const parent = (await client.get<{ user: { id: string } }>('/api/auth/session')).body.user.id
     expect(dueMessagesFor(server.services, parent, '2026-11-20').map((m) => m.body)).toContain('A health reminder is due. Tap to see.')
 
@@ -137,6 +139,8 @@ describe('health reminders', () => {
     expect(await runReminders(server.services)).toBe(0)
     server.clock.now += 30 * 60_000 // 14:30
     expect(await runReminders(server.services)).toBe(1)
+    // A resync from the device does not send it again.
+    await client.call('PUT', `/api/reminders/health/${sam}`, { items })
     expect(await runReminders(server.services)).toBe(0)
     const parent = (await client.get<{ user: { id: string } }>('/api/auth/session')).body.user.id
     expect(dueMessagesFor(server.services, parent, '2026-11-20')).toEqual([expect.objectContaining({ body: 'A medicine is due. Tap to see.', url: '/health' })])

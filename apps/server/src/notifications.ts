@@ -212,7 +212,7 @@ function quickInfoItems(s: Services): ReminderItem[] {
 function healthItems(s: Services): ReminderItem[] {
   const rows = s.db
     .prepare(
-      `SELECT r.id, r.due, r.leads, p.display_name AS whose
+      `SELECT r.field AS id, r.due, r.leads, p.display_name AS whose
        FROM reminders r LEFT JOIN family_profiles p ON p.id = r.profile_id WHERE r.source = 'health' AND length(r.due) = 10`,
     )
     .all() as { id: string; due: string; leads: string | null; whose: string | null }[]
@@ -225,7 +225,7 @@ function healthItems(s: Services): ReminderItem[] {
       // the default
     }
     return {
-      key: `h:${r.id}`,
+      key: `h:${r.id}`, // the device's opaque key: stable across resyncs
       category: 'health' as const,
       title: 'Health reminder',
       whose: r.whose,
@@ -245,8 +245,9 @@ function healthItems(s: Services): ReminderItem[] {
  * the person and the time; the text is "A medicine is due."
  */
 export function timedHealthReminders(s: Services): { key: string; fireAt: number }[] {
-  const rows = s.db.prepare("SELECT id, due FROM reminders WHERE source = 'health' AND length(due) = 16").all() as { id: string; due: string }[]
-  return rows.map((r) => ({ key: `ht:${r.id}:${r.due}`, fireAt: zonedToEpoch(r.due, s.config.timeZone) }))
+  // Keyed by the device's opaque key, which stays the same when the device resyncs.
+  const rows = s.db.prepare("SELECT field, due FROM reminders WHERE source = 'health' AND length(due) = 16").all() as { field: string; due: string }[]
+  return rows.map((r) => ({ key: `ht:${r.field}:${r.due}`, fireAt: zonedToEpoch(r.due, s.config.timeZone) }))
 }
 
 /**

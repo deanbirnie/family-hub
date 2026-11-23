@@ -291,6 +291,16 @@ On each parent's phone, once it has the app version with notifications
       expires** to be reminded.
 - [ ] 5. **Settings → Notifications**: keep **Health reminders** ticked.
 
+## 19. Try an episode (after the Episodes pull request is merged and deployed)
+
+- [ ] 1. On each parent's phone, check **Settings → Notifications** shows
+      instant notifications through ntfy. Dose reminders come to the minute
+      only that way (or in a browser with notifications on); the phone's
+      daily check alone is too late for a dose.
+- [ ] 2. Try it once with a made-up episode: **Health → Start an episode**,
+      add a medicine plan due in a few minutes, and check both phones get
+      "A medicine is due". Then delete the episode.
+
 ## Later steps (added as features land)
 
 - Nothing yet.
