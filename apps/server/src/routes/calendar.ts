@@ -16,6 +16,8 @@ import { HttpError, readJson, str } from '../http.ts'
 import { addDays, dayNum, occurrences, toRRule, WEEKDAYS, type Repeat, type Weekday } from '../recurrence.ts'
 import { newId } from '../secrets.ts'
 import { escapeText, fold } from '../vcard.ts'
+import { contactDates } from './contacts.ts'
+import { parseDate } from '../schedule.ts'
 
 export const FAMILY = 'family'
 
@@ -48,7 +50,12 @@ export interface CalEvent {
   fileName: string | null
   repeat: Repeat | null
   exceptions: Record<string, Exception>
+  /** Minutes before the start to remind (0 = at the time). */
+  reminders?: number[]
 }
+
+/** Reminder choices: at the time, 15 minutes, 1 hour, 1 day, 1 week before. */
+export const REMINDER_MINUTES = [0, 15, 60, 1440, 10080]
 
 interface EventRow {
   id: string
@@ -121,6 +128,54 @@ function repeatFrom(raw: unknown, start: string): Repeat | null {
   return repeat
 }
 
+  /** One day's occurrence of an event, with that day's changes applied. */
+export function occurrenceOfEvent(id: string, version: number, e: CalEvent, day: string, people: Set<string>, isParent: boolean) {
+    const span = dayNum(dateOf(e.end)) - dayNum(dateOf(e.start))
+    const x = e.exceptions[day] ?? {}
+    const allDay = x.allDay ?? e.allDay
+    const start = x.start ?? (e.allDay ? day : `${day}T${timeOf(e.start)}`)
+    const end = x.end ?? (e.allDay ? addDays(day, span) : `${addDays(day, span)}T${timeOf(e.end)}`)
+    return {
+      eventId: id,
+      version,
+      day,
+      title: x.title ?? e.title,
+      allDay,
+      start,
+      end,
+      // Tags of people since removed are left out.
+      tags: (x.tags ?? e.tags).filter((t) => t === FAMILY || people.has(t)),
+      location: x.location ?? e.location,
+      notes: x.notes ?? e.notes,
+      // Contacts are the parents' address book.
+      contactId: isParent ? e.contactId : null,
+      fileId: e.fileId,
+      fileName: e.fileName ?? null,
+      repeat: e.repeat,
+      reminders: e.reminders ?? [],
+      changed: day in e.exceptions,
+    }
+}
+
+/** Every occurrence overlapping [from, to]. */
+export function eventOccurrences(s: Services, from: string, to: string, isParent: boolean) {
+    const people = new Set((s.db.prepare('SELECT id FROM family_profiles').all() as { id: string }[]).map((p) => p.id))
+    const out: ReturnType<typeof occurrenceOfEvent>[] = []
+    for (const r of s.db.prepare('SELECT id, sealed, version FROM events').all() as unknown as EventRow[]) {
+      const e = JSON.parse(s.serverKey.open(r.sealed, 'event', r.id)) as CalEvent
+      const span = dayNum(dateOf(e.end)) - dayNum(dateOf(e.start))
+      for (const day of occurrences(dateOf(e.start), e.repeat, addDays(from, -span - 1), to)) {
+        const x = e.exceptions[day]
+        if (x?.cancelled) continue
+        const o = occurrenceOfEvent(r.id, r.version, e, day, people, isParent)
+        if (dateOf(o.end) < from || dateOf(o.start) > to) continue
+        out.push(o)
+      }
+    }
+    return out.sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title))
+  }
+
+
 export function calendarRoutes(api: Api, s: Services): void {
   const { db } = s
   const signedIn = {} as const
@@ -173,54 +228,16 @@ export function calendarRoutes(api: Api, s: Services): void {
       fileName,
       repeat: repeatFrom(body.repeat, start),
       exceptions: keep?.exceptions ?? {},
+      reminders: (() => {
+        const r = body.reminders ?? []
+        if (!Array.isArray(r) || r.some((m) => !REMINDER_MINUTES.includes(m as number))) throw new HttpError(400, 'Unknown reminder choice.', 'invalid')
+        return [...new Set(r as number[])].sort((x, y) => x - y)
+      })(),
     }
   }
 
-  /** One day's occurrence of an event, with that day's changes applied. */
-  const occurrenceOf = (id: string, version: number, e: CalEvent, day: string, people: Set<string>, isParent: boolean) => {
-    const span = dayNum(dateOf(e.end)) - dayNum(dateOf(e.start))
-    const x = e.exceptions[day] ?? {}
-    const allDay = x.allDay ?? e.allDay
-    const start = x.start ?? (e.allDay ? day : `${day}T${timeOf(e.start)}`)
-    const end = x.end ?? (e.allDay ? addDays(day, span) : `${addDays(day, span)}T${timeOf(e.end)}`)
-    return {
-      eventId: id,
-      version,
-      day,
-      title: x.title ?? e.title,
-      allDay,
-      start,
-      end,
-      // Tags of people since removed are left out.
-      tags: (x.tags ?? e.tags).filter((t) => t === FAMILY || people.has(t)),
-      location: x.location ?? e.location,
-      notes: x.notes ?? e.notes,
-      // Contacts are the parents' address book.
-      contactId: isParent ? e.contactId : null,
-      fileId: e.fileId,
-      fileName: e.fileName ?? null,
-      repeat: e.repeat,
-      changed: day in e.exceptions,
-    }
-  }
-
-  /** Every occurrence overlapping [from, to]. */
-  const between = (from: string, to: string, isParent: boolean) => {
-    const people = peopleIds()
-    const out: ReturnType<typeof occurrenceOf>[] = []
-    for (const r of db.prepare('SELECT id, sealed, version FROM events').all() as unknown as EventRow[]) {
-      const e = open(r)
-      const span = dayNum(dateOf(e.end)) - dayNum(dateOf(e.start))
-      for (const day of occurrences(dateOf(e.start), e.repeat, addDays(from, -span - 1), to)) {
-        const x = e.exceptions[day]
-        if (x?.cancelled) continue
-        const o = occurrenceOf(r.id, r.version, e, day, people, isParent)
-        if (dateOf(o.end) < from || dateOf(o.start) > to) continue
-        out.push(o)
-      }
-    }
-    return out.sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title))
-  }
+  const between = (from: string, to: string, isParent: boolean) => eventOccurrences(s, from, to, isParent)
+  const occurrenceOf = occurrenceOfEvent
 
   const range = (url: URL) => {
     const from = url.searchParams.get('from') ?? ''
@@ -257,9 +274,53 @@ export function calendarRoutes(api: Api, s: Services): void {
 
   // ---- events ---------------------------------------------------------------------------
 
+  /**
+   * Birthdays and other dates from Contacts (and children kept on a contact),
+   * read from the sealed contacts each time and never copied. Everyone sees
+   * them (name and day only). Tagged Family, or the parent who is reminded.
+   */
+  const contactDays = (from: string, to: string) => {
+    const byUser = new Map((db.prepare('SELECT id, user_id FROM family_profiles WHERE user_id IS NOT NULL').all() as { id: string; user_id: string }[]).map((p) => [p.user_id, p.id]))
+    const out = []
+    for (const d of contactDates(s)) {
+      if (d.stopped) continue
+      const p = parseDate(d.date)
+      if (!p) continue
+      for (let y = Number(from.slice(0, 4)); y <= Number(to.slice(0, 4)); y++) {
+        const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+        const day = `${y}-${String(p.month).padStart(2, '0')}-${String(p.month === 2 && p.day === 29 && !leap ? 28 : p.day).padStart(2, '0')}`
+        if (day < from || day > to) continue
+        const years = p.year === null ? null : y - p.year
+        out.push({
+          eventId: `date:${d.key}`,
+          kind: d.kind,
+          readOnly: true,
+          version: 0,
+          day,
+          title: d.title,
+          detail: [d.of ? `${d.of}’s` : null, years && years > 0 ? (d.kind === 'birthday' ? `turns ${years}` : `${years} years`) : null].filter(Boolean).join(' · ') || null,
+          allDay: true,
+          start: day,
+          end: day,
+          tags: d.remindFor !== 'all' && byUser.has(d.remindFor) ? [byUser.get(d.remindFor)!] : [FAMILY],
+          location: '',
+          notes: '',
+          contactId: null,
+          fileId: null,
+          fileName: null,
+          repeat: null,
+          reminders: [],
+          changed: false,
+        })
+      }
+    }
+    return out
+  }
+
   api.authed('GET', '/api/calendar/events', signedIn, (ctx) => {
     const { from, to } = range(ctx.url)
-    return { events: between(from, to, ctx.user.role === 'admin') }
+    const events = [...between(from, to, ctx.user.role === 'admin'), ...contactDays(from, to)]
+    return { events: events.sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title)) }
   })
 
   /** One event as stored (the whole series), for editing. */

@@ -2,12 +2,13 @@
  * The people-and-dates parts of a contact (phase 3): important dates with
  * their reminders, "about them", and family and other relationships.
  */
-import { Plus, Trash2, UserPlus, X } from 'lucide-react'
+import { Pencil, Plus, Trash2, UserPlus, X } from 'lucide-react'
 import { useState } from 'react'
 import type { Api } from '../api.ts'
 import { Banner, Button, useAction } from '../ui.tsx'
 import {
   DATE_KINDS,
+  formatImportantDate,
   MONTHS,
   RELATION_LABELS,
   REMIND_LABELS,
@@ -158,10 +159,20 @@ export function AboutEditor({ about, onChange }: { about: About; onChange: (abou
   )
 }
 
+export interface Member {
+  id: string
+  name: string
+  date: string | null
+  remind: string
+  remindFor: string
+  alsoOf: string | null
+}
+
 interface Named {
   id: string
   name: string
   category: string
+  members: Member[]
 }
 
 /** For an existing contact: their family and other relationships, with quick add. */
@@ -203,26 +214,90 @@ export function RelativesSection({
     setLabel('')
     onChanged()
   })
+  // Partners of this contact: a child added here can be shown under them too.
+  const partners = relatives.filter((r) => r.relation.kind === 'partner').map((r) => byId.get(r.other)).filter((c): c is Named => !!c)
+  const [alsoOf, setAlsoOf] = useState(true)
+  const [editingMember, setEditingMember] = useState<Member | null>(null)
   const quickAdd = useAction(async (as: 'child' | 'partner') => {
     if (!name.trim()) throw new Error('Type their name.')
-    const created = await api.post<{ contact: { id: string } }>('/api/contacts', {
-      name: name.trim(),
-      category: contact.category === 'family' ? 'family' : contact.category === 'friend' ? 'friend' : 'other',
-      dates: knowBirthday ? [{ kind: 'birthday', date: birthday, remind: 'week', remindFor: 'all' }] : [],
-    })
-    await api.post('/api/contacts/relations', { a: created.contact.id, b: contact.id, kind: as })
+    if (as === 'child') {
+      // A child is kept on this contact (not a contact of their own), with their birthday.
+      await api.post(`/api/contacts/${contact.id}/members`, {
+        name: name.trim(),
+        date: knowBirthday ? birthday : null,
+        alsoOf: alsoOf && partners[0] ? partners[0].id : null,
+      })
+    } else {
+      const created = await api.post<{ contact: { id: string } }>('/api/contacts', {
+        name: name.trim(),
+        category: contact.category === 'family' ? 'family' : contact.category === 'friend' ? 'friend' : 'other',
+        dates: knowBirthday ? [{ kind: 'birthday', date: birthday, remind: 'week', remindFor: 'all' }] : [],
+      })
+      await api.post('/api/contacts/relations', { a: created.contact.id, b: contact.id, kind: as })
+    }
     setAdding(null)
     setName('')
     setBirthday('--01-01')
     onChanged()
   })
+  const saveMember = useAction(async () => {
+    if (!editingMember) return
+    const owner = contacts.find((c) => c.members.some((m) => m.id === editingMember.id))
+    if (!owner) return
+    await api.request('PUT', `/api/contacts/${owner.id}/members/${editingMember.id}`, editingMember)
+    setEditingMember(null)
+    onChanged()
+  })
+  const removeMember = useAction(async (owner: Named, m: Member) => {
+    if (!window.confirm(`Remove ${m.name}? Their birthday reminders stop.`)) return
+    await api.del(`/api/contacts/${owner.id}/members/${m.id}`)
+    onChanged()
+  })
+  // Children kept here, and those kept on a partner's contact and shown here too.
+  const children = [
+    ...contact.members.map((m) => ({ m, owner: contact })),
+    ...contacts.filter((c) => c.id !== contact.id).flatMap((c) => c.members.filter((m) => m.alsoOf === contact.id).map((m) => ({ m, owner: c }))),
+  ]
   const candidates = contacts.filter((c) => c.id !== contact.id && !relatives.some((r) => r.other === c.id))
-  const error = remove.error || link.error || quickAdd.error
+  const error = remove.error || link.error || quickAdd.error || saveMember.error || removeMember.error
 
   return (
     <fieldset className="radio-group">
       <legend>Family and relationships</legend>
-      {relatives.length === 0 && <p className="muted small">Link partners, children, parents and friends to see who belongs with whom.</p>}
+      {relatives.length === 0 && children.length === 0 && <p className="muted small">Link partners, children, parents and friends to see who belongs with whom.</p>}
+      {children.length > 0 && (
+        <ul className="relatives">
+          {children.map(({ m, owner }) =>
+            editingMember?.id === m.id ? (
+              <li key={m.id} className="date-entry">
+                <input className="qi-search" aria-label="Child’s name" value={editingMember.name} maxLength={100} onChange={(e) => setEditingMember({ ...editingMember, name: e.target.value })} />
+                <DayMonthYear label="Birthday" value={editingMember.date ?? '--01-01'} onChange={(date) => setEditingMember({ ...editingMember, date })} />
+                <div className="row">
+                  <Button type="button" busy={saveMember.busy} onClick={() => void saveMember.run()}>
+                    Save
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => setEditingMember(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </li>
+            ) : (
+              <li key={m.id}>
+                <span className="muted small">Child</span>
+                <span>
+                  {m.name}
+                  {m.date && <span className="muted small"> · {formatImportantDate(m.date)}</span>}
+                  {owner.id !== contact.id && <span className="muted small"> · kept on {owner.name}</span>}
+                </span>
+                <span className="row">
+                  <Button type="button" variant="ghost" icon={<Pencil size={16} aria-hidden />} aria-label={`Edit ${m.name}`} onClick={() => setEditingMember(m)} />
+                  <Button type="button" variant="ghost" icon={<X size={16} aria-hidden />} aria-label={`Remove ${m.name}`} onClick={() => void removeMember.run(owner, m)} />
+                </span>
+              </li>
+            ),
+          )}
+        </ul>
+      )}
       {relatives.length > 0 && (
         <ul className="relatives">
           {relatives.map((r) => (
@@ -265,6 +340,13 @@ export function RelativesSection({
             <span>I know their birthday</span>
           </label>
           {knowBirthday && <DayMonthYear label="Birthday" value={birthday} onChange={setBirthday} />}
+          {adding === 'child' && partners[0] && (
+            <label className="check">
+              <input type="checkbox" checked={alsoOf} onChange={(e) => setAlsoOf(e.target.checked)} />
+              <span>Also {partners[0].name}’s child (shown under both)</span>
+            </label>
+          )}
+          {adding === 'child' && <p className="muted small">Kept on {contact.name}’s contact, not in the main list. Birthdays remind a week before.</p>}
           <div className="row">
             <Button type="button" busy={quickAdd.busy} onClick={() => void quickAdd.run(adding)}>
               Add {adding === 'child' ? 'child' : 'partner'}

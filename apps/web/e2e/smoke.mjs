@@ -300,19 +300,29 @@ try {
   await gran.getByLabel('Date 1: day').selectOption(String(soon.getDate()))
   await gran.getByLabel('Date 1: month').selectOption(String(soon.getMonth() + 1))
   await gran.getByLabel('Date 1: year (optional)').fill(String(soon.getFullYear() - 80))
+  // A young grandchild is kept on Gran's contact (not a contact of her own).
   await gran.getByRole('button', { name: 'Add a child' }).click()
-  await gran.getByLabel('Child’s name').fill('Thandi Tester')
+  await gran.getByLabel('Child’s name').fill('Isla Tester')
   await gran.getByLabel('I know their birthday').uncheck()
   await gran.getByRole('button', { name: 'Add child', exact: true }).click()
-  await gran.getByRole('button', { name: 'Thandi Tester', exact: true }).waitFor()
+  await gran.getByRole('button', { name: 'Edit Isla Tester' }).waitFor()
   await gran.getByRole('button', { name: 'Save' }).click()
   await gran.waitFor({ state: 'detached' })
   const thisMonth = page.locator('section.card', { has: page.getByRole('heading', { name: 'Coming up this month' }) })
   await thisMonth.getByText('in 5 days · turns 80').waitFor()
   await shot(page, '07g2-people-dates')
-  // Thandi shows Gran as her parent.
   await page.getByLabel('Search contacts').fill('')
+  if (await page.getByRole('button', { name: 'Edit Isla Tester' }).count()) throw new Error('a child kept on a contact shows in the main list')
+  // Thandi, a full contact, linked as Gran's daughter: she shows Gran as her parent.
+  await page.getByRole('button', { name: 'Add contact' }).click()
+  await page.getByRole('dialog').getByLabel('Name').fill('Thandi Tester')
+  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('dialog').waitFor({ state: 'detached' })
   await page.getByRole('button', { name: 'Edit Thandi Tester' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Link someone in Contacts' }).click()
+  await page.getByRole('dialog').getByLabel('Who').selectOption({ label: 'Gran Tester' })
+  await page.getByRole('dialog').getByLabel('Relationship').selectOption('parent')
+  await page.getByRole('dialog').getByRole('button', { name: 'Link', exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Gran Tester', exact: true }).waitFor()
   await page.getByRole('dialog').getByText('Parent', { exact: true }).waitFor()
   // Keeping in touch: "We spoke", a life event and a gift idea, all on her timeline.
@@ -425,7 +435,7 @@ try {
   await shot(page, '07h-coming-up')
   // Settings has the notifications card; the service worker that shows them is served.
   await page.getByRole('navigation', { name: 'Main' }).first().getByRole('link', { name: 'Settings' }).click()
-  await page.locator('section.card', { has: page.getByRole('heading', { name: 'Notifications' }) }).getByText('Send reminders from').waitFor()
+  await page.locator('section.card', { has: page.getByRole('heading', { name: 'Notifications' }) }).getByText('Send date and expiry reminders from').waitFor()
   const sw = await page.evaluate(async () => {
     const r = await fetch('/sw.js')
     return { status: r.status, type: r.headers.get('content-type'), text: await r.text() }

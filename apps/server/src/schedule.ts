@@ -88,3 +88,20 @@ export function yearsAt(due: Due, occurrence: string): number | null {
   if (!p || p.year === null) return null
   return Number(occurrence.slice(0, 4)) - p.year
 }
+
+/** The instant (ms) of a local date and time ("YYYY-MM-DDTHH:MM") in a time zone. */
+export function zonedToEpoch(local: string, timeZone: string): number {
+  const y = Number(local.slice(0, 4))
+  const mo = Number(local.slice(5, 7))
+  const d = Number(local.slice(8, 10))
+  const h = Number(local.slice(11, 13) || 0)
+  const mi = Number(local.slice(14, 16) || 0)
+  const guess = Date.UTC(y, mo - 1, d, h, mi)
+  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  const offset = (t: number) => {
+    const p = Object.fromEntries(fmt.formatToParts(new Date(t)).map((x) => [x.type, x.value]))
+    return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute)) - Math.floor(t / 60_000) * 60_000
+  }
+  const first = guess - offset(guess)
+  return guess - offset(first)
+}

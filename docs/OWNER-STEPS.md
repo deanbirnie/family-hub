@@ -238,6 +238,19 @@ On each parent's phone, once it has the app version with notifications
 - [ ] 4. Optional: **Send out** saves an .ics file your phone's calendar or
       Google Calendar can import; it is a copy, not kept in sync.
 
+## 15. Calendar reminders and children on contacts (after the "reminders and birthdays" pull request is merged and deployed)
+
+- [ ] 1. Everyone (members too): **Settings → Notifications** → turn
+      notifications on for this browser or phone, and keep **Calendar
+      events** ticked.
+- [ ] 2. On events that matter, tick **Remind** (e.g. 1 hour before). It
+      goes to the people tagged who have an account; for Family events and
+      children's events, to both parents.
+- [ ] 3. For friends' young children: open the friend in **Contacts** →
+      **Add a child**, with a birthday. If the friend's partner is linked,
+      tick "Also … 's child" so it shows under both. Birthdays then show on
+      the calendar and remind you a week before.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

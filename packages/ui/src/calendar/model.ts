@@ -39,8 +39,29 @@ export interface Occurrence {
   fileId: string | null
   fileName: string | null
   repeat: Repeat | null
+  /** Minutes before the start to remind. */
+  reminders: number[]
   changed: boolean
+  /** Birthdays and other dates from Contacts: shown, not edited here. */
+  readOnly?: boolean
+  kind?: 'birthday' | 'anniversary' | 'memorial' | 'other'
+  /** "turns 80", "Wade’s · turns 4". */
+  detail?: string | null
 }
+
+/** Reminder choices for timed and all-day events. */
+export const TIMED_REMINDERS: [number, string][] = [
+  [0, 'At the time'],
+  [15, '15 minutes before'],
+  [60, '1 hour before'],
+  [1440, '1 day before'],
+  [10080, '1 week before'],
+]
+export const ALL_DAY_REMINDERS: [number, string][] = [
+  [0, 'On the day (08:00)'],
+  [1440, 'The day before (08:00)'],
+  [10080, 'A week before (08:00)'],
+]
 
 /** Colours offered for people; anyone without one gets one of these by position. */
 export const PALETTE = ['#2f6d8c', '#d9774b', '#2f7d4f', '#8a5cc2', '#c2457a', '#b08a00', '#3a8f9e', '#6b7280']

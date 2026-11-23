@@ -152,10 +152,10 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
     }
   }, 10 * 60_000)
   prune.unref()
-  // Reminders: checked every few minutes, each sent once (notifications.ts).
+  // Reminders: checked every minute (calendar reminders are to the minute), each sent once (notifications.ts).
   const remind = setInterval(() => {
     void runReminders(services).catch((e) => console.error('Sending reminders failed', e))
-  }, 5 * 60_000)
+  }, 60_000)
   remind.unref()
   server.on('close', () => {
     clearInterval(prune)

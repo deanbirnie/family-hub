@@ -69,6 +69,23 @@ export interface Contact {
   keepInTouch: KeepInTouch
   /** IDs of the groups they are in ("Book club", "Christmas card list"). */
   groups: string[]
+  /**
+   * Family members kept on this contact rather than as contacts of their own
+   * (e.g. a friend's young daughter): a name and a birthday with reminders.
+   */
+  members: Member[]
+}
+
+export interface Member {
+  id: string
+  name: string
+  kind: 'child'
+  /** Birthday: YYYY-MM-DD or --MM-DD; null if not known. */
+  date: string | null
+  remind: Remind
+  remindFor: string
+  /** The other parent's contact, where the child is shown too. */
+  alsoOf: string | null
 }
 
 /** Fills in what contacts saved before phase 3 do not have. */
@@ -87,6 +104,7 @@ export function normalise(raw: Partial<Contact>): Contact {
     about: { howWeMet: '', interests: '', food: '', sizes: '', ...(raw.about ?? {}) },
     keepInTouch: { everyDays: 0, since: null, lastContact: null, remindFor: 'all', ...(raw.keepInTouch ?? {}) },
     groups: raw.groups ?? [],
+    members: raw.members ?? [],
   }
 }
 
@@ -249,6 +267,8 @@ export function contactFrom(body: Record<string, unknown>, parents: Set<string> 
       }
       return [...new Set(g as string[])]
     })(),
+    // Family members are changed through their own routes; a contact edit keeps them.
+    members: previous?.members ?? [],
   }
 }
 
@@ -264,6 +284,66 @@ export function allRelations(s: Services): (Relation & { id: string })[] {
     id: r.id,
     ...(JSON.parse(s.serverKey.open(r.sealed, 'relation', r.id)) as Relation),
   }))
+}
+
+export interface ContactDate {
+  /** Stable: which date this is. */
+  key: string
+  contactId: string
+  /** "Gran’s birthday", "Isla’s birthday". */
+  title: string
+  kind: ImportantDate['kind']
+  /** YYYY-MM-DD or --MM-DD. */
+  date: string
+  remind: Remind
+  remindFor: string
+  /** For someone who has died: birthdays and anniversaries stop. */
+  stopped: boolean
+  /** "Wade’s daughter", for children kept on a contact. */
+  of: string | null
+}
+
+const DATE_WORDS: Record<ImportantDate['kind'], string> = { birthday: 'birthday', anniversary: 'anniversary', memorial: 'memorial', other: 'date' }
+
+/** Every date in Contacts (and of children kept on contacts), opened from the sealed contacts. */
+export function contactDates(s: Services): ContactDate[] {
+  const out: ContactDate[] = []
+  for (const row of s.db.prepare('SELECT id, sealed FROM contacts').all() as { id: string; sealed: string }[]) {
+    let c: Contact
+    try {
+      c = openContact(s, row)
+    } catch {
+      continue
+    }
+    for (const d of c.dates) {
+      out.push({
+        key: `c:${row.id}:${d.id}`,
+        contactId: row.id,
+        title: `${c.name}’s ${d.label || DATE_WORDS[d.kind]}`,
+        kind: d.kind,
+        date: d.date,
+        remind: d.remind,
+        remindFor: d.remindFor || 'all',
+        stopped: c.deceased && (d.kind === 'birthday' || d.kind === 'anniversary'),
+        of: null,
+      })
+    }
+    for (const m of c.members) {
+      if (!m.date) continue
+      out.push({
+        key: `m:${row.id}:${m.id}`,
+        contactId: row.id,
+        title: `${m.name}’s birthday`,
+        kind: 'birthday',
+        date: m.date,
+        remind: m.remind,
+        remindFor: m.remindFor || 'all',
+        stopped: false,
+        of: c.name,
+      })
+    }
+  }
+  return out
 }
 
 export function contactRoutes(api: Api, s: Services): void {
@@ -345,6 +425,13 @@ export function contactRoutes(api: Api, s: Services): void {
     const r = find(ctx.params.id!)
     db.prepare('DELETE FROM contacts WHERE id = ?').run(r.id)
     for (const rel of allRelations(s)) if (rel.a === r.id || rel.b === r.id) db.prepare('DELETE FROM contact_relations WHERE id = ?').run(rel.id)
+    // Children shown under this contact too are now shown only under their own parent.
+    for (const other of db.prepare('SELECT * FROM contacts').all() as unknown as ContactRow[]) {
+      const c = open(other)
+      if (c.members.some((m) => m.alsoOf === r.id)) {
+        db.prepare('UPDATE contacts SET sealed = ?, version = version + 1 WHERE id = ?').run(seal(other.id, { ...c, members: c.members.map((m) => (m.alsoOf === r.id ? { ...m, alsoOf: null } : m)) }), other.id)
+      }
+    }
     // No longer anyone's emergency contact.
     for (const p of db.prepare('SELECT id, emergency FROM family_profiles WHERE emergency IS NOT NULL').all() as { id: string; emergency: string }[]) {
       const e = openEmergency(s, p.id, p.emergency)
@@ -596,13 +683,17 @@ export function contactRoutes(api: Api, s: Services): void {
       const scope = exportScope(m[1]!, true)
       const names = new Map(all().map((c) => [c.id, c.name]))
       const relations = allRelations(s)
-      const relatedTo = (cid: string): Related[] =>
-        relations.flatMap((r): Related[] => {
+      const everyone = all()
+      const relatedTo = (cid: string): Related[] => [
+        ...relations.flatMap((r): Related[] => {
           // r.a is r.b's <kind>.
           if (r.b === cid && names.has(r.a)) return [{ name: names.get(r.a)!, kind: r.kind, label: r.label }]
           if (r.a === cid && names.has(r.b)) return [{ name: names.get(r.b)!, kind: INVERSE_RELATION[r.kind], label: r.label }]
           return []
-        })
+        }),
+        // Children kept on this contact, or on their other parent's.
+        ...everyone.flatMap((c) => c.members.filter((m) => c.id === cid || m.alsoOf === cid).map((m): Related => ({ name: m.name, kind: 'child', label: '' }))),
+      ]
       const body = scope.contacts.map((c) => toVCard(c, withNotes, relatedTo(c.id))).join('')
       s.audit('contacts.exported', ctx, ctx.user.id, `${scope.contacts.length} vcard${withNotes ? ' with notes' : ''}`)
       download(ctx, 'text/vcard; charset=utf-8', `${safeName(scope.name)}.vcf`, body)
@@ -612,11 +703,10 @@ export function contactRoutes(api: Api, s: Services): void {
     if (!m) throw new HttpError(404, 'Not found.', 'not_found')
     const scope = exportScope(m[1]!, false)
     if (m[2] === 'dates.ics') {
-      const entries: CalendarEntry[] = scope.contacts.flatMap((c) =>
-        c.dates
-          .filter((d) => !c.deceased || (d.kind !== 'birthday' && d.kind !== 'anniversary'))
-          .map((d) => ({ uid: `${c.id}-${d.id}@family-hub`, summary: `${c.name}’s ${d.kind === 'other' ? d.label : d.label || d.kind}`, date: d.date })),
-      )
+      const ids = new Set(scope.contacts.map((c) => c.id))
+      const entries: CalendarEntry[] = contactDates(s)
+        .filter((d) => ids.has(d.contactId) && !d.stopped)
+        .map((d) => ({ uid: `${d.key.replace(/:/g, '-')}@family-hub`, summary: d.title, date: d.date }))
       s.audit('contacts.exported', ctx, ctx.user.id, `${entries.length} dates`)
       download(ctx, 'text/calendar; charset=utf-8', `${safeName(scope.name)} dates.ics`, toICS(entries, s.now(), Number(today().slice(0, 4))))
     } else {
@@ -705,6 +795,59 @@ export function contactRoutes(api: Api, s: Services): void {
       db.exec('ROLLBACK')
       throw e
     }
+  })
+
+  // ---- family members kept on a contact ---------------------------------------------------
+
+  const memberFrom = (body: Record<string, unknown>, contactId: string, id: string): Member => {
+    const name = str(body, 'name', { max: 100 })
+    const raw = body.date
+    const date = raw === undefined || raw === null || raw === '' ? null : String(raw)
+    if (date !== null && !parseDate(date)) throw new HttpError(400, 'Birthdays need a real day and month (the year is optional).', 'invalid')
+    const remind = (body.remind ?? (date ? 'week' : 'off')) as Remind
+    if (!(remind in REMIND)) throw new HttpError(400, 'Unknown reminder choice.', 'invalid')
+    const remindFor = typeof body.remindFor === 'string' && body.remindFor ? body.remindFor : 'all'
+    if (remindFor !== 'all' && !parentIds().has(remindFor)) throw new HttpError(400, 'Reminders go to a parent.', 'invalid')
+    let alsoOf: string | null = null
+    if (typeof body.alsoOf === 'string' && body.alsoOf) {
+      if (body.alsoOf === contactId) throw new HttpError(400, 'Choose the other parent.', 'invalid')
+      alsoOf = find(body.alsoOf).id
+    }
+    return { id, name, kind: 'child', date, remind, remindFor, alsoOf }
+  }
+  const saveMembers = (ctx: Parameters<Parameters<Api['authed']>[3]>[0], r: ContactRow, members: Member[]) => {
+    db.prepare('UPDATE contacts SET sealed = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE id = ?').run(seal(r.id, { ...open(r), members }), s.now(), ctx.user.id, r.id)
+    s.audit('contacts.member_changed', ctx, ctx.user.id)
+    return { contact: info(find(r.id)) }
+  }
+
+  /** Adds a child to a contact (not a contact of their own): a name, and a birthday with reminders. */
+  api.authed('POST', '/api/contacts/:id/members', parents, async (ctx) => {
+    const r = find(ctx.params.id!)
+    const current = open(r).members
+    if (current.length >= 20) throw new HttpError(409, 'That is as many as one contact can hold.', 'too_many')
+    return saveMembers(ctx, r, [...current, memberFrom(await readJson(ctx.req), r.id, newId())])
+  })
+
+  api.authed('PUT', '/api/contacts/:id/members/:memberId', parents, async (ctx) => {
+    const r = find(ctx.params.id!)
+    const current = open(r).members
+    const at = current.findIndex((m) => m.id === ctx.params.memberId)
+    if (at < 0) throw new HttpError(404, 'They have been removed.', 'not_found')
+    const next = [...current]
+    next[at] = memberFrom(await readJson(ctx.req), r.id, current[at]!.id)
+    return saveMembers(ctx, r, next)
+  })
+
+  api.authed('DELETE', '/api/contacts/:id/members/:memberId', parents, (ctx) => {
+    const r = find(ctx.params.id!)
+    const current = open(r).members
+    if (!current.some((m) => m.id === ctx.params.memberId)) throw new HttpError(404, 'They have been removed.', 'not_found')
+    return saveMembers(
+      ctx,
+      r,
+      current.filter((m) => m.id !== ctx.params.memberId),
+    )
   })
 
   /** A person's emergency contacts (from Quick Info), by contact ID. */
