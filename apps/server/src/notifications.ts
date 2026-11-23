@@ -32,11 +32,13 @@ export interface NotificationSettings {
   touch: boolean
   /** Calendar event reminders (as chosen on each event). */
   events: boolean
+  /** Health reminders: prescriptions, vaccinations, measuring, check-ups (Health). */
+  health: boolean
   /** Hour of the day (family time zone) from which reminders are sent. */
   sendHour: number
 }
 
-export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, dates: true, touch: true, events: true, sendHour: 8 }
+export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, dates: true, touch: true, events: true, health: true, sendHour: 8 }
 
 export function getSettings(s: Services, userId: string): NotificationSettings {
   const row = s.db.prepare('SELECT settings FROM notification_settings WHERE user_id = ?').get(userId) as { settings: string } | undefined
@@ -49,6 +51,7 @@ export function getSettings(s: Services, userId: string): NotificationSettings {
       dates: typeof raw.dates === 'boolean' ? raw.dates : DEFAULT_SETTINGS.dates,
       touch: typeof raw.touch === 'boolean' ? raw.touch : DEFAULT_SETTINGS.touch,
       events: typeof raw.events === 'boolean' ? raw.events : DEFAULT_SETTINGS.events,
+      health: typeof raw.health === 'boolean' ? raw.health : DEFAULT_SETTINGS.health,
       sendHour: Number.isInteger(raw.sendHour) && raw.sendHour! >= 0 && raw.sendHour! <= 23 ? raw.sendHour! : DEFAULT_SETTINGS.sendHour,
     }
   } catch {
@@ -146,7 +149,7 @@ export const subscriptionsOf = (s: Services, userId: string) =>
 
 // ---- what can be due --------------------------------------------------------------------
 
-export type Category = 'expiry' | 'dates' | 'touch'
+export type Category = 'expiry' | 'dates' | 'touch' | 'health'
 
 export interface ReminderItem {
   /** Stable across runs: which reminder this is. */
@@ -199,6 +202,41 @@ function quickInfoItems(s: Services): ReminderItem[] {
     audience: 'all',
     horizon: 90,
   }))
+}
+
+/**
+ * Health reminders, registered by a parent's device (the server cannot read
+ * Health): only "a health reminder · person · date" and how far ahead. The
+ * details are in the app, once the vault is open.
+ */
+function healthItems(s: Services): ReminderItem[] {
+  const rows = s.db
+    .prepare(
+      `SELECT r.id, r.due, r.leads, p.display_name AS whose
+       FROM reminders r LEFT JOIN family_profiles p ON p.id = r.profile_id WHERE r.source = 'health'`,
+    )
+    .all() as { id: string; due: string; leads: string | null; whose: string | null }[]
+  return rows.map((r) => {
+    let leads = [0]
+    try {
+      const parsed = JSON.parse(r.leads ?? '[0]') as unknown
+      if (Array.isArray(parsed) && parsed.every((n) => Number.isInteger(n) && n >= 0 && n <= 90)) leads = parsed as number[]
+    } catch {
+      // the default
+    }
+    return {
+      key: `h:${r.id}`,
+      category: 'health' as const,
+      title: 'Health reminder',
+      whose: r.whose,
+      due: { date: r.due, yearly: false },
+      leads,
+      notice: () => 'A health reminder is due. Tap to see.',
+      url: '/health',
+      audience: 'all',
+      horizon: 30,
+    }
+  })
 }
 
 /**
@@ -356,7 +394,7 @@ export function eventReminders(s: Services, nowMs: number): EventReminder[] {
 
 /** Every reminder there is. */
 export function allItems(s: Services): ReminderItem[] {
-  return [...quickInfoItems(s), ...contactDateItems(s)]
+  return [...quickInfoItems(s), ...contactDateItems(s), ...healthItems(s)]
 }
 
 export interface DueNow {
@@ -392,6 +430,8 @@ export function upcoming(s: Services, today: string, userId: string) {
     if (!date) continue
     const daysLeft = daysBetween(today, date)
     if (daysLeft > item.horizon || daysLeft < -30) continue
+    // A health reminder that has passed is no longer "coming up".
+    if (item.category === 'health' && daysLeft < 0) continue
     out.push({ key: item.key, title: item.title, whose: item.whose, detail: item.detail?.(date) ?? null, date, daysLeft, url: item.url, category: item.category })
   }
   return out.sort((a, b) => a.daysLeft - b.daysLeft || a.title.localeCompare(b.title))

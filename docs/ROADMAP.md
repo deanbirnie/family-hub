@@ -544,11 +544,11 @@ then save or share.
 
 **5b. Vaccinations, growth, appointments, reminders**
 
-- [ ] The SA childhood schedule per child (editable), with missed, held
+- [x] The SA childhood schedule per child (editable), with missed, held
       back, not applicable and extra vaccinations.
-- [ ] Growth measurements, chart, and measuring reminders.
-- [ ] Appointments, with the calendar choice and "How did it go?".
-- [ ] Health reminders (repeats, script expiry, follow-ups, vaccinations,
+- [x] Growth measurements, chart, and measuring reminders.
+- [x] Appointments, with the calendar choice and "How did it go?".
+- [x] Health reminders (repeats, script expiry, follow-ups, vaccinations,
       check-ups) through the notifications.
 
 **5c. Episodes**
