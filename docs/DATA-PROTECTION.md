@@ -212,14 +212,14 @@ the only way in.
 
 | Phase | Data | Proposed tier | Why |
 |---|---|---|---|
-| 5 Lists, chores, noticeboard | Items, chores, notices | P | Everyday and low-risk; live sync is simpler. |
-| 6 Meals | Plans, recipes | P | Not personal. Allergies come from Health, not stored here. |
-| 7 Household admin | Bills, amounts, budgets | S | Financial, but the server must send due-date reminders. |
-| 7 Household admin | Bank account or card numbers | E2E, or don't store at all | Fraud risk. |
-| 7 Home & car | Service history, warranties | P or S | Low risk; decide with the phase. |
-| 8 Health | Allergies, conditions, medications, history, treatment plans | E2E | Health data; already agreed. |
-| 8 Health | Repeat-prescription reminders | P (what · whose · when only) | Same split as Quick Info reminders. |
-| 8 Health | Offline emergency card on the phone | E2E, opened by biometric | Already agreed. |
+| 5 Health | Allergies, conditions, medications, history, treatment plans | E2E | Health data; already agreed. To be settled in detail at the start of the phase. |
+| 5 Health | Repeat-prescription reminders | P (what · whose · when only) | Same split as Quick Info reminders. |
+| 5 Health | Offline emergency card on the phone | E2E, opened by biometric | Already agreed. |
+| 6 Household admin | Bills, amounts, budgets | S | Financial, but the server must send due-date reminders. |
+| 6 Household admin | Bank account or card numbers | E2E, or don't store at all | Fraud risk. |
+| 6 Home & car | Service history, warranties | P or S | Low risk; decide with the phase. |
+| 7 Lists, chores, noticeboard | Items, chores, notices | S suggested (was P) | Posts and to-dos can hold things like "key under the mat"; decide with the phase. |
+| 8 Meals | Plans, recipes | P | Not personal. Allergies come from Health, not stored here. |
 | 9 Wishlists | A family member's own wishlist, and ideas others add for them | S | Hidden from the recipient by access rules, not encryption. (Gift ideas for friends and family are in phase 3.) |
 | 9 In case of emergency | Instructions for a trusted person | ❓ | Released after a waiting period, which needs either server access (S) or key escrow to the trusted person (E2E). Decide with the phase. |
 

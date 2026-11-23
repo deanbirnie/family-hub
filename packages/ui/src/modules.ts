@@ -8,6 +8,7 @@ import {
   CalendarDays,
   ChefHat,
   FolderOpen,
+  HeartPulse,
   IdCard,
   ListChecks,
   Megaphone,
@@ -69,13 +70,23 @@ export const MODULES: HubModule[] = [
     phase: 4,
   },
   {
+    id: 'health',
+    name: 'Health',
+    path: '/health',
+    icon: HeartPulse,
+    description: 'Each person’s allergies, medicines, conditions, history and doctors, end-to-end encrypted, with an emergency card on the phone.',
+    status: 'next',
+    phase: 5,
+    parentsOnly: true,
+  },
+  {
     id: 'lists',
     name: 'Lists & chores',
     path: '/lists',
     icon: ListChecks,
     description: 'Shopping lists, to-dos and a chore rota everyone can tick off.',
     status: 'planned',
-    phase: 5,
+    phase: 7,
   },
   {
     id: 'meals',
@@ -84,7 +95,7 @@ export const MODULES: HubModule[] = [
     icon: ChefHat,
     description: 'Plan the week’s meals, keep favourite recipes, and send ingredients to the shopping list.',
     status: 'planned',
-    phase: 6,
+    phase: 8,
   },
   {
     id: 'board',
@@ -93,7 +104,7 @@ export const MODULES: HubModule[] = [
     icon: Megaphone,
     description: 'Announcements and notes for the whole family, with push notifications.',
     status: 'planned',
-    phase: 5,
+    phase: 7,
   },
   {
     id: 'money',
@@ -102,7 +113,7 @@ export const MODULES: HubModule[] = [
     icon: PiggyBank,
     description: 'Due dates for bills and renewals, and a simple shared budget.',
     status: 'planned',
-    phase: 7,
+    phase: 6,
   },
   {
     id: 'home',
@@ -111,6 +122,6 @@ export const MODULES: HubModule[] = [
     icon: Wrench,
     description: 'Service dates, warranties, manuals and contacts for the house and cars.',
     status: 'planned',
-    phase: 7,
+    phase: 6,
   },
 ]
