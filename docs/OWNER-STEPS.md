@@ -251,6 +251,21 @@ On each parent's phone, once it has the app version with notifications
       tick "Also … 's child" so it shows under both. Birthdays then show on
       the calendar and remind you a week before.
 
+## 16. Outside calendars (after the "outside calendars" pull request is merged and deployed)
+
+- [ ] 1. **Calendar → Outside calendars**: public holidays are on; untick if
+      you don't want them.
+- [ ] 2. For the school's or club's calendar: copy its calendar link (often
+      "Subscribe", "iCal" or "webcal"), then **Follow a calendar**: name it,
+      paste the link, tag who it is for. Its events wait in the **Inbox**:
+      accept the ones you want. Tick "Always accept" only for calendars you
+      trust.
+- [ ] 3. To bring your existing Google Calendar across once: in Google
+      Calendar, Settings → Import & export → Export, unzip, then **Import a
+      file once** here and accept from the Inbox.
+- [ ] 4. The home server must be able to reach those calendar sites over
+      the internet (it fetches them every 6 hours).
+
 ## Later steps (added as features land)
 
 - Nothing yet.

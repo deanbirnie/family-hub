@@ -405,6 +405,23 @@ try {
   if (!evText.includes('SUMMARY:Swimming') || !evText.includes('RRULE:FREQ=WEEKLY')) throw new Error(`unexpected event export:\n${evText}`)
   await shot(page, '07i-calendar')
   await page.getByRole('dialog').getByRole('button', { name: 'Close' }).first().click()
+  // Importing an .ics file: its events wait in the inbox until accepted.
+  const concert = new Date(Date.now() + 3 * 86_400_000)
+  const concertDay = `${concert.getFullYear()}${String(concert.getMonth() + 1).padStart(2, '0')}${String(concert.getDate()).padStart(2, '0')}`
+  await page.getByRole('button', { name: 'Outside calendars' }).click()
+  await page.getByRole('dialog').getByLabel('Calendar file').setInputFiles({
+    name: 'school.ics',
+    mimeType: 'text/calendar',
+    buffer: Buffer.from(`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:concert@school\r\nDTSTART;VALUE=DATE:${concertDay}\r\nSUMMARY:School concert\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`),
+  })
+  await page.getByRole('dialog').getByText('1 event is waiting in the inbox').waitFor()
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).last().click()
+  await page.getByRole('button', { name: 'Inbox (1)' }).click()
+  await page.getByRole('dialog').getByText('School concert').waitFor()
+  await page.getByRole('dialog').getByRole('button', { name: 'Accept School concert' }).click()
+  await page.getByRole('dialog').getByText('Nothing waiting.').waitFor()
+  await page.getByRole('dialog').getByRole('button', { name: 'Close' }).last().click()
+  await page.getByRole('button', { name: /School concert/ }).first().waitFor()
   const nav2 = page.getByRole('navigation', { name: 'Main' }).first()
   await nav2.getByRole('link', { name: 'Quick Info' }).click()
   await alexCard.getByRole('button', { name: 'Choose emergency contacts' }).click()

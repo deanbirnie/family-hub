@@ -1768,3 +1768,7 @@ progress {
 .colour-name {
   min-width: 8rem;
 }
+.inbox-list > li {
+  flex-direction: column;
+  align-items: stretch;
+}

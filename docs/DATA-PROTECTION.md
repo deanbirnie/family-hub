@@ -185,6 +185,8 @@ contacts anyway.
 
 ### Family calendar (phase 4)
 
+The public-holiday setting (on or off) is a plain setting. Holidays are worked out on the server; nothing is fetched for them.
+
 | Data | Where | Tier | Status |
 |---|---|---|---|
 | Events: title, start and end, all-day, repeat rule and changed or cancelled days, tags (people or Family), location, notes, links to a contact and a file (with the file's name), reminder choices | `events.sealed`: one value per event, bound to its ID (times included, so routines cannot be read from the database) | S | ✅ (reminders: 4b) |
@@ -194,13 +196,13 @@ contacts anyway.
 | Reminder notification text | Generic ("An event starts in 1 hour. Tap to see."), encrypted to the device | RFC 8291 | ✅ |
 | Birthdays on the calendar | Read from Contacts each time; never copied; name, day and age only, for everyone in the family | (Contacts' tiers) | ✅ |
 | Family members kept on a contact (e.g. a friend's young child: name, birthday, reminder, and which other contact they are shown under) | Inside the parent contact's sealed value | S | ✅ |
-| Subscription links, names, default tags and colours | One sealed value per subscription | S (links can contain secret tokens) | 🔜 |
-| Events fetched from subscriptions, waiting in the inbox | Sealed per item; cleared after 30 days | S | 🔜 |
-| Which subscribed events were ignored or accepted | Source event IDs (hashed) and the accepted event's ID | H / P | 🔜 |
-| Subscription health: last fetched, last error | Subscription columns | P | 🔜 |
+| Subscription links, names, default tags and "always accept" | `calendar_subscriptions.sealed`, one per subscription, bound to its ID | S (links can contain secret tokens) | ✅ |
+| Events fetched from subscriptions or imports, waiting in the inbox | `calendar_inbox.sealed` per item, bound to its ID; cleared after 30 days | S | ✅ |
+| Which outside events were accepted or ignored | `calendar_links`: a hash of the source's event ID, a hash of its contents (to spot changes), the accepted event's ID | H / P | ✅ |
+| Subscription health: last fetched, last success, last error | `calendar_subscriptions` columns | P | ✅ |
 | `.ics` exports (one event, or a date range for everyone, Family or one person) | Downloaded to the person's device; notes left out unless chosen | Plain file on the device | ✅ |
-| `.ics` imports | Read in memory into the inbox (sealed); the file is not kept | Not stored | 🔜 |
-| Calendar events (added, changed, removed, exported, subscriptions added or removed; never details) | `audit_log` | P | ✅ (4a, 4b) |
+| `.ics` imports | Read in memory into the inbox (sealed); the file is not kept | Not stored | ✅ |
+| Calendar events (added, changed, removed, exported, imported, subscriptions added or removed with the calendar's host name; never details) | `audit_log` | P | ✅ |
 
 Nothing outside the hub reads the calendar live (no iCal feed or CalDAV):
 exports are files a person chooses to send, so two-factor sign-in remains

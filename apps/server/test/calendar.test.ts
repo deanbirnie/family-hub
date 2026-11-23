@@ -32,7 +32,9 @@ async function family() {
   return { client, kid, me: me.body.profile.id, sam: sam.body.profile.id }
 }
 
-const list = async (c: Client, from: string, to: string) => (await c.get<{ events: Occurrence[] }>(`/api/calendar/events?from=${from}&to=${to}`)).body.events
+/** The family's own events (public holidays and birthdays are shown too, read-only). */
+const list = async (c: Client, from: string, to: string) =>
+  (await c.get<{ events: (Occurrence & { readOnly?: boolean })[] }>(`/api/calendar/events?from=${from}&to=${to}`)).body.events.filter((e) => !e.readOnly)
 
 describe('family calendar', () => {
   it('keeps events tagged by person or Family, sealed, and visible to everyone', async () => {

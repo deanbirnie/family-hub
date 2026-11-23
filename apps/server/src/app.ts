@@ -23,6 +23,8 @@ import { maintainFiles } from './file-maintenance.ts'
 import type { ServerKey } from './server-key.ts'
 import { notificationRoutes } from './routes/notifications.ts'
 import { calendarRoutes } from './routes/calendar.ts'
+import { calendarSyncRoutes, syncDue } from './routes/calendar-sync.ts'
+import { fetchIcs, type IcsFetcher } from './fetch-ics.ts'
 import { runReminders } from './notifications.ts'
 import { defaultPushFetch, type PushFetch } from './webpush.ts'
 
@@ -36,6 +38,8 @@ export interface AppOptions {
   now?: () => number
   /** How push notifications are sent; tests replace it. */
   pushFetch?: PushFetch
+  /** How outside calendars are fetched; tests replace it. */
+  icsFetch?: IcsFetcher
 }
 
 /** Everything a route needs. */
@@ -46,6 +50,7 @@ export interface Services {
   argon2: Argon2Params
   now: () => number
   pushFetch: PushFetch
+  icsFetch: IcsFetcher
   limits: {
     /** Sign-in attempts per address. */
     signIn: RateLimiter
@@ -89,6 +94,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
     argon2: opts.argon2 ?? DEFAULT_ARGON2,
     now: opts.now ?? Date.now,
     pushFetch: opts.pushFetch ?? defaultPushFetch,
+    icsFetch: opts.icsFetch ?? fetchIcs,
     limits: {
       signIn: new RateLimiter(30, 15 * 60_000),
       open: new RateLimiter(60, 15 * 60_000),
@@ -127,6 +133,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   contactRoutes(api, services)
   notificationRoutes(api, services)
   calendarRoutes(api, services)
+  calendarSyncRoutes(api, services)
 
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     void dispatch(services, router, req, res)
@@ -147,6 +154,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
       services.limits.open.prune()
       services.limits.accounts.prune()
       void maintainFiles(services).catch((e) => console.error('Document cleanup failed', e))
+      void syncDue(services).catch((e) => console.error('Calendar subscriptions failed', e))
     } catch {
       // the next run will try again
     }
