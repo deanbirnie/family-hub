@@ -316,6 +316,35 @@ const MIGRATIONS: string[] = [
     updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
   );
   `,
+  // 14: Outside calendars (phase 4c, routes/calendar-sync.ts): subscriptions
+  // and inbox items sealed with the server key; which outside events were
+  // accepted or ignored, by a hash of their source ID.
+  `
+  CREATE TABLE calendar_subscriptions (
+    id TEXT PRIMARY KEY,
+    sealed TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    last_fetch_at INTEGER,
+    last_ok_at INTEGER,
+    last_error TEXT
+  );
+  CREATE TABLE calendar_inbox (
+    id TEXT PRIMARY KEY,
+    subscription_id TEXT REFERENCES calendar_subscriptions(id) ON DELETE CASCADE,
+    uid_hash TEXT NOT NULL,
+    sealed TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX calendar_inbox_uid ON calendar_inbox (uid_hash);
+  CREATE TABLE calendar_links (
+    uid_hash TEXT PRIMARY KEY,
+    subscription_id TEXT REFERENCES calendar_subscriptions(id) ON DELETE CASCADE,
+    event_id TEXT REFERENCES events(id) ON DELETE SET NULL,
+    state TEXT NOT NULL CHECK (state IN ('accepted', 'ignored')),
+    fingerprint TEXT NOT NULL
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

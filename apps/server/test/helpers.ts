@@ -9,6 +9,7 @@ import { openDb } from '../src/db.ts'
 import { loadServerKey } from '../src/server-key.ts'
 import { totpAt } from '../src/totp.ts'
 import type { PushFetch } from '../src/webpush.ts'
+import type { IcsFetcher } from '../src/fetch-ics.ts'
 
 export const PASSWORD = 'correct horse battery staple'
 
@@ -20,7 +21,7 @@ export interface TestServer {
   close(): Promise<void>
 }
 
-export async function startServer(overrides: Partial<Config> = {}, options: { pushFetch?: PushFetch } = {}): Promise<TestServer> {
+export async function startServer(overrides: Partial<Config> = {}, options: { pushFetch?: PushFetch; icsFetch?: IcsFetcher } = {}): Promise<TestServer> {
   const clock = { now: Date.UTC(2026, 10, 20, 12, 0, 0) }
   const config: Config = {
     port: 0,
@@ -46,6 +47,7 @@ export async function startServer(overrides: Partial<Config> = {}, options: { pu
     argon2: { memory: 1024, passes: 1, parallelism: 1 },
     now: () => clock.now,
     pushFetch: options.pushFetch,
+    icsFetch: options.icsFetch,
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const { port } = server.address() as AddressInfo

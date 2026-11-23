@@ -4,7 +4,7 @@
  * Everyone in the family sees, adds and edits every event. Events go out to
  * other calendar apps only as .ics files.
  */
-import { Bell, Cake, CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Download, FileText, Home, MapPin, Palette, Pencil, Plus, Repeat as RepeatIcon, Trash2, User } from 'lucide-react'
+import { Bell, Cake, CalendarDays, Flag, Globe, CalendarPlus, ChevronLeft, ChevronRight, Download, FileText, Home, MapPin, Palette, Pencil, Plus, Repeat as RepeatIcon, Trash2, User } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../api.ts'
 import { saveFromApi } from '../download.ts'
@@ -40,6 +40,7 @@ import {
   type ViewOf,
   type Weekday,
 } from './model.ts'
+import { InboxButton, InboxDialog, OutsideDialog } from './Outside.tsx'
 
 type Layout = 'month' | 'week' | 'agenda'
 
@@ -71,7 +72,7 @@ function stripe(people: Person[], tags: string[]) {
 function EventPill({ o, people, onOpen }: { o: Occurrence; people: Person[]; onOpen: (o: Occurrence) => void }) {
   return (
     <button className="event-pill" style={{ ['--stripe' as string]: stripe(people, o.tags) }} onClick={() => onOpen(o)} title={`${o.title} · ${whenText(o)}`}>
-      {o.readOnly && <Cake size={12} aria-hidden />}
+      {o.readOnly && (o.kind === 'holiday' ? <Flag size={12} aria-hidden /> : <Cake size={12} aria-hidden />)}
       {!o.allDay && <span className="event-time">{timeOf(o.start)}</span>}
       <span className="event-title">{o.title}</span>
     </button>
@@ -89,6 +90,12 @@ export function CalendarPage({ ctx }: { ctx: HubContext }) {
   const [exporting, setExporting] = useState(false)
   const [colours, setColours] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
+  const [inboxOpen, setInboxOpen] = useState(false)
+  const [outside, setOutside] = useState(false)
+  const inboxCount = useLoad(
+    () => (ctx.user.role === 'admin' ? api.get<{ items: unknown[] }>('/api/calendar/inbox') : Promise.resolve({ items: [] })),
+    [api, ctx.user.role],
+  )
 
   const range = useMemo(() => {
     if (layout === 'month') {
@@ -122,6 +129,12 @@ export function CalendarPage({ ctx }: { ctx: HubContext }) {
             <Button variant="secondary" icon={<Download size={16} aria-hidden />} onClick={() => setExporting(true)}>
               Send out
             </Button>
+            {ctx.user.role === 'admin' && <InboxButton count={inboxCount.data?.items.length ?? 0} onClick={() => setInboxOpen(true)} />}
+            {ctx.user.role === 'admin' && (
+              <Button variant="ghost" icon={<Globe size={16} aria-hidden />} onClick={() => setOutside(true)}>
+                Outside calendars
+              </Button>
+            )}
             {ctx.user.role === 'admin' && (
               <Button variant="ghost" icon={<Palette size={16} aria-hidden />} onClick={() => setColours(true)}>
                 Colours
@@ -237,6 +250,28 @@ export function CalendarPage({ ctx }: { ctx: HubContext }) {
       )}
       {exporting && people.data && <SendOutDialog ctx={ctx} people={list} me={me} onClose={() => setExporting(false)} />}
       {colours && people.data && <ColoursDialog ctx={ctx} people={list} onClose={() => (setColours(false), people.reload())} />}
+      {inboxOpen && people.data && (
+        <InboxDialog
+          ctx={ctx}
+          people={list}
+          onClose={(changed) => {
+            setInboxOpen(false)
+            inboxCount.reload()
+            if (changed) reload()
+          }}
+        />
+      )}
+      {outside && people.data && (
+        <OutsideDialog
+          ctx={ctx}
+          people={list}
+          onClose={(changed) => {
+            setOutside(false)
+            inboxCount.reload()
+            if (changed) reload()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -307,7 +342,7 @@ function DayList({ day, items, people, onOpen, onAdd, compact }: { day: string; 
             <button className="cal-item" style={{ ['--stripe' as string]: stripe(people, o.tags) }} onClick={() => onOpen(o)}>
               <span className="cal-item-when muted small">{whenText(o)}</span>
               <span className="cal-item-title">
-                {o.readOnly && <Cake size={14} aria-hidden />}
+                {o.readOnly && (o.kind === 'holiday' ? <Flag size={14} aria-hidden /> : <Cake size={14} aria-hidden />)}
                 {o.title}
                 {o.detail && <span className="muted small">{o.detail}</span>}
                 {o.repeat && <RepeatIcon size={12} aria-label="Repeats" />}
@@ -418,7 +453,12 @@ function EventView({ ctx, o, people, onClose, onEdit, onChanged }: { ctx: HubCon
             {o.fileName ?? 'Linked document'}
           </Button>
         )}
-        {o.readOnly && (
+        {o.readOnly && o.kind === 'holiday' && (
+          <p className="muted small">
+            <Flag size={14} aria-hidden /> South African public holiday. A parent can turn these off under Outside calendars.
+          </p>
+        )}
+        {o.readOnly && o.kind !== 'holiday' && (
           <p className="muted small">
             <Cake size={14} aria-hidden /> {o.detail ? `${o.detail}. ` : ''}From Contacts{ctx.user.role === 'admin' ? ': change it there.' : '.'}
           </p>

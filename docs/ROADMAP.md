@@ -314,7 +314,7 @@ reminders, export it and, later, sync it.
       the phone's calendar) syncs the family address book, birthdays
       included.
 
-## Phase 4 — Family calendar
+## Phase 4 — Family calendar ✅
 
 The family's calendar lives **inside the hub only**. Events can be sent out
 to Google Calendar, Outlook or a phone's calendar as files, but nothing
@@ -416,10 +416,10 @@ in the family sees them (name and day only).
 
 **4c. Outside calendars**
 
-- [ ] South African public holidays.
-- [ ] Subscriptions by link, with the Calendar inbox (accept, ignore,
+- [x] South African public holidays.
+- [x] Subscriptions by link, with the Calendar inbox (accept, ignore,
       always accept, changed and cancelled events) and clean-up.
-- [ ] One-off `.ics` import through the inbox.
+- [x] One-off `.ics` import through the inbox.
 
 ## Phase 5 — Lists, chores and noticeboard
 

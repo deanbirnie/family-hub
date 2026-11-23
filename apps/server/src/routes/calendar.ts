@@ -17,6 +17,8 @@ import { addDays, dayNum, occurrences, toRRule, WEEKDAYS, type Repeat, type Week
 import { newId } from '../secrets.ts'
 import { escapeText, fold } from '../vcard.ts'
 import { contactDates } from './contacts.ts'
+import { holidaysOn } from './calendar-sync.ts'
+import { southAfricanHolidays } from '../holidays.ts'
 import { parseDate } from '../schedule.ts'
 
 export const FAMILY = 'family'
@@ -317,9 +319,42 @@ export function calendarRoutes(api: Api, s: Services): void {
     return out
   }
 
+  /** South African public holidays (holidays.ts), when the family has them on. */
+  const holidayDays = (from: string, to: string) => {
+    if (!holidaysOn(s)) return []
+    const out = []
+    for (let y = Number(from.slice(0, 4)); y <= Number(to.slice(0, 4)); y++) {
+      for (const h of southAfricanHolidays(y)) {
+        if (h.date < from || h.date > to) continue
+        out.push({
+          eventId: `holiday:${h.date}`,
+          kind: 'holiday' as const,
+          readOnly: true,
+          version: 0,
+          day: h.date,
+          title: h.name,
+          detail: 'Public holiday',
+          allDay: true,
+          start: h.date,
+          end: h.date,
+          tags: [FAMILY],
+          location: '',
+          notes: '',
+          contactId: null,
+          fileId: null,
+          fileName: null,
+          repeat: null,
+          reminders: [],
+          changed: false,
+        })
+      }
+    }
+    return out
+  }
+
   api.authed('GET', '/api/calendar/events', signedIn, (ctx) => {
     const { from, to } = range(ctx.url)
-    const events = [...between(from, to, ctx.user.role === 'admin'), ...contactDays(from, to)]
+    const events = [...between(from, to, ctx.user.role === 'admin'), ...contactDays(from, to), ...holidayDays(from, to)]
     return { events: events.sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title)) }
   })
 

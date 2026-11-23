@@ -44,7 +44,7 @@ export interface Occurrence {
   changed: boolean
   /** Birthdays and other dates from Contacts: shown, not edited here. */
   readOnly?: boolean
-  kind?: 'birthday' | 'anniversary' | 'memorial' | 'other'
+  kind?: 'birthday' | 'anniversary' | 'memorial' | 'other' | 'holiday'
   /** "turns 80", "Wade’s · turns 4". */
   detail?: string | null
 }
