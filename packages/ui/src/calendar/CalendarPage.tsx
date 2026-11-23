@@ -4,7 +4,7 @@
  * Everyone in the family sees, adds and edits every event. Events go out to
  * other calendar apps only as .ics files.
  */
-import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Download, FileText, Home, MapPin, Palette, Pencil, Plus, Repeat as RepeatIcon, Trash2, User } from 'lucide-react'
+import { Bell, Cake, CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Download, FileText, Home, MapPin, Palette, Pencil, Plus, Repeat as RepeatIcon, Trash2, User } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../api.ts'
 import { saveFromApi } from '../download.ts'
@@ -12,6 +12,8 @@ import type { HubContext } from '../Shell.tsx'
 import { Banner, Button, Card, Dialog, Field, PageHeader, Spinner, useAction, useLoad } from '../ui.tsx'
 import {
   addDays,
+  ALL_DAY_REMINDERS,
+  TIMED_REMINDERS,
   addMonths,
   colourOf,
   daysBetween,
@@ -69,6 +71,7 @@ function stripe(people: Person[], tags: string[]) {
 function EventPill({ o, people, onOpen }: { o: Occurrence; people: Person[]; onOpen: (o: Occurrence) => void }) {
   return (
     <button className="event-pill" style={{ ['--stripe' as string]: stripe(people, o.tags) }} onClick={() => onOpen(o)} title={`${o.title} · ${whenText(o)}`}>
+      {o.readOnly && <Cake size={12} aria-hidden />}
       {!o.allDay && <span className="event-time">{timeOf(o.start)}</span>}
       <span className="event-title">{o.title}</span>
     </button>
@@ -304,8 +307,11 @@ function DayList({ day, items, people, onOpen, onAdd, compact }: { day: string; 
             <button className="cal-item" style={{ ['--stripe' as string]: stripe(people, o.tags) }} onClick={() => onOpen(o)}>
               <span className="cal-item-when muted small">{whenText(o)}</span>
               <span className="cal-item-title">
+                {o.readOnly && <Cake size={14} aria-hidden />}
                 {o.title}
+                {o.detail && <span className="muted small">{o.detail}</span>}
                 {o.repeat && <RepeatIcon size={12} aria-label="Repeats" />}
+                {o.reminders?.length > 0 && <Bell size={12} aria-label="Has reminders" />}
               </span>
               <span className="cal-item-tags">
                 {o.tags.map((t) => (
@@ -412,9 +418,19 @@ function EventView({ ctx, o, people, onClose, onEdit, onChanged }: { ctx: HubCon
             {o.fileName ?? 'Linked document'}
           </Button>
         )}
+        {o.readOnly && (
+          <p className="muted small">
+            <Cake size={14} aria-hidden /> {o.detail ? `${o.detail}. ` : ''}From Contacts{ctx.user.role === 'admin' ? ': change it there.' : '.'}
+          </p>
+        )}
+        {o.reminders?.length > 0 && !o.readOnly && (
+          <p className="muted small">
+            <Bell size={14} aria-hidden /> Reminders: {o.reminders.map((m) => (o.allDay ? ALL_DAY_REMINDERS : TIMED_REMINDERS).find(([v]) => v === m)?.[1] ?? `${m} min`).join(', ')}
+          </p>
+        )}
         {choosing && <ScopeChoice verb="Delete" onChoose={(scope) => void remove.run(scope)} onCancel={() => setChoosing(false)} />}
         {(remove.error || send.error || openFile.error) && <Banner kind="error">{remove.error || send.error || openFile.error}</Banner>}
-        {!choosing && (
+        {!choosing && !o.readOnly && (
           <div className="row">
             <Button icon={<Pencil size={16} aria-hidden />} onClick={onEdit}>
               Edit
@@ -459,6 +475,7 @@ function EventEditor({ ctx, people, me, occurrence, day, onClose }: { ctx: HubCo
     fileId: o?.fileId ?? '',
     fileName: o?.fileName ?? '',
     repeat: (o?.repeat ?? null) as Repeat | null,
+    reminders: o?.reminders ?? ([] as number[]),
     endsKind: (o?.repeat?.until ? 'until' : o?.repeat?.count ? 'count' : 'never') as 'never' | 'until' | 'count',
   }))
   const [choosing, setChoosing] = useState(false)
@@ -502,6 +519,7 @@ function EventEditor({ ctx, people, me, occurrence, day, onClose }: { ctx: HubCo
       contactId: isParent ? form.contactId || null : (o?.contactId ?? null),
       fileId: form.fileId || null,
       repeat,
+      reminders: form.reminders.filter((m) => (form.allDay ? ALL_DAY_REMINDERS : TIMED_REMINDERS).some(([v]) => v === m)),
     }
   }
   const save = useAction(async (scope: Scope = 'all') => {
@@ -686,6 +704,21 @@ function EventEditor({ ctx, people, me, occurrence, day, onClose }: { ctx: HubCo
             )}
           </div>
         )}
+        <fieldset className="radio-group">
+          <legend>Remind</legend>
+          <div className="row">
+            {(form.allDay ? ALL_DAY_REMINDERS : TIMED_REMINDERS).map(([m, label]) => (
+              <label key={m} className="check">
+                <input type="checkbox" checked={form.reminders.includes(m)} onChange={(e) => set('reminders', e.target.checked ? [...form.reminders, m] : form.reminders.filter((x) => x !== m))} />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+          {form.reminders.some((m) => m < 1440) && !form.allDay && (
+            <div className="field-hint">Short reminders arrive on time only with notifications on (a browser, or ntfy on the phone); a phone’s once-a-day check cannot deliver them in time.</div>
+          )}
+          <div className="field-hint">Reminders go to the people tagged who have their own account; for Family, and for children, to the parents.</div>
+        </fieldset>
         <Field label="Where" value={form.location} onChange={(e) => set('location', e.target.value)} maxLength={300} autoComplete="off" />
         <div className="field">
           <label htmlFor="ev-notes">Notes</label>

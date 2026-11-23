@@ -86,8 +86,8 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
     <Card title="Notifications" actions={here === 'on' ? <Badge tone="success">On here</Badge> : undefined}>
       <p className="muted">
         {parent
-          ? 'Reminders before passports and licence discs expire, and for birthdays and other dates in Contacts. Notifications never name anyone; the details are in the app. Everything due also shows under “Coming up” on the home page.'
-          : 'Notifications for the family hub. The details are only ever shown in the app.'}
+          ? 'Reminders for calendar events, before passports and licence discs expire, and for birthdays and other dates in Contacts. Notifications never name anyone; the details are in the app. Everything due also shows under “Coming up” on the home page.'
+          : 'Reminders for calendar events tagged to you. Notifications never say what the event is; the details are in the app.'}
       </p>
 
       {here === 'checking' || !data ? (
@@ -179,12 +179,18 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
             </ul>
           )}
 
+          <div className="stack">
+            <label className="check">
+              <input type="checkbox" checked={data.settings.enabled} onChange={(e) => void save.run({ enabled: e.target.checked })} />
+              <span>Send me reminders</span>
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={data.settings.events} disabled={!data.settings.enabled} onChange={(e) => void save.run({ events: e.target.checked })} />
+              <span>Calendar events (as chosen on each event)</span>
+            </label>
+          </div>
           {parent && (
             <div className="stack">
-              <label className="check">
-                <input type="checkbox" checked={data.settings.enabled} onChange={(e) => void save.run({ enabled: e.target.checked })} />
-                <span>Send me reminders</span>
-              </label>
               <label className="check">
                 <input type="checkbox" checked={data.settings.expiry} disabled={!data.settings.enabled} onChange={(e) => void save.run({ expiry: e.target.checked })} />
                 <span>Passport and licence disc expiry (90, 30 and 7 days before)</span>
@@ -198,7 +204,7 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
                 <span>Time to catch up with someone (“Stay in touch” in Contacts)</span>
               </label>
               <div className="field">
-                <label htmlFor="send-hour">Send reminders from</label>
+                <label htmlFor="send-hour">Send date and expiry reminders from</label>
                 <select id="send-hour" className="select" value={data.settings.sendHour} disabled={!data.settings.enabled} onChange={(e) => void save.run({ sendHour: Number(e.target.value) })}>
                   {Array.from({ length: 24 }, (_, h) => (
                     <option key={h} value={h}>
@@ -206,7 +212,7 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
                     </option>
                   ))}
                 </select>
-                <div className="field-hint">Time zone: {data.timeZone}. Set TZ on the server to change it.</div>
+                <div className="field-hint">Calendar reminders come at their own time. Time zone: {data.timeZone}. Set TZ on the server to change it.</div>
               </div>
             </div>
           )}

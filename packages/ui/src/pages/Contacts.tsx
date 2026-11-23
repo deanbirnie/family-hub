@@ -8,7 +8,7 @@ import { ApiError } from '../api.ts'
 import type { HubContext } from '../Shell.tsx'
 import { Badge, Banner, Button, Card, Dialog, Field, PageHeader, Spinner, useAction, useLoad } from '../ui.tsx'
 import { DATE_KINDS, formatImportantDate, nextComing, whenWords, type ImportantDate, type Relation } from '../people/dates.ts'
-import { AboutEditor, DatesEditor, emptyAbout, RelativesSection, type About, type Parent } from '../people/PeopleSections.tsx'
+import { AboutEditor, DatesEditor, emptyAbout, RelativesSection, type About, type Member, type Parent } from '../people/PeopleSections.tsx'
 import { emptyKeepInTouch, KeepInTouchEditor, TimelineSection, type KeepInTouch } from '../people/Timeline.tsx'
 import { ExportDialog, GroupsDialog, ImportDialog, type Group } from '../people/ImportExport.tsx'
 
@@ -41,6 +41,8 @@ export interface Contact {
   about: About
   keepInTouch: KeepInTouch
   groups: string[]
+  /** Children kept on this contact (not contacts of their own). */
+  members: Member[]
   /** The Quick Info person this contact is, for the family themselves. */
   profileId: string | null
 }
@@ -48,10 +50,14 @@ export interface Contact {
 export const useContacts = (ctx: HubContext) =>
   useLoad(() => ctx.platform.api.get<{ contacts: Contact[]; relations: Relation[]; groups: Group[] }>('/api/contacts'), [ctx.platform.api])
 
-/** The contact's next date coming round within `days` days. */
+/** The contact's next date (theirs, or a child's kept on their contact) coming round within `days` days. */
 function nextDate(c: Contact, days = 31) {
-  if (c.deceased) return null
-  let best: { date: ImportantDate; days: number; years: number | null } | null = null
+  let best: { date: ImportantDate; days: number; years: number | null; who?: string } | null = null
+  for (const m of c.members) {
+    const n = m.date ? nextComing(m.date) : null
+    if (n && n.days <= days && (!best || n.days < best.days)) best = { date: { kind: 'birthday', label: '', date: m.date!, remind: 'off', remindFor: 'all' }, ...n, who: m.name }
+  }
+  if (c.deceased) return best
   for (const d of c.dates) {
     const n = nextComing(d.date)
     if (n && n.days <= days && (!best || n.days < best.days)) best = { date: d, ...n }
@@ -154,9 +160,13 @@ function ContactsBody({ ctx }: { ctx: HubContext }) {
                 <div className="item-main">
                   <div>
                     <button className="link" onClick={() => setEditingId(c.id)}>
-                      {c.name}
+                      {next.who ?? c.name}
                     </button>
-                    <span className="muted"> · {dateTitle(next.date)}</span>
+                    <span className="muted">
+                      {' '}
+                      · {dateTitle(next.date)}
+                      {next.who && ` (${c.name}’s)`}
+                    </span>
                   </div>
                   <div className="muted small">
                     {formatImportantDate(next.date.date).replace(/ \d{4}$/, '')}, {whenWords(next.days)}

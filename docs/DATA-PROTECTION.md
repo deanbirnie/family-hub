@@ -190,17 +190,17 @@ contacts anyway.
 | Events: title, start and end, all-day, repeat rule and changed or cancelled days, tags (people or Family), location, notes, links to a contact and a file (with the file's name), reminder choices | `events.sealed`: one value per event, bound to its ID (times included, so routines cannot be read from the database) | S | ✅ (reminders: 4b) |
 | Event IDs, versions, when and by whom changed | `events` columns | P | ✅ |
 | Each person's colour | `family_profiles.colour` | P | ✅ |
-| Reminders for events | **Not stored.** Worked out from the sealed events; only delivery records (IDs and times) are kept | P (IDs only) | 🔜 |
-| Reminder notification text | Generic ("An event starts in 1 hour. Tap to see."), encrypted to the device | RFC 8291 | 🔜 |
-| Birthdays on the calendar | Read from Contacts each time; never copied | (Contacts' tiers) | 🔜 |
-| Family members kept on a contact (e.g. a friend's young child: name, birthday, reminder) | Inside the parent contact's sealed value | S | 🔜 |
+| Reminders for events | **Not stored.** Worked out from the sealed events every minute; only delivery records (IDs and times) are kept | P (IDs only) | ✅ |
+| Reminder notification text | Generic ("An event starts in 1 hour. Tap to see."), encrypted to the device | RFC 8291 | ✅ |
+| Birthdays on the calendar | Read from Contacts each time; never copied; name, day and age only, for everyone in the family | (Contacts' tiers) | ✅ |
+| Family members kept on a contact (e.g. a friend's young child: name, birthday, reminder, and which other contact they are shown under) | Inside the parent contact's sealed value | S | ✅ |
 | Subscription links, names, default tags and colours | One sealed value per subscription | S (links can contain secret tokens) | 🔜 |
 | Events fetched from subscriptions, waiting in the inbox | Sealed per item; cleared after 30 days | S | 🔜 |
 | Which subscribed events were ignored or accepted | Source event IDs (hashed) and the accepted event's ID | H / P | 🔜 |
 | Subscription health: last fetched, last error | Subscription columns | P | 🔜 |
 | `.ics` exports (one event, or a date range for everyone, Family or one person) | Downloaded to the person's device; notes left out unless chosen | Plain file on the device | ✅ |
 | `.ics` imports | Read in memory into the inbox (sealed); the file is not kept | Not stored | 🔜 |
-| Calendar events (added, changed, removed, exported, subscriptions added or removed; never details) | `audit_log` | P | ✅ (4a) |
+| Calendar events (added, changed, removed, exported, subscriptions added or removed; never details) | `audit_log` | P | ✅ (4a, 4b) |
 
 Nothing outside the hub reads the calendar live (no iCal feed or CalDAV):
 exports are files a person chooses to send, so two-factor sign-in remains

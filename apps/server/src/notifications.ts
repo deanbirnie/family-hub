@@ -14,8 +14,9 @@
  */
 import { createHash } from 'node:crypto'
 import type { Services } from './app.ts'
-import { applicableLead, daysBetween, localNow, nextOccurrence, yearsAt, type Due } from './schedule.ts'
-import { openContact, REMIND, type Contact, type ImportantDate } from './routes/contacts.ts'
+import { applicableLead, daysBetween, localNow, nextOccurrence, yearsAt, zonedToEpoch, type Due } from './schedule.ts'
+import { eventOccurrences, FAMILY } from './routes/calendar.ts'
+import { contactDates, openContact, REMIND, type Contact, type ImportantDate } from './routes/contacts.ts'
 import { generateVapidKeys, sendPush, type PushKeys, type PushMessage, type SendOutcome, type VapidKeys } from './webpush.ts'
 
 // ---- settings --------------------------------------------------------------------------
@@ -29,11 +30,13 @@ export interface NotificationSettings {
   dates: boolean
   /** "Time to catch up with …" (Contacts, stay in touch). */
   touch: boolean
+  /** Calendar event reminders (as chosen on each event). */
+  events: boolean
   /** Hour of the day (family time zone) from which reminders are sent. */
   sendHour: number
 }
 
-export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, dates: true, touch: true, sendHour: 8 }
+export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, dates: true, touch: true, events: true, sendHour: 8 }
 
 export function getSettings(s: Services, userId: string): NotificationSettings {
   const row = s.db.prepare('SELECT settings FROM notification_settings WHERE user_id = ?').get(userId) as { settings: string } | undefined
@@ -45,6 +48,7 @@ export function getSettings(s: Services, userId: string): NotificationSettings {
       expiry: typeof raw.expiry === 'boolean' ? raw.expiry : DEFAULT_SETTINGS.expiry,
       dates: typeof raw.dates === 'boolean' ? raw.dates : DEFAULT_SETTINGS.dates,
       touch: typeof raw.touch === 'boolean' ? raw.touch : DEFAULT_SETTINGS.touch,
+      events: typeof raw.events === 'boolean' ? raw.events : DEFAULT_SETTINGS.events,
       sendHour: Number.isInteger(raw.sendHour) && raw.sendHour! >= 0 && raw.sendHour! <= 23 ? raw.sendHour! : DEFAULT_SETTINGS.sendHour,
     }
   } catch {
@@ -270,30 +274,81 @@ function contactDateItems(s: Services): ReminderItem[] {
         catchUp: true,
       })
     }
-    for (const d of c.dates) {
-      const leads = [...REMIND[d.remind]]
-      if (leads.length === 0) continue
-      // Birthdays stop for someone who has died; a memorial or other date carries on.
-      if (c.deceased && (d.kind === 'birthday' || d.kind === 'anniversary')) continue
-      const what = d.label || DATE_TITLES[d.kind]
-      out.push({
-        key: `c:${row.id}:${d.id}`,
-        category: 'dates',
-        title: `${c.name}’s ${what}`,
-        whose: null,
-        due: { date: d.date, yearly: true },
-        leads,
-        notice: (lead, occurrence) => dateNotice(d.kind, lead, occurrence),
-        url: '/contacts',
-        audience: d.remindFor || 'all',
-        horizon: 30,
-        detail: (date) => {
-          const years = yearsAt({ date: d.date, yearly: true }, date)
-          if (years === null || years <= 0) return null
-          if (d.kind === 'birthday') return `turns ${years}`
-          return `${years} year${years === 1 ? '' : 's'}`
-        },
-      })
+  }
+  // Birthdays and other dates, including children kept on a contact.
+  for (const d of contactDates(s)) {
+    const leads = [...REMIND[d.remind]]
+    if (leads.length === 0 || d.stopped) continue
+    out.push({
+      key: d.key,
+      category: 'dates',
+      title: d.title,
+      whose: d.of,
+      due: { date: d.date, yearly: true },
+      leads,
+      notice: (lead, occurrence) => dateNotice(d.kind, lead, occurrence),
+      url: '/contacts',
+      audience: d.remindFor,
+      horizon: 30,
+      detail: (date) => {
+        const years = yearsAt({ date: d.date, yearly: true }, date)
+        if (years === null || years <= 0) return null
+        if (d.kind === 'birthday') return `turns ${years}`
+        return `${years} year${years === 1 ? '' : 's'}`
+      },
+    })
+  }
+  return out
+}
+
+// ---- calendar event reminders (to the minute) --------------------------------------------
+
+export interface EventReminder {
+  /** Identifies this reminder (event, day, how long before), for sending it once. */
+  key: string
+  fireAt: number
+  startsAt: number
+  /** Who gets it (user IDs). */
+  users: string[]
+  notice: string
+}
+
+/** All-day events: reminders go out at 08:00 on the day (or the day, or week, before). */
+const ALL_DAY_HOUR = '08:00'
+
+export function eventNotice(minutes: number, allDay: boolean): string {
+  if (minutes >= 10080) return 'An event is a week away. Tap to see.'
+  if (minutes >= 1440) return 'An event is tomorrow. Tap to see.'
+  if (allDay) return 'An event is today. Tap to see.'
+  if (minutes >= 60) return 'An event starts in 1 hour. Tap to see.'
+  if (minutes >= 15) return 'An event starts in 15 minutes. Tap to see.'
+  return 'An event is starting now. Tap to see.'
+}
+
+/**
+ * Event reminders around now (from yesterday to a week ahead), with who gets
+ * them: the people tagged who have accounts; for Family, and for children
+ * without accounts, every parent.
+ */
+export function eventReminders(s: Services, nowMs: number): EventReminder[] {
+  const tz = s.config.timeZone
+  const today = localNow(nowMs, tz).date
+  const profiles = new Map((s.db.prepare('SELECT id, user_id FROM family_profiles').all() as { id: string; user_id: string | null }[]).map((p) => [p.id, p.user_id]))
+  const active = new Map((s.db.prepare('SELECT id, role FROM users WHERE disabled = 0').all() as { id: string; role: string }[]).map((u) => [u.id, u.role]))
+  const parents = [...active].filter(([, role]) => role === 'admin').map(([id]) => id)
+  const out: EventReminder[] = []
+  for (const o of eventOccurrences(s, addDays(today, -1), addDays(today, 8), true)) {
+    if (!o.reminders.length) continue
+    const users = new Set<string>()
+    for (const t of o.tags) {
+      const userId = t === FAMILY ? null : profiles.get(t)
+      if (userId && active.has(userId)) users.add(userId)
+      else for (const p of parents) users.add(p)
+    }
+    const startsAt = zonedToEpoch(o.allDay ? `${o.start}T${ALL_DAY_HOUR}` : o.start, tz)
+    for (const minutes of o.reminders) {
+      const fireAt = o.allDay ? zonedToEpoch(`${addDays(o.start, -Math.ceil(minutes / 1440))}T${ALL_DAY_HOUR}`, tz) : startsAt - minutes * 60_000
+      out.push({ key: `e:${o.eventId}:${o.day}:${minutes}`, fireAt, startsAt: o.allDay ? startsAt + 16 * 3_600_000 : startsAt, users: [...users], notice: eventNotice(minutes, o.allDay) })
     }
   }
   return out
@@ -349,12 +404,23 @@ export function upcoming(s: Services, today: string, userId: string) {
  */
 export function dueMessagesFor(s: Services, userId: string, today: string): PushMessage[] {
   const user = s.db.prepare('SELECT role, disabled FROM users WHERE id = ?').get(userId) as { role: string; disabled: number } | undefined
-  if (!user || user.disabled || user.role !== 'admin') return []
+  if (!user || user.disabled) return []
   const settings = getSettings(s, userId)
   if (!settings.enabled) return []
-  return dueNow(s, today)
-    .filter((d) => wants(settings, d.item, userId))
-    .map((d) => ({ title: 'Family Hub', body: d.item.notice(d.lead, d.occurrence), tag: d.occurrence, url: d.item.url }))
+  // Calendar reminders already due for events that have not begun (the check may come late).
+  const now = s.now()
+  const events: PushMessage[] = settings.events
+    ? eventReminders(s, now)
+        .filter((r) => r.users.includes(userId) && r.fireAt <= now && now < r.startsAt)
+        .map((r) => ({ title: 'Family Hub', body: r.notice, tag: r.key, url: '/calendar' }))
+    : []
+  if (user.role !== 'admin') return events
+  return [
+    ...events,
+    ...dueNow(s, today)
+      .filter((d) => wants(settings, d.item, userId))
+      .map((d) => ({ title: 'Family Hub', body: d.item.notice(d.lead, d.occurrence), tag: d.occurrence, url: d.item.url })),
+  ]
 }
 
 // ---- sending ----------------------------------------------------------------------------
@@ -373,10 +439,21 @@ export async function runReminders(s: Services): Promise<number> {
     s.db.prepare('DELETE FROM reminder_deliveries WHERE sent_at < ?').run(now - 400 * 86_400_000)
 
     const due = dueNow(s, today)
-    if (due.length === 0) return 0
     const parents = s.db.prepare("SELECT id FROM users WHERE role = 'admin' AND disabled = 0").all() as { id: string }[]
     const record = s.db.prepare('INSERT OR IGNORE INTO reminder_deliveries (user_id, occurrence, sent_at) VALUES (?, ?, ?)')
     let sent = 0
+    // Calendar reminders: to the minute, whatever the sending hour; not if more than 6 hours late or the event began over 15 minutes ago.
+    for (const r of eventReminders(s, now)) {
+      if (r.fireAt > now || now - r.fireAt > 6 * 3_600_000 || now > r.startsAt + 15 * 60_000) continue
+      for (const userId of r.users) {
+        const settings = getSettings(s, userId)
+        if (!settings.enabled || !settings.events) continue
+        if (Number(record.run(userId, r.key, now).changes) !== 1) continue
+        sent++
+        for (const route of subscriptionsOf(s, userId)) await sendTo(s, route, { title: 'Family Hub', body: r.notice, tag: r.key, url: '/calendar' })
+      }
+    }
+    if (due.length === 0) return sent
     for (const { id: userId } of parents) {
       const settings = getSettings(s, userId)
       if (!settings.enabled || hour < settings.sendHour) continue

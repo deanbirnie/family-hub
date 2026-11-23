@@ -405,9 +405,9 @@ in the family sees them (name and day only).
 
 **4b. Reminders and birthdays**
 
-- [ ] Event reminders, and the reminder check every minute.
-- [ ] Birthdays and anniversaries from Contacts on the calendar.
-- [ ] **Family members on a contact** (phase 3 change): "Add a child" on a
+- [x] Event reminders, and the reminder check every minute.
+- [x] Birthdays and anniversaries from Contacts on the calendar.
+- [x] **Family members on a contact** (phase 3 change): "Add a child" on a
       contact keeps the child on that contact (name, birthday, reminder)
       instead of creating a full contact; shown under both parents when
       the contact has a partner; not in the main Contacts list. A full
