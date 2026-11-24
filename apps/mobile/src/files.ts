@@ -1,8 +1,10 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import type { Api, Platform } from '@family-hub/ui'
+import { toBase64 } from './device-auth.ts'
 
 const Documents = registerPlugin<{
   download(options: { url: string; token: string; name: string; action: 'save' | 'open' }): Promise<void>
+  saveBytes(options: { name: string; data: string; action: 'save' | 'share' }): Promise<void>
   clear(): Promise<void>
 }>('Documents')
 
@@ -34,3 +36,12 @@ export function exportDownload(api: Api): Platform['saveExport'] {
 export const clearDocumentCache = () => {
   if (Capacitor.isNativePlatform()) void Documents.clear().catch(() => undefined)
 }
+
+/** Saves or shares a file made on the phone (a PDF report) through Android's save dialog or share sheet. */
+export const phoneSaveFile: Platform['saveFile'] = Capacitor.isNativePlatform()
+  ? async (file, action) => {
+      // Android takes only plain file names.
+      const name = file.name.replace(/[^A-Za-z0-9 ._()-]/g, '-')
+      await Documents.saveBytes({ name, data: toBase64(file.bytes), action })
+    }
+  : undefined

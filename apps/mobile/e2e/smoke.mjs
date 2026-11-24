@@ -169,11 +169,51 @@ try {
   await page.getByRole('link', { name: 'Settings' }).click()
   await vaultCard.getByText('Open on this device').waitFor()
 
+  // Health on the phone keeps an offline emergency card: updated while the
+  // vault is open, opened by fingerprint from the locked screen with no signal.
+  await page.getByRole('link', { name: 'Quick Info', exact: true }).click()
+  await page.getByRole('button', { name: 'Add a person' }).click()
+  await page.getByRole('dialog').getByRole('button', { name: /^Alex/ }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'detached' })
+  // On the phone, Health is on the home page's grid.
+  await page.getByRole('link', { name: 'Home', exact: true }).click()
+  await page.locator('a.module-card', { hasText: 'Health' }).click()
+  await page.getByRole('button', { name: 'Add an allergy' }).waitFor()
+  await page.waitForFunction(() => !!localStorage.getItem('familyhub.emergencyCard'))
+  const cardBefore = await page.evaluate(() => localStorage.getItem('familyhub.emergencyCard'))
+  await page.getByRole('button', { name: 'Add an allergy' }).click()
+  await page.getByRole('dialog').getByLabel('Allergic to').fill('Peanuts')
+  await page.getByRole('dialog').getByLabel('How severe').selectOption('anaphylaxis')
+  await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click()
+  await page.getByText('Severe allergies:').waitFor()
+  await page.waitForFunction((before) => localStorage.getItem('familyhub.emergencyCard') !== before, cardBefore)
+  if ((await page.evaluate(() => localStorage.getItem('familyhub.emergencyCard'))).includes('Peanuts')) throw new Error('the emergency card is stored unencrypted')
+  // In the app: the card opens from Health.
+  await page.getByRole('button', { name: 'Emergency card' }).click()
+  await page.getByRole('dialog', { name: 'Emergency card' }).getByText('Peanuts', { exact: false }).waitFor()
+  await page.getByRole('button', { name: 'Close the emergency card' }).click()
+  // Locked and offline: unlocking cannot reach the server, but the card opens.
+  await page.context().setOffline(true)
+  await page.getByRole('link', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Lock now' }).first().click()
+  await page.getByRole('heading', { name: 'Family Hub is locked' }).waitFor()
+  await page.getByRole('button', { name: 'Emergency card' }).click()
+  const card = page.getByRole('dialog', { name: 'Emergency card' })
+  await card.getByText('Severe allergies').waitFor()
+  await card.getByText('Peanuts', { exact: false }).waitFor()
+  await shot('04-emergency-card')
+  await page.getByRole('button', { name: 'Close the emergency card' }).click()
+  await page.context().setOffline(false)
+  await page.getByRole('button', { name: 'Unlock' }).click()
+  await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
+
   // Signing the phone out removes it.
   await page.getByRole('link', { name: 'Settings' }).click()
   page.once('dialog', (d) => d.accept())
   await page.getByRole('button', { name: 'Sign this phone out' }).click()
   await page.getByRole('heading', { name: 'Sign in' }).waitFor()
+  if (await page.evaluate(() => localStorage.getItem('familyhub.emergencyCard'))) throw new Error('the emergency card stayed on a signed-out phone')
 
   if (errors.length) throw new Error(`errors in the page:\n${errors.join('\n')}`)
   console.log('mobile e2e: passed')

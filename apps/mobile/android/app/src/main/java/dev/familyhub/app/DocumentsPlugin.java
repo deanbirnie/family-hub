@@ -18,6 +18,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
+import android.util.Base64;
 import java.util.UUID;
 
 /** Uses the current session to save/open documents. No biometric operation. */
@@ -103,6 +104,50 @@ public class DocumentsPlugin extends Plugin {
         call.reject(e.getMessage() == null ? "The download failed" : e.getMessage());
       } finally { if (connection != null) connection.disconnect(); }
     }).start();
+  }
+  /**
+   * Saves or shares a file made on this phone (a PDF health report). Only PDFs, with a plain name.
+   * The bytes go to the app's cache, which is cleared when the app locks.
+   */
+  @PluginMethod public void saveBytes(PluginCall call) {
+    String name = call.getString("name", "");
+    String action = call.getString("action", "save");
+    if (!name.matches("[A-Za-z0-9 ._()-]{1,100}\\.pdf") || !(action.equals("save") || action.equals("share"))) {
+      call.reject("Invalid file"); return;
+    }
+    final byte[] bytes;
+    try {
+      bytes = Base64.decode(call.getString("data", ""), Base64.NO_WRAP);
+    } catch (IllegalArgumentException e) { call.reject("Invalid file"); return; }
+    if (bytes.length == 0 || bytes.length > 30 * 1024 * 1024) { call.reject("Invalid file"); return; }
+    File target = new File(folder(), UUID.randomUUID().toString());
+    try (OutputStream out = new FileOutputStream(target)) {
+      out.write(bytes);
+    } catch (Exception e) { target.delete(); call.reject("Could not prepare the file."); return; }
+    call.getData().remove("data");
+    getActivity().runOnUiThread(() -> {
+      try {
+        if (action.equals("save")) {
+          call.getData().put("cachedFile", target.getName());
+          Intent save = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+          save.addCategory(Intent.CATEGORY_OPENABLE);
+          save.setType("application/pdf");
+          save.putExtra(Intent.EXTRA_TITLE, name);
+          startActivityForResult(call, save, "saveDocument");
+        } else {
+          // Shared under its own name, so the receiving app shows it.
+          File named = new File(folder(), target.getName() + "-" + name);
+          if (!target.renameTo(named)) throw new Exception("rename");
+          Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", named);
+          Intent send = new Intent(Intent.ACTION_SEND);
+          send.setType("application/pdf");
+          send.putExtra(Intent.EXTRA_STREAM, uri);
+          send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+          getActivity().startActivity(Intent.createChooser(send, "Share " + name));
+          call.resolve();
+        }
+      } catch (Exception e) { target.delete(); call.reject("Could not share this file. Try saving it instead."); }
+    });
   }
   @ActivityCallback protected void saveDocument(PluginCall call, ActivityResult result) {
     if (call == null) return;

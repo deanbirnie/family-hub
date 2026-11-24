@@ -88,5 +88,16 @@ export function healthRoutes(api: Api, s: Services): void {
   })
 
   /** The parents-only Health folder in Files (made on first use). */
+  /**
+   * A report was made on a parent's device (visit summary, handover report or
+   * full record). Only the kind is recorded, never whose or what was in it.
+   */
+  api.authed('POST', '/api/health/reports', parents, async (ctx) => {
+    const kind = str(await readJson(ctx.req), 'kind', { max: 20 })
+    if (!['visit', 'handover', 'record'].includes(kind)) throw new HttpError(400, 'Unknown kind of report.', 'invalid')
+    s.audit('health.report', ctx, ctx.user.id, kind)
+    return undefined
+  })
+
   api.authed('GET', '/api/health/folder', parents, (ctx) => ({ folderId: healthFolder(s, ctx.user.id) }))
 }

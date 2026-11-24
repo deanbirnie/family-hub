@@ -91,6 +91,17 @@ describe('the parents-only Health folder', () => {
   })
 })
 
+describe('health reports', () => {
+  it('are made on the device; the server notes only that one was made, and its kind', async () => {
+    const { client, kid } = await family()
+    expect((await client.post('/api/health/reports', { kind: 'handover' })).status).toBe(204)
+    expect((await client.post('/api/health/reports', { kind: 'everything' })).status).toBe(400)
+    expect((await kid.post('/api/health/reports', { kind: 'visit' })).status).toBe(403)
+    const rows = server.services.db.prepare("SELECT event, detail FROM audit_log WHERE event = 'health.report'").all()
+    expect(rows).toEqual([{ event: 'health.report', detail: 'handover' }])
+  })
+})
+
 describe('health reminders', () => {
   it('keep only person, date and how far ahead; remind with generic text; parents only', async () => {
     const { client, kid, sam } = await family()

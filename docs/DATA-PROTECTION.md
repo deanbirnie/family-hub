@@ -218,8 +218,8 @@ the only way in.
 | Health reminders (prescriptions, script expiry, follow-ups, vaccinations due, measuring, check-ups, episode doses) | Reminder records holding only "health reminder · person · date", how many days ahead, and an opaque key (a hash; it says nothing about what the reminder is for) | P (the server sends them) | ✅ |
 | Reminder notification text | Generic ("A health reminder is due.", "A medicine is due.") | Encrypted to the device (RFC 8291) | ✅ |
 | Appointments on the family calendar | A calendar event the parent chooses: "Appointment – Sam" by default, "Dr Naidoo – Sam", or none (then a health reminder) | S (calendar) | ✅ |
-| Emergency card on each parent's phone | Encrypted with a hardware-keystore key opened by fingerprint | E2E on the device | 🔜 |
-| PDF summaries and episode reports | Made on the device; saved or shared only by the parent | Plain file on the device | 🔜 |
+| Emergency card on each parent's phone (allergies, conditions, medicines, blood type, care notes, ID number, emergency contacts, medical aid) | In the app's storage on the phone, sealed with AES-GCM under a fresh key that is itself sealed to an RSA key pair in the Android Keystore. Updating it needs no fingerprint (the public key); opening it needs a fingerprint or face check (the private key never leaves the keystore). Only "last updated" is readable without it. Removed when the phone is signed out; destroyed if the phone's fingerprints or face change | E2E on the device | ✅ |
+| PDF summaries and episode reports | Made on the device; saved or shared only where the parent chooses (on the phone, through the app's cache, cleared when the app locks). The server records only that a report of a kind was made | Plain file on the device | ✅ |
 | Episode entries made offline (later) | Kept on the phone, encrypted with the family key, until sent | E2E | 🔜 (later) |
 | Health events (record added, changed or removed; report made; never details) | `audit_log` | P | ✅ (5a) |
 

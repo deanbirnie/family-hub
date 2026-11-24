@@ -33,6 +33,9 @@ import { AttachDocuments, Documents, FieldInput } from './parts.tsx'
 import { EpisodesCard, EpisodeView } from './Episodes.tsx'
 import { Appointments, Checkups, ComingUpHealth, Growth, syncAppointmentEvent, Vaccinations, type Opener } from './Extras.tsx'
 import { syncHealthReminders } from './reminders.ts'
+import { emergencyCard, type EmergencyCard, type ReportInput } from './reports.ts'
+import { EmergencyCardView } from './EmergencyCard.tsx'
+import { VisitSummaryDialog } from './ReportDialogs.tsx'
 
 interface Person {
   id: string
@@ -50,6 +53,30 @@ interface Loaded {
   medical: Record<string, Record<string, string>>
   /** Date of birth from Quick Info, per person. */
   births: Record<string, string>
+  /** Personal details from Quick Info (full name, ID number), per person. */
+  personal: Record<string, Record<string, string>>
+  /** Emergency contacts from Quick Info, per person. */
+  emergency: Record<string, { primary: string | null; backup: string | null }>
+}
+
+/** What a report or the emergency card is made from, for one person. */
+export function reportInput(ctx: HubContext, data: Loaded, person: Person): ReportInput {
+  const records = data.records.filter((r) => r.profileId === person.id)
+  const personal = data.personal[person.id] ?? {}
+  return {
+    person: {
+      displayName: person.displayName,
+      fullName: personal.fullName,
+      idNumber: personal.idNumber,
+      birthDate: data.births[person.id] || records.find((r) => r.content.kind === 'basics')?.content.fields.birthDate,
+      medical: data.medical[person.id],
+      emergency: data.emergency[person.id],
+    },
+    records,
+    contacts: data.contacts,
+    preparedBy: ctx.user.displayName,
+    now: Date.now(),
+  }
 }
 
 export function HealthPage({ ctx, episodeId = null }: { ctx: HubContext; episodeId?: string | null }) {
@@ -84,7 +111,7 @@ function HealthBody({ ctx, episodeId }: { ctx: HubContext; episodeId: string | n
       const [raw, book, qi] = await Promise.all([
         api.get<{ profiles: Person[]; records: StoredHealthRecord[] }>('/api/health/records'),
         api.get<{ contacts: Contact[] }>('/api/contacts'),
-        api.get<{ records: StoredRecord[] }>('/api/quick-info'),
+        api.get<{ profiles: { id: string; emergency: { primary: string | null; backup: string | null } }[]; records: StoredRecord[] }>('/api/quick-info'),
       ])
       const key = vault.use()
       if (!key) return
@@ -98,16 +125,24 @@ function HealthBody({ ctx, episodeId }: { ctx: HubContext; episodeId: string | n
       }
       const medical: Loaded['medical'] = {}
       const births: Loaded['births'] = {}
+      const personal: Loaded['personal'] = {}
+      const emergency: Loaded['emergency'] = Object.fromEntries(qi.profiles.map((p) => [p.id, p.emergency]))
       for (const r of qi.records.filter((x) => (x.kind === 'medical' || x.kind === 'personal') && x.profileId)) {
         try {
           const fields = (await decryptRecord(key, r)).fields
           if (r.kind === 'medical') medical[r.profileId!] = fields
-          else if (fields.dateOfBirth) births[r.profileId!] = fields.dateOfBirth
+          else {
+            personal[r.profileId!] = fields
+            if (fields.dateOfBirth) births[r.profileId!] = fields.dateOfBirth
+          }
         } catch {
           // ignore
         }
       }
-      setData({ people: raw.profiles, records, contacts: book.contacts, medical, births })
+      const loaded: Loaded = { people: raw.profiles, records, contacts: book.contacts, medical, births, personal, emergency }
+      setData(loaded)
+      // On the phone, bring the offline emergency card up to date (no fingerprint needed to update it).
+      if (ctx.platform.emergencyCard) void ctx.platform.emergencyCard.save(raw.profiles.map((p) => emergencyCard(reportInput(ctx, loaded, p)))).catch(() => undefined)
       // Keep the server's health reminders in step (it learns only person, date and how far ahead).
       void syncHealthReminders(
         api,
@@ -121,7 +156,7 @@ function HealthBody({ ctx, episodeId }: { ctx: HubContext; episodeId: string | n
     } catch (e) {
       setError(errorText(e))
     }
-  }, [api, ctx.user.id])
+  }, [api, ctx.user.id, ctx.user.displayName, ctx.platform.emergencyCard]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     void load()
@@ -142,6 +177,7 @@ function HealthBody({ ctx, episodeId }: { ctx: HubContext; episodeId: string | n
         records={data.records.filter((r) => r.profileId === person.id)}
         contacts={data.contacts}
         episodeId={episodeId}
+        reportInput={reportInput(ctx, data, person)}
         reload={load}
         onBack={() => {
           setPersonId(person.id)
@@ -188,6 +224,7 @@ function PersonHealth({ ctx, data, person, reload }: { ctx: HubContext; data: Lo
           <strong>Severe allergies:</strong> {severe.map((a) => `${a.content.fields.substance}${a.content.fields.epipen === 'yes' ? ' (carries an EpiPen)' : ''}`).join('; ')}
         </Banner>
       )}
+      <ReportsBar ctx={ctx} input={reportInput(ctx, data, person)} />
       <EpisodesCard ctx={ctx} person={person} records={mine} onOpen={(id) => navigate(`/health/episodes/${encodeURIComponent(id)}`)} onChanged={() => void reload()} />
       <ComingUpHealth records={mine} birthDate={birthDate} />
 
@@ -283,6 +320,37 @@ function PersonHealth({ ctx, data, person, reload }: { ctx: HubContext; data: Lo
           }}
         />
       )}
+    </div>
+  )
+}
+
+/** The visit summary, and on the phone the offline emergency card. */
+function ReportsBar({ ctx, input }: { ctx: HubContext; input: ReportInput }) {
+  const [visit, setVisit] = useState(false)
+  const [cards, setCards] = useState<EmergencyCard[] | null>(null)
+  const store = ctx.platform.emergencyCard
+  const open = useAction(async () => {
+    if (!store) return
+    const opened = await store.open().catch((e: { code?: string }) => {
+      if (e?.code === 'CANCELLED') return undefined
+      throw e
+    })
+    if (opened === null) throw new Error('The emergency card is still being made. Try again in a moment.')
+    if (opened) setCards(opened)
+  })
+  return (
+    <div className="row">
+      <Button variant="secondary" icon={<FileText size={16} aria-hidden />} onClick={() => setVisit(true)}>
+        Visit summary (PDF)
+      </Button>
+      {store && (
+        <Button variant="secondary" icon={<HeartPulse size={16} aria-hidden />} busy={open.busy} onClick={() => void open.run()}>
+          Emergency card
+        </Button>
+      )}
+      {open.error && <Banner kind="error">{open.error}</Banner>}
+      {visit && <VisitSummaryDialog ctx={ctx} input={input} onClose={() => setVisit(false)} />}
+      {cards && <EmergencyCardView cards={cards} onClose={() => setCards(null)} />}
     </div>
   )
 }

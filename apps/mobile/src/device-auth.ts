@@ -35,7 +35,12 @@ export const INVALIDATED = 'INVALIDATED'
 
 const Native = registerPlugin<DeviceAuthPlugin>('DeviceAuth')
 
-export const toBase64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes))
+export const toBase64 = (bytes: Uint8Array) => {
+  // In chunks: spreading a large array (a PDF) into one call overflows the stack.
+  let bin = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(bin)
+}
 export const fromBase64 = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
 
 // ---- stand-in for the browser test ---------------------------------------------------

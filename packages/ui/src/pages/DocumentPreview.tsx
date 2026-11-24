@@ -29,7 +29,7 @@ function ImagePreview({ blob, name }: { blob: Blob; name: string }) {
   return failed ? <Banner kind="error">This image could not be previewed. Try downloading it.</Banner> : url && <img className="document-image" src={url} alt={name} onError={() => setFailed(true)} />
 }
 
-function PdfPreview({ blob }: { blob: Blob }) {
+export function PdfPreview({ blob }: { blob: Blob }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
   const [number, setNumber] = useState(1)
   const [error, setError] = useState('')

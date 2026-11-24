@@ -4,7 +4,7 @@
  * dose and warnings from the prescription, an optional hospital stay, and
  * closing with an outcome. Each piece is its own encrypted health record.
  */
-import { Activity, ArrowLeft, BedDouble, CheckCircle2, ClipboardList, Pencil, Pill, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import { Activity, ArrowLeft, BedDouble, CheckCircle2, ClipboardList, FileText, Pencil, Pill, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../api.ts'
 import type { Contact } from '../pages/Contacts.tsx'
@@ -35,6 +35,8 @@ import {
 import { TrendChart } from './Extras.tsx'
 import { decryptHealth, encryptHealth, optionLabel, type FieldDef, type HealthContent, type HealthKind, type LinkedDocument, type StoredHealthRecord } from './model.ts'
 import { AttachDocuments, Documents, FieldInput } from './parts.tsx'
+import { EpisodeReportDialog } from './ReportDialogs.tsx'
+import type { ReportInput } from './reports.ts'
 
 type Rec = StoredHealthRecord & { content: HealthContent }
 interface Person {
@@ -219,6 +221,7 @@ export function EpisodeView({
   records,
   contacts,
   episodeId,
+  reportInput,
   onBack,
   reload,
 }: {
@@ -227,10 +230,13 @@ export function EpisodeView({
   records: Rec[]
   contacts: Contact[]
   episodeId: string
+  /** What its reports are made from. */
+  reportInput: ReportInput
   onBack: () => void
   reload: () => Promise<void>
 }) {
   const [editing, setEditing] = useState<Editing | null>(null)
+  const [report, setReport] = useState<'handover' | 'full' | null>(null)
   const [filter, setFilter] = useState('')
   const now = useNow()
   // What the other parent logs shows up here within half a minute.
@@ -336,6 +342,14 @@ export function EpisodeView({
           )}
           <Button variant="ghost" icon={<Trash2 size={16} aria-hidden />} busy={remove.busy} onClick={() => void remove.run()}>
             Delete
+          </Button>
+        </div>
+        <div className="row">
+          <Button variant="secondary" icon={<FileText size={16} aria-hidden />} onClick={() => setReport('handover')}>
+            Handover report (PDF)
+          </Button>
+          <Button variant="ghost" icon={<FileText size={16} aria-hidden />} onClick={() => setReport('full')}>
+            Full record (PDF)
           </Button>
         </div>
         {(remove.error || reopen.error) && <Banner kind="error">{remove.error || reopen.error}</Banner>}
@@ -474,6 +488,7 @@ export function EpisodeView({
       {editing?.what === 'plan' && <PlanDialog ctx={ctx} person={person} episodeId={episodeId} record={editing.record} contacts={contacts} onClose={done} />}
       {editing?.what === 'episode' && <EpisodeDialog ctx={ctx} person={person} record={episode} onClose={done} />}
       {(editing?.what === 'hospital' || editing?.what === 'discharge') && <HospitalDialog ctx={ctx} person={person} episode={episode} discharge={editing.what === 'discharge'} onClose={done} />}
+      {report && <EpisodeReportDialog ctx={ctx} input={reportInput} episodeId={episodeId} full={report === 'full'} onClose={() => setReport(null)} />}
       {editing?.what === 'close' && <CloseDialog ctx={ctx} person={person} episode={episode} plans={plans} onClose={done} />}
     </div>
   )
