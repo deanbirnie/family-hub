@@ -574,15 +574,186 @@ then save or share.
 
 ## Phase 6 — Household admin ← next
 
-- [ ] **Bills and renewals:** due dates, amounts and reminders for
-      subscriptions, insurance, rates, school fees; who pays what. No bank
-      connections: amounts are typed in.
-- [ ] **Simple budget:** monthly categories, planned vs. actual, entered by hand
-      or imported from a bank CSV export.
-- [ ] **Home & car:** service history, warranties and manuals (linked to
-      Files), next service due, licence and roadworthy dates, links to
-      trusted tradespeople in Family Contacts.
-- [ ] **Pets:** vet, vaccinations, medication schedule.
+Bills, subscriptions and invoices; home and car upkeep; and a monthly budget
+with debt payoff. For parents only. Agreed with the owner in the phase 6
+planning pull request.
+
+### Design (agreed)
+
+**Principles**
+
+- **Parents only**, like Health. Members do not see the Money or Home pages,
+  their reminders or their folder.
+- **No account numbers, card numbers or bank logins, ever.** An account is a
+  bank name and a nickname ("Capitec, joint"). Amounts are typed in or read
+  from a bank's CSV export on the parent's device.
+- **Server key (S)** for everything here, chosen by the owner, so the server
+  can work out reminders and totals itself (docs/DATA-PROTECTION.md,
+  "Household admin").
+- Notifications stay generic ("A bill is due. Tap to see.").
+- Documents (invoices, receipts, warranties, manuals, service invoices) go in
+  a parents-only **Household** folder in Files, like the Health folder.
+- No splitting of costs between the parents: a bill can say which account it
+  comes from, and that is all.
+
+**1. Bills.** Everything that is paid regularly.
+
+- Payee (from Contacts, or just a name), category, amount, how often
+  (monthly, every N months, yearly, once), the due day, and how it is paid
+  (debit order, EFT, card, cash), and from which account (nickname).
+- Debit orders count as paid unless a parent marks a problem; bills paid by
+  hand are marked paid (date, amount).
+- **Price history:** each change of amount is kept with its date ("R199 → R229
+  from March"), with the yearly increase shown.
+- **Contracts and renewals:** start, end, and the cancellation notice period.
+  The reminder comes before the **notice deadline**, not the renewal date,
+  so there is still time to cancel or shop around.
+- Insurance policies stay in Quick Info; a bill can link to one so the
+  premium is not entered twice.
+- Overview: fixed costs per month, what is due in the next 7 days, overdue,
+  and renewals coming up.
+
+**2. Subscriptions.** A kind of bill with more to it.
+
+- Service, plan, cost and billing cycle (monthly or yearly), next renewal,
+  who uses it, and how to cancel (a link or a note).
+- **Free trials:** the trial end date, reminded 3 days before and the day
+  before, so nothing rolls into a paid plan by accident.
+- **"Still using it?"** A review reminder (yearly by default, or chosen) and a
+  one-tap "cancelled" that keeps the history.
+- Totals: per month and per year (yearly plans spread over 12 months).
+
+**3. Invoices.** Bills that arrive once: the plumber, the school trip, the
+vet.
+
+- From whom (Contacts), invoice number, date, due date, amount, status
+  (unpaid, paid on a date, disputed, cancelled), notes, and the PDF or photo
+  in the Household folder.
+- Reminders before the due date and when overdue. A list of unpaid invoices
+  with the total; filter by status, payee or year.
+- An invoice can belong to a bill (a monthly statement) or to a home or car
+  job (a service invoice).
+
+**4. Home and car.**
+
+- **Vehicles** build on the Quick Info vehicle (registration, VIN and licence
+  disc stay there, end-to-end encrypted): service history (date, mileage,
+  who, cost, what was done, invoice), next service by date or mileage,
+  roadworthy, tyres, battery, and warranties.
+- **The home:** appliances and other things with a warranty (what, make and
+  model, where bought, when, warranty end, receipt and manual in Files).
+  Reminded before a warranty ends.
+- **Recurring maintenance:** jobs that come back (geyser service, gutters,
+  pool, gas bottle, alarm batteries, smoke detectors, aircon filters,
+  borehole, pest control) with how often and when last done; reminded when
+  due.
+- **Tradespeople** come from Contacts. Each job records who did it, the cost,
+  and "would use again" (yes, no, or a note), so the next time it is easy to
+  choose.
+
+**5. The budget.** A monthly zero-based budget.
+
+- **Every rand gets a job.** Income for the month minus everything planned
+  must come to zero: the page shows "left to plan" until it does. Spare
+  money goes to a goal (savings, the emergency fund, debt), not left
+  unassigned.
+- **Made before the month starts.** A reminder near the end of the month to
+  plan the next one together; it starts from last month's plan, with bills
+  and debt payments filled in.
+- **Order of priority:** giving first, then saving, then the essentials
+  (food, utilities, housing, transport), then everything else. The essentials
+  are marked so they are covered first, especially when income is irregular.
+- **Irregular income:** a list in priority order, so whatever comes in is
+  allocated down the list.
+- **Sinking funds:** categories that save each month for known irregular
+  costs (car service, annual insurance, school uniforms, Christmas,
+  holidays); their balance carries over from month to month.
+- **Spending against the plan:** each category shows planned, spent and
+  left. Overspending is covered by moving money from another category, so
+  the plan always still adds up.
+- **Actual spending** comes from the bank's CSV export (see 7), or is typed
+  in. Each transaction gets a category; rules learn from the parents'
+  choices ("WOOLWORTHS" → Groceries).
+- A 12-month view: planned against actual per category, and income against
+  spending.
+
+**6. Debt payoff and milestones.**
+
+- **Debts:** credit cards, store cards, car finance, personal loans, student
+  loans and money owed to family, with the balance, interest rate and
+  minimum payment; the balance is updated by hand or from a statement.
+  **The home loan is left out for now** (a separate feature later).
+- **Smallest balance first:** debts are listed from the smallest balance to
+  the largest. Minimum payments go to all; everything extra goes to the
+  smallest. When one is paid off, its whole payment rolls into the next.
+  The page shows the order, what to pay each, and a projected debt-free
+  date; the budget's debt category follows it.
+- **Milestones**, in order, shown as progress:
+  1. A starter emergency fund (amount chosen by the parents).
+  2. All debt paid off except the home, smallest balance first.
+  3. A full emergency fund of 3 to 6 months of essential expenses (worked
+     out from the budget).
+  4. Saving 15% of household income for retirement.
+  5. Saving for the children's education.
+  6. Paying off the home early (with the home loan feature, later).
+  7. Building wealth and giving.
+
+  The first three are worked out from the budget and the debts; the rest are
+  ticked by the parents, with notes.
+- No product or person behind these ideas is named in the app.
+
+**7. Bank CSV import.**
+
+- The parent picks the CSV file exported from online banking. It is read
+  **on the device**; only the transactions go to the server, never the file.
+- Built in: **ABSA** and **Capitec**. A format is recognised by its header
+  row; the columns (date, description, amount or money in and out, balance),
+  date style and decimal mark are a **saved format**, not code.
+- **If a bank changes its export**, or for another bank: the import shows
+  the first rows and asks which column is which, then saves that as a new
+  format for next time. Built-in formats can be updated the same way without
+  waiting for a new version.
+- Transactions already imported are recognised and skipped (overlapping
+  exports are fine). The import says how many were new, skipped and
+  uncategorised.
+- Transfers between the family's own accounts can be marked so they are not
+  counted as spending.
+
+**Not in this phase:** the home loan (later, its own feature), pets (if ever),
+bank connections of any kind.
+
+### Build order (one pull request each)
+
+**6a. Bills, subscriptions and invoices**
+
+- [ ] Money page (parents only), accounts (bank and nickname), the
+      parents-only Household folder.
+- [ ] Bills with price history, contracts and notice-period reminders.
+- [ ] Subscriptions, free trials and review reminders.
+- [ ] Invoices with status, documents and due reminders.
+
+**6b. Home and car**
+
+- [ ] Vehicles (linked to Quick Info), service history and next service.
+- [ ] Warranties and manuals; recurring maintenance with reminders.
+- [ ] Jobs, tradespeople and "would use again".
+
+**6c. Budget and debt**
+
+- [ ] The zero-based monthly budget, priorities, sinking funds and moving
+      money between categories.
+- [ ] Bank CSV import (ABSA, Capitec, saved formats and column mapping),
+      categorising and rules.
+- [ ] Debts, smallest balance first, and the milestones.
+
+**Later**
+
+- [ ] The home loan: balance, extra payments, payoff date (its own
+      feature).
+- [ ] Pets, if ever: notes kept here. They would live in Health as family
+      members of the kind "pet" (vaccinations, medicine plans with dose
+      reminders, the vet as a provider, episodes), plus species, breed,
+      microchip number, insurance, food, and deworming and tick schedules.
 
 ## Phase 7 — Lists, chores and noticeboard
 
