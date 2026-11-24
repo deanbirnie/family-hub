@@ -117,6 +117,23 @@ function essentialsSection(r: Report, input: ReportInput, e: ReturnType<typeof e
   }
 }
 
+/** A person's health essentials written into another report (the emergency pack): blood type, allergies, medicines, conditions, care notes and doctors. */
+export function writeHealthEssentials(r: Report, input: ReportInput) {
+  const e = essentials(input)
+  r.facts([['Blood type', e.basics.bloodType ? e.basics.bloodType : '']])
+  essentialsSection(r, input, e)
+  const doctors = e.of('provider')
+  if (doctors.length) {
+    r.heading('Doctors')
+    r.bullets(
+      doctors.map((d) => {
+        const f = d.content.fields
+        return [contactName(input.contacts, f.contactId), [optionLabel(PROVIDER_ROLES, f.role ?? ''), f.speciality].filter(Boolean).join(', '), f.main === 'yes' && 'main GP', contactPhone(input.contacts, f.contactId)].filter(Boolean).join(' · ')
+      }),
+    )
+  }
+}
+
 // ---- the visit summary ---------------------------------------------------------------------
 
 export interface VisitOptions {

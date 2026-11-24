@@ -84,3 +84,59 @@ describe('in case of emergency: trusted parties and letters', () => {
     expect(failed.body.message).toContain('535 not accepted')
   })
 })
+
+describe('the emergency pack (9b)', () => {
+  /** Just enough of a locked PDF for the server's check (the real one is made on the device). */
+  const locked = (body = 'secret pages') =>
+    Buffer.from(`%PDF-1.7\n1 0 obj\n<< /Filter /Standard /V 5 /R 6 /Length 256 >>\nendobj\n${body}\ntrailer\n<< /Size 2 /Root 1 0 R /Encrypt 1 0 R >>\n%%EOF\n`, 'latin1').toString('base64')
+
+  it('keeps the instructions and the password as ciphertext only, checking versions', async () => {
+    server = await startServer()
+    const { client } = await setUpAdmin(server)
+    const first = await client.call<{ version: number }>('PUT', '/api/emergency/secrets/instructions', { baseVersion: null, ciphertext: 'v1.sealed-by-the-family-key' })
+    expect(first.body.version).toBe(1)
+    expect((await client.call('PUT', '/api/emergency/secrets/instructions', { baseVersion: null, ciphertext: 'x' })).status).toBe(409)
+    expect((await client.call('PUT', '/api/emergency/secrets/instructions', { baseVersion: 1, ciphertext: 'v1.second' })).status).toBe(200)
+    expect((await client.call('PUT', '/api/emergency/secrets/password', { baseVersion: null, ciphertext: 'v1.pw' })).status).toBe(200)
+    expect((await client.call('PUT', '/api/emergency/secrets/other', { baseVersion: null, ciphertext: 'x' })).status).toBe(404)
+    expect((await client.call('PUT', '/api/emergency/secrets/password', { baseVersion: 1, ciphertext: '' })).status).toBe(400)
+    const got = await client.get<{ instructions: { ciphertext: string; version: number }; password: { ciphertext: string } }>('/api/emergency')
+    expect(got.body.instructions).toMatchObject({ ciphertext: 'v1.second', version: 2 })
+    expect(got.body.password.ciphertext).toBe('v1.pw')
+  })
+
+  it('stores only a locked pack, hands it back for the will, and reminds a year later to print a fresh one', async () => {
+    server = await startServer() // 2026-11-20
+    const { client } = await setUpAdmin(server)
+    expect((await client.get<{ pack: unknown }>('/api/emergency')).body.pack).toBeNull()
+    expect((await client.get('/api/emergency/pack')).status).toBe(404)
+    // An open (unlocked) PDF is refused.
+    expect((await client.call('PUT', '/api/emergency/pack', { pdf: Buffer.from('%PDF-1.4\nopen pages\n%%EOF').toString('base64') })).status).toBe(400)
+    expect((await client.call('PUT', '/api/emergency/pack', { pdf: 'not a pdf' })).status).toBe(400)
+    const put = await client.call<{ size: number }>('PUT', '/api/emergency/pack', { pdf: locked() })
+    expect(put.status).toBe(200)
+    const listing = await client.get<{ pack: { size: number; madeBy: string; downloadedAt: number | null } }>('/api/emergency')
+    expect(listing.body.pack).toMatchObject({ size: put.body.size, downloadedAt: null })
+
+    const res = await fetch(`${server.url}/api/emergency/pack`, { headers: { ...client.headers, cookie: client.cookie } })
+    expect(res.headers.get('content-type')).toBe('application/pdf')
+    expect(Buffer.from(await res.arrayBuffer()).toString('latin1')).toContain('secret pages')
+
+    const parent = (await client.get<{ user: { id: string } }>('/api/auth/session')).body.user.id
+    const { dueMessagesFor } = await import('../src/notifications.ts')
+    expect(dueMessagesFor(server.services, parent, '2027-11-20').map((m) => m.body)).toContain('Time to refresh a printed copy. Tap to see.')
+    expect(dueMessagesFor(server.services, parent, '2027-06-01').map((m) => m.body)).not.toContain('Time to refresh a printed copy. Tap to see.')
+  })
+
+  it('lists the documents in Files by their place, for the pack', async () => {
+    server = await startServer()
+    const { client } = await setUpAdmin(server)
+    const folder = await client.post<{ item: { id: string } }>('/api/files/folders', { name: 'Legal', parentId: null })
+    expect(folder.status).toBe(200)
+    const db = server.services.db
+    const user = (db.prepare('SELECT id FROM users').get() as { id: string }).id
+    db.prepare("INSERT INTO files (id, parent_id, name, kind, size, media_type, created_by, created_at, updated_at) VALUES ('w1', ?, 'Will.pdf', 'file', 10, 'application/pdf', ?, 1, 1)").run(folder.body.item.id, user)
+    const docs = await client.get<{ documents: string[] }>('/api/emergency/documents')
+    expect(docs.body.documents).toContain('Legal / Will.pdf')
+  })
+})

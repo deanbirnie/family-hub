@@ -474,9 +474,24 @@ so the app password cannot read your own mail.
 - [ ] 4. Add the trusted parties: at least one **guardian**, and anyone **to
       inform**.
 - [ ] 5. **Wait with the letters** until the release pull request (9c) is
-      deployed: until then the link in a letter opens nothing. When you do
-      make them, choose the pack's password once (Suggest one), save it in
-      your password manager, and use the same one for every guardian.
+      deployed: until then the link in a letter opens nothing. The letters
+      use the pack's password (step 32).
+
+## 32. The emergency pack (after the 9b pull request is merged and deployed)
+
+- [ ] 1. **Settings → In case of emergency → The pack:** open the vault,
+      then **Choose the password**. Save it in your password manager (both
+      of you need to reach it), then tick that you have and save. The pack
+      is made straight away.
+- [ ] 2. **Our instructions → Write them:** the children's routines and
+      care, who to call, where the will and policies are, debit orders to
+      cancel, the password manager's emergency access, your wishes. Fill in
+      what you can; you can come back to it.
+- [ ] 3. **Download, to keep with the will**, open it with the password to
+      check it, print it and keep it with the will. You are reminded a year
+      later to print a fresh copy.
+- [ ] 4. Nothing else to do: whenever one of you opens the vault, the pack
+      is remade (at most once a day).
 
 ## Later steps (added as features land)
 

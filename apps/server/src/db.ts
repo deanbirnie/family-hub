@@ -500,6 +500,26 @@ const MIGRATIONS: string[] = [
     updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
   );
   `,
+  // 24: the emergency pack (phase 9b): the parents' instructions and the
+  // pack's password, each end-to-end encrypted with the family key (the
+  // server cannot read them), and the pack itself, a PDF locked with that
+  // password on a parent's device.
+  `
+  CREATE TABLE emergency_secrets (
+    kind TEXT PRIMARY KEY CHECK (kind IN ('instructions', 'password')),
+    ciphertext TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE TABLE emergency_pack (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    pdf BLOB NOT NULL,
+    made_at INTEGER NOT NULL,
+    made_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    downloaded_at INTEGER
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

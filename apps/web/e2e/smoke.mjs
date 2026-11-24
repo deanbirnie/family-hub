@@ -1029,13 +1029,29 @@ try {
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await page.getByRole('dialog').waitFor({ state: 'hidden' })
   await page.getByText('no letter yet').waitFor()
-  await page.getByRole('button', { name: 'Letter', exact: true }).click()
-  await page.getByRole('button', { name: 'Suggest one' }).click()
-  const packPassword = await page.getByLabel('The pack’s password').inputValue()
+  // The pack: open the vault, choose its password (kept only encrypted with the family key), write instructions.
+  const packCard = page.locator('section.card', { has: page.getByRole('heading', { name: 'The pack' }) })
+  await packCard.getByText('Not made yet').waitFor()
+  await packCard.getByRole('button', { name: 'Use the recovery key' }).click()
+  await packCard.getByLabel('Recovery key', { exact: true }).fill(recoveryKey)
+  await packCard.getByLabel('Code from your authenticator app').fill(await nextCode(secret))
+  await packCard.getByRole('button', { name: 'Open the vault' }).click()
+  await packCard.getByRole('button', { name: 'Choose the password' }).click()
+  const packPassword = await page.getByLabel('Password', { exact: true }).inputValue()
   if (!/^[a-z2-9]{4}(-[a-z2-9]{4}){4}$/.test(packPassword)) throw new Error(`odd suggested password: ${packPassword}`)
-  await page.getByRole('button', { name: 'Make the letter' }).click()
-  await page.getByText('Save the password in your password manager first').waitFor()
-  await page.getByText('This password is saved in our password manager').click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByText('Save it in your password manager first.').waitFor()
+  await page.getByText('It is saved in our password manager').click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  // Saving the password makes the pack at once.
+  await packCard.getByText(/^Last made/).waitFor({ timeout: 20000 })
+  await page.getByRole('button', { name: 'Write them' }).click()
+  await page.getByLabel('The children: routines and care').fill('Sam needs his blue blanket to sleep.')
+  await page.locator('section.card', { has: page.getByRole('heading', { name: 'Our instructions' }) }).getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByText(/Last changed/).waitFor()
+  // The letter carries the stored password, opened on this device.
+  await page.getByRole('button', { name: 'Letter', exact: true }).click()
   await page.getByRole('button', { name: 'Make the letter' }).click()
   await page.getByText('The letter is ready.').waitFor()
   const letterDownload = page.waitForEvent('download')
@@ -1045,8 +1061,29 @@ try {
   await shot(page, '06r-emergency-letter')
   await page.getByRole('button', { name: 'Done' }).click()
   await page.getByText(/letter made/).waitFor()
-  // The password never reached the server.
-  if ((await page.evaluate(async () => (await fetch('/api/emergency')).text())).includes(packPassword)) throw new Error('the pack password reached the server')
+  // The pack, downloaded: locked, opens with the password, and holds the instructions and the family.
+  await packCard.getByRole('button', { name: 'Refresh now' }).click()
+  await packCard.getByRole('button', { name: 'Refresh now' }).waitFor()
+  const packDownload = page.waitForEvent('download')
+  await packCard.getByRole('button', { name: 'Download, to keep with the will' }).click()
+  const packFile = new Uint8Array(readFileSync(await (await packDownload).path()))
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  await getDocument({ data: packFile.slice() }).promise.then(
+    () => {
+      throw new Error('the pack opens without a password')
+    },
+    (e) => {
+      if (e.name !== 'PasswordException') throw e
+    },
+  )
+  const pack = await getDocument({ data: packFile.slice(), password: packPassword }).promise
+  let packText = ''
+  for (let i = 1; i <= pack.numPages; i++) packText += (await (await pack.getPage(i)).getTextContent()).items.map((it) => it.str ?? '').join(' ') + ' '
+  for (const w of ['Sam needs his blue blanket to sleep.', 'Aunt Mary', 'Alex Quinn Tester', 'Gran Tester']) if (!packText.includes(w)) throw new Error(`the pack is missing "${w}"`)
+  await shot(page, '06s-emergency-pack')
+  // Neither the password nor the instructions reached the server readable.
+  const served = await page.evaluate(async () => (await fetch('/api/emergency')).text())
+  if (served.includes(packPassword) || served.includes('blue blanket')) throw new Error('the server can read the password or the instructions')
 
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)

@@ -13,6 +13,8 @@ import { HttpError, readJson } from '../http.ts'
 import { isEmail } from '../mail.ts'
 import { hashToken, newId, newToken } from '../secrets.ts'
 import { familyName } from './auth.ts'
+import type { ReminderItem } from '../notifications.ts'
+import { localNow } from '../schedule.ts'
 
 export interface TrustedParty {
   name: string
@@ -25,6 +27,31 @@ export interface TrustedParty {
 }
 
 const MAX_PARTIES = 20
+/** The locked pack: a text PDF, well under this. */
+const MAX_PACK_BYTES = 20 * 1024 * 1024
+const DAY = 86_400_000
+
+/** A year after the pack was last downloaded, a reminder to print a fresh copy for the will. */
+export function emergencyItems(s: Services): ReminderItem[] {
+  const pack = s.db.prepare('SELECT downloaded_at FROM emergency_pack WHERE id = 1').get() as { downloaded_at: number | null } | undefined
+  if (!pack?.downloaded_at) return []
+  const due = localNow(pack.downloaded_at + 365 * DAY, s.config.timeZone).date
+  return [
+    {
+      key: `emergency-pack:${pack.downloaded_at}`,
+      category: 'household',
+      title: 'Print a fresh copy of the emergency pack for the will',
+      whose: null,
+      due: { date: due, yearly: false },
+      leads: [0],
+      notice: () => 'Time to refresh a printed copy. Tap to see.',
+      url: '/emergency',
+      audience: 'all',
+      horizon: 14,
+      catchUp: true,
+    },
+  ]
+}
 
 export const cleanParty = (raw: unknown): TrustedParty => {
   const o = obj(raw)
@@ -51,10 +78,23 @@ export function emergencyRoutes(api: Api, s: Services): void {
     return r
   }
 
+  const secret = (kind: string) => db.prepare('SELECT ciphertext, version, updated_at FROM emergency_secrets WHERE kind = ?').get(kind) as { ciphertext: string; version: number; updated_at: number } | undefined
+  const secretInfo = (kind: string) => {
+    const r = secret(kind)
+    return r ? { ciphertext: r.ciphertext, version: r.version, updatedAt: r.updated_at } : null
+  }
+
   api.authed('GET', '/api/emergency', parents, () => ({
     family: familyName(s),
     mail: { configured: s.mail.configured, from: s.mail.from },
-    parties: (db.prepare('SELECT id, sealed, version, letter_at FROM trusted_parties ORDER BY created_at, id').all() as { id: string; sealed: string; version: number; letter_at: number | null }[]).map((r) => ({
+    // End-to-end encrypted with the family key: opened only on a parent's device.
+    instructions: secretInfo('instructions'),
+    password: secretInfo('password'),
+    pack: (() => {
+      const p = db.prepare('SELECT length(pdf) AS size, made_at, downloaded_at, u.display_name AS by FROM emergency_pack LEFT JOIN users u ON u.id = made_by WHERE emergency_pack.id = 1').get() as { size: number; made_at: number; downloaded_at: number | null; by: string | null } | undefined
+      return p ? { size: p.size, madeAt: p.made_at, madeBy: p.by, downloadedAt: p.downloaded_at } : null
+    })(),
+    parties: (db.prepare('SELECT id, sealed, version, letter_at FROM trusted_parties ORDER BY created_at, rowid').all() as { id: string; sealed: string; version: number; letter_at: number | null }[]).map((r) => ({
       id: r.id,
       version: r.version,
       letterAt: r.letter_at,
@@ -102,6 +142,64 @@ export function emergencyRoutes(api: Api, s: Services): void {
     db.prepare('UPDATE trusted_parties SET request_hash = ?, letter_at = ? WHERE id = ?').run(hashToken(secret), now, r.id)
     s.audit('emergency.letter_made', ctx, ctx.user.id)
     return { secret, letterAt: now }
+  })
+
+  /** The instructions or the pack's password, sealed on a parent's device with the family key; the server keeps only the ciphertext. */
+  api.authed('PUT', '/api/emergency/secrets/:kind', parents, async (ctx) => {
+    const kind = ctx.params.kind!
+    if (kind !== 'instructions' && kind !== 'password') throw new HttpError(404, 'Not found.', 'not_found')
+    const body = await readJson(ctx.req, 512 * 1024)
+    const ciphertext = typeof body.ciphertext === 'string' ? body.ciphertext : ''
+    if (!ciphertext || ciphertext.length > 400_000) bad('Send the encrypted text.')
+    const existing = secret(kind)
+    if ((existing?.version ?? null) !== (body.baseVersion ?? null)) throw new HttpError(409, 'The other parent changed this a moment ago. Open it again to see their change.', 'edit_conflict')
+    const now = s.now()
+    if (existing) db.prepare('UPDATE emergency_secrets SET ciphertext = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE kind = ?').run(ciphertext, now, ctx.user.id, kind)
+    else db.prepare('INSERT INTO emergency_secrets (kind, ciphertext, version, updated_at, updated_by) VALUES (?, ?, 1, ?, ?)').run(kind, ciphertext, now, ctx.user.id)
+    s.audit(`emergency.${kind}_saved`, ctx, ctx.user.id)
+    return { version: (existing?.version ?? 0) + 1, updatedAt: now }
+  })
+
+  /** The pack, made and locked on a parent's device. Only a locked PDF is taken: the server must never hold an open one. */
+  api.authed('PUT', '/api/emergency/pack', parents, async (ctx) => {
+    const body = await readJson(ctx.req, Math.ceil((MAX_PACK_BYTES * 4) / 3) + 1024)
+    const pdf = Buffer.from(typeof body.pdf === 'string' ? body.pdf : '', 'base64')
+    if (pdf.length === 0 || pdf.length > MAX_PACK_BYTES) bad('The pack is too large.')
+    const text = pdf.toString('latin1')
+    if (!text.startsWith('%PDF-') || !/\/Encrypt \d+ 0 R/.test(text.slice(-2000)) || !text.includes('/Filter /Standard /V 5 /R 6')) bad('The pack must be a PDF locked with a password (AES-256).')
+    db.prepare('INSERT INTO emergency_pack (id, pdf, made_at, made_by) VALUES (1, ?, ?, ?) ON CONFLICT (id) DO UPDATE SET pdf = excluded.pdf, made_at = excluded.made_at, made_by = excluded.made_by').run(pdf, s.now(), ctx.user.id)
+    s.audit('emergency.pack_made', ctx, ctx.user.id)
+    return { size: pdf.length, madeAt: s.now() }
+  })
+
+  /** The locked pack, to keep with the will. */
+  api.authed('GET', '/api/emergency/pack', parents, (ctx) => {
+    const p = db.prepare('SELECT pdf FROM emergency_pack WHERE id = 1').get() as { pdf: Uint8Array } | undefined
+    if (!p) throw new HttpError(404, 'The pack has not been made yet.', 'not_found')
+    db.prepare('UPDATE emergency_pack SET downloaded_at = ? WHERE id = 1').run(s.now())
+    s.audit('emergency.pack_downloaded', ctx, ctx.user.id)
+    ctx.res.statusCode = 200
+    ctx.res.setHeader('Content-Type', 'application/pdf')
+    ctx.res.setHeader('Content-Disposition', 'attachment; filename="emergency-pack.pdf"')
+    ctx.res.setHeader('Cache-Control', 'no-store')
+    ctx.res.end(Buffer.from(p.pdf))
+    return undefined
+  })
+
+  /** Every document's place in Files, for the pack's list of documents (names only). */
+  api.authed('GET', '/api/emergency/documents', parents, () => {
+    const rows = db.prepare('SELECT id, parent_id, name, kind FROM files WHERE deleted_at IS NULL').all() as { id: string; parent_id: string | null; name: string; kind: string }[]
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    const path = (r: { parent_id: string | null; name: string }): string => {
+      const parts = [r.name]
+      let up = r.parent_id ? byId.get(r.parent_id) : undefined
+      for (let i = 0; up && i < 200; i++) {
+        parts.unshift(up.name)
+        up = up.parent_id ? byId.get(up.parent_id) : undefined
+      }
+      return parts.join(' / ')
+    }
+    return { documents: rows.filter((r) => r.kind === 'file').map(path).sort((a, b) => a.localeCompare(b)) }
   })
 
   /** A test message, so the parents know the hub's email works before it matters. */
