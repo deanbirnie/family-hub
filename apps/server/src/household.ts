@@ -92,11 +92,11 @@ export type Item = Account | Bill | Invoice
 
 // ---- checking what comes in --------------------------------------------------------------
 
-const bad = (message: string): never => {
+export const bad = (message: string): never => {
   throw new HttpError(400, message, 'invalid')
 }
 
-const text = (o: Record<string, unknown>, key: string, max: number, label: string, required = false): string => {
+export const text = (o: Record<string, unknown>, key: string, max: number, label: string, required = false): string => {
   const v = o[key]
   if (v === undefined || v === null || v === '') return required ? bad(`${label} is needed.`) : ''
   if (typeof v !== 'string') return bad(`${label} must be text.`)
@@ -106,43 +106,43 @@ const text = (o: Record<string, unknown>, key: string, max: number, label: strin
   return t
 }
 
-const date = (o: Record<string, unknown>, key: string, label: string, required = false): string | null => {
+export const date = (o: Record<string, unknown>, key: string, label: string, required = false): string | null => {
   const v = o[key]
   if (v === undefined || v === null || v === '') return required ? bad(`${label} is needed.`) : null
   if (typeof v !== 'string' || v.length !== 10 || !parseDate(v)?.year) return bad(`${label} must be a date.`)
   return v
 }
 
-const cents = (v: unknown, label: string): number => {
+export const cents = (v: unknown, label: string): number => {
   if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < 0 || v > 100_000_000_00) return bad(`${label} must be an amount in cents.`)
   return v
 }
 
-const int = (v: unknown, label: string, min: number, max: number): number => {
+export const int = (v: unknown, label: string, min: number, max: number): number => {
   if (typeof v !== 'number' || !Number.isInteger(v) || v < min || v > max) return bad(`${label} must be a whole number from ${min} to ${max}.`)
   return v
 }
 
-const id = (o: Record<string, unknown>, key: string): string | null => {
+export const id = (o: Record<string, unknown>, key: string): string | null => {
   const v = o[key]
   if (v === undefined || v === null || v === '') return null
   if (typeof v !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(v)) return bad('A linked item is not valid.')
   return v
 }
 
-const oneOf = <T extends string>(v: unknown, options: readonly T[], label: string, fallback?: T): T => {
+export const oneOf = <T extends string>(v: unknown, options: readonly T[], label: string, fallback?: T): T => {
   if ((v === undefined || v === null || v === '') && fallback) return fallback
   if (typeof v !== 'string' || !options.includes(v as T)) return bad(`${label} is not one of the choices.`)
   return v as T
 }
 
-const list = (v: unknown, max: number, label: string): unknown[] => {
+export const list = (v: unknown, max: number, label: string): unknown[] => {
   if (v === undefined || v === null) return []
   if (!Array.isArray(v) || v.length > max) return bad(`${label} must be a list of at most ${max}.`)
   return v
 }
 
-const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : bad('Each entry must be an object.'))
+export const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : bad('Each entry must be an object.'))
 
 export function cleanAccount(raw: unknown): Account {
   const o = obj(raw)
