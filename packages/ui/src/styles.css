@@ -1844,3 +1844,36 @@ progress {
   padding: 4px 6px;
   border-bottom: 1px solid var(--border);
 }
+
+/* ---- Health: episodes ---- */
+
+.link-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.link-row:hover strong,
+.link-row:focus-visible strong {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.episodes-open {
+  background: linear-gradient(90deg, var(--accent) 0 4px, var(--surface) 4px);
+}
+
+.episode-add {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.episode-chart {
+  max-width: 560px;
+}

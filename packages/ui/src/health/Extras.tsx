@@ -36,7 +36,7 @@ const when = (date: string) => {
 }
 
 export function ComingUpHealth({ records, birthDate }: { records: Rec[]; birthDate?: string }) {
-  const list = healthReminders(records, birthDate).filter((r) => daysUntil(r.date) <= 60)
+  const list = healthReminders(records, birthDate).filter((r) => r.date.length === 10 && daysUntil(r.date) <= 60)
   if (list.length === 0) return null
   return (
     <Card
@@ -137,13 +137,14 @@ export function Vaccinations({ records, birthDate, opener }: { records: Rec[]; b
 }
 
 /** A small line chart of one measure over time (one series: no legend; the title names it). */
-function TrendChart({ title, unit, points }: { title: string; unit: string; points: { date: string; value: number }[] }) {
+/** A single-series line over time. Points are dates, or dates and times ("2026-11-20T14:30"). */
+export function TrendChart({ title, unit, points, label = (d) => d.slice(0, 7) }: { title: string; unit: string; points: { date: string; value: number }[]; label?: (date: string) => string }) {
   const [hover, setHover] = useState<number | null>(null)
   if (points.length === 0) return null
   const W = 320
   const H = 140
   const pad = { l: 36, r: 12, t: 12, b: 22 }
-  const times = points.map((p) => new Date(`${p.date}T00:00:00`).getTime())
+  const times = points.map((p) => new Date(p.date.length > 10 ? p.date : `${p.date}T00:00:00`).getTime())
   const t0 = Math.min(...times)
   const t1 = Math.max(...times)
   const values = points.map((p) => p.value)
@@ -165,7 +166,7 @@ function TrendChart({ title, unit, points }: { title: string; unit: string; poin
         {h && (
           <span className="trend-readout">
             {' '}
-            · {h.date}: <strong>{h.value}</strong> {unit}
+            · {h.date.replace('T', ' ')}: <strong>{h.value}</strong> {unit}
           </span>
         )}
       </figcaption>
@@ -179,16 +180,16 @@ function TrendChart({ title, unit, points }: { title: string; unit: string; poin
           </g>
         ))}
         <text x={pad.l} y={H - 6} className="trend-tick">
-          {points[0]!.date.slice(0, 7)}
+          {label(points[0]!.date)}
         </text>
         {points.length > 1 && (
           <text x={W - pad.r} y={H - 6} textAnchor="end" className="trend-tick">
-            {points[points.length - 1]!.date.slice(0, 7)}
+            {label(points[points.length - 1]!.date)}
           </text>
         )}
         {points.length > 1 && <path d={path} className="trend-line" />}
         {points.map((p, i) => (
-          <g key={p.date + i} onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} tabIndex={0} aria-label={`${p.date}: ${p.value} ${unit}`}>
+          <g key={p.date + i} onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} tabIndex={0} aria-label={`${p.date.replace('T', ' ')}: ${p.value} ${unit}`}>
             <circle cx={x(times[i]!)} cy={y(p.value)} r={12} className="trend-hit" />
             <circle cx={x(times[i]!)} cy={y(p.value)} r={hover === i ? 5 : 4} className="trend-dot" />
           </g>

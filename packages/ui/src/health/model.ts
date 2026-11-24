@@ -6,7 +6,21 @@
  */
 import { open, seal } from '../vault/crypto.ts'
 
-export type HealthKind = 'basics' | 'allergy' | 'condition' | 'provider' | 'medicine' | 'history' | 'vaccine' | 'growth' | 'checkup' | 'appointment'
+export type HealthKind =
+  | 'basics'
+  | 'allergy'
+  | 'condition'
+  | 'provider'
+  | 'medicine'
+  | 'history'
+  | 'vaccine'
+  | 'growth'
+  | 'checkup'
+  | 'appointment'
+  // Episodes (5c): the episode, each entry in its timeline, and its medicine plans.
+  | 'episode'
+  | 'entry'
+  | 'plan'
 
 export interface LinkedDocument {
   id: string
@@ -55,7 +69,7 @@ export async function decryptHealth(familyKey: Uint8Array, record: Pick<StoredHe
 export interface FieldDef {
   key: string
   label: string
-  type?: 'text' | 'textarea' | 'date' | 'select' | 'checkbox' | 'number' | 'contact'
+  type?: 'text' | 'textarea' | 'date' | 'datetime' | 'time' | 'select' | 'checkbox' | 'number' | 'contact'
   options?: [string, string][]
   placeholder?: string
   hint?: string

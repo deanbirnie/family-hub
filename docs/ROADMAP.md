@@ -553,12 +553,12 @@ then save or share.
 
 **5c. Episodes**
 
-- [ ] Episodes with the timeline of observations, doses, doctors, tests,
+- [x] Episodes with the timeline of observations, doses, doctors, tests,
       photos and notes.
-- [ ] Medicine plans: next dose, late and missed doses, warnings from the
+- [x] Medicine plans: next dose, late and missed doses, warnings from the
       prescription's limits, dose reminders.
-- [ ] Hospital stays: vitals, ward rounds, discharge.
-- [ ] Closing, and adding to Conditions and Medicines.
+- [x] Hospital stays: vitals, ward rounds, discharge.
+- [x] Closing, and adding to Conditions and Medicines.
 
 **5d. Reports and the emergency card**
 
