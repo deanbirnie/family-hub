@@ -7,6 +7,7 @@ import type { Config } from './config.ts'
 import type { Db } from './db.ts'
 import { clientIp, HttpError, isSecure, parseCookies, Router, securityHeaders, sendJson, type Ctx } from './http.ts'
 import { AccountLockout, RateLimiter } from './limits.ts'
+import { createMailer, type Mailer } from './mail.ts'
 import { DEFAULT_ARGON2, type Argon2Params } from './secrets.ts'
 import { cookieName, findSession, getUser, pruneSessions, type Session, type Stage, type User } from './sessions.ts'
 import { serveStatic } from './static.ts'
@@ -30,6 +31,7 @@ import { budgetRoutes } from './routes/budget.ts'
 import { schoolRoutes } from './routes/school.ts'
 import { wishlistRoutes } from './routes/wishlists.ts'
 import { giftRoutes } from './routes/gifts.ts'
+import { emergencyRoutes } from './routes/emergency.ts'
 import { calendarSyncRoutes, syncDue } from './routes/calendar-sync.ts'
 import { fetchIcs, type IcsFetcher } from './fetch-ics.ts'
 import { runReminders } from './notifications.ts'
@@ -47,6 +49,8 @@ export interface AppOptions {
   pushFetch?: PushFetch
   /** How outside calendars are fetched; tests replace it. */
   icsFetch?: IcsFetcher
+  /** How email is sent (phase 9); tests replace it. Without one, email is not set up. */
+  mailer?: Mailer
 }
 
 /** Everything a route needs. */
@@ -58,6 +62,7 @@ export interface Services {
   now: () => number
   pushFetch: PushFetch
   icsFetch: IcsFetcher
+  mail: Mailer
   limits: {
     /** Sign-in attempts per address. */
     signIn: RateLimiter
@@ -102,6 +107,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
     now: opts.now ?? Date.now,
     pushFetch: opts.pushFetch ?? defaultPushFetch,
     icsFetch: opts.icsFetch ?? fetchIcs,
+    mail: opts.mailer ?? createMailer(null),
     limits: {
       signIn: new RateLimiter(30, 15 * 60_000),
       open: new RateLimiter(60, 15 * 60_000),
@@ -148,6 +154,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   schoolRoutes(api, services)
   wishlistRoutes(api, services)
   giftRoutes(api, services)
+  emergencyRoutes(api, services)
 
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     void dispatch(services, router, req, res)

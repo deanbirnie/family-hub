@@ -65,6 +65,10 @@ for commands and verification.
 | `FAMILY_HUB_MAX_FILE_BYTES` | `104857600` (100 MiB) | Maximum size of one document upload; up to 2 GiB. Set a matching or larger request limit on your reverse proxy. |
 | `TZ` | `UTC` (the compose file sets `Africa/Johannesburg`) | The family's time zone: which day reminders are due, and from what time of day they are sent. |
 | `FAMILY_HUB_PUBLIC_URL` | (learnt) | The hub's https address, e.g. `https://hub.example.com`. Push services are told it as the sender of notifications. If unset, the address a browser uses when turning notifications on is remembered. |
+| `FAMILY_HUB_SMTP_HOST` | (none: no email) | The mail server the hub sends through, e.g. `smtp.gmail.com`. Used in an emergency (and for a test from Settings → In case of emergency). |
+| `FAMILY_HUB_SMTP_PORT` | `465` | `465` for TLS from the start, `587` for STARTTLS. Mail always travels encrypted. |
+| `FAMILY_HUB_SMTP_USER`, `FAMILY_HUB_SMTP_PASSWORD` | | The account to sign in as, and its password (for Gmail, an app password). `FAMILY_HUB_SMTP_PASSWORD_FILE` reads the password from a file instead (a Docker secret). |
+| `FAMILY_HUB_SMTP_FROM`, `FAMILY_HUB_SMTP_FROM_NAME` | the user; `Family Hub` | The address mail comes from, and the name shown with it. |
 
 ### Shared documents
 

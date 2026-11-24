@@ -64,11 +64,42 @@ const freePort = () =>
     })
   })
 
+// A tiny mail server on this machine, so the hub's email can be checked (phase 9).
+const mailbox = []
+const smtp = createServer((socket) => {
+  let inData = false
+  let buffer = ''
+  let message = ''
+  socket.write('220 e2e ESMTP\r\n')
+  socket.on('data', (chunk) => {
+    buffer += chunk.toString('utf8')
+    let i
+    while ((i = buffer.indexOf('\r\n')) >= 0) {
+      const line = buffer.slice(0, i)
+      buffer = buffer.slice(i + 2)
+      if (inData) {
+        if (line === '.') {
+          inData = false
+          mailbox.push(message)
+          message = ''
+          socket.write('250 queued\r\n')
+        } else message += `${line}\r\n`
+      } else if (/^EHLO/i.test(line)) socket.write('250-e2e\r\n250 SIZE 10000000\r\n')
+      else if (/^DATA/i.test(line)) {
+        inData = true
+        socket.write('354 go\r\n')
+      } else if (/^QUIT/i.test(line)) socket.end('221 bye\r\n')
+      else socket.write('250 ok\r\n')
+    }
+  })
+})
+await new Promise((r) => smtp.listen(0, '127.0.0.1', r))
+
 const data = mkdtempSync(join(tmpdir(), 'family-hub-e2e-'))
 const port = await freePort()
 const server = spawn(process.execPath, ['apps/server/src/main.ts'], {
   cwd: repo,
-  env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', FAMILY_HUB_DATA: data, FAMILY_HUB_KEY_FILE: join(data + '-key', 'server.key'), FAMILY_HUB_WEB_DIR: 'apps/web/dist', FAMILY_HUB_VERSION: 'e2e' },
+  env: { ...process.env, PORT: String(port), HOST: '127.0.0.1', FAMILY_HUB_DATA: data, FAMILY_HUB_KEY_FILE: join(data + '-key', 'server.key'), FAMILY_HUB_WEB_DIR: 'apps/web/dist', FAMILY_HUB_VERSION: 'e2e', FAMILY_HUB_SMTP_HOST: '127.0.0.1', FAMILY_HUB_SMTP_PORT: String(smtp.address().port), FAMILY_HUB_SMTP_SECURITY: 'none', FAMILY_HUB_SMTP_FROM: 'hub@example.com' },
   stdio: ['ignore', 'inherit', 'inherit'],
 })
 const base = `http://localhost:${port}`
@@ -983,6 +1014,40 @@ try {
   await page.locator('section.card', { has: page.getByRole('heading', { name: /Christmas/ }) }).waitFor()
   await shot(page, '06q-gift-planner')
 
+  // In case of emergency: the hub's email works; a guardian, and their letter with the pack's password.
+  await page.goto(`${base}/settings`)
+  await page.locator('section.card', { has: page.getByRole('heading', { name: 'In case of emergency' }) }).getByRole('button', { name: 'Open' }).click()
+  await page.getByRole('heading', { name: 'In case of emergency', level: 1 }).waitFor()
+  await page.getByText('The hub sends from hub@example.com.').waitFor()
+  await page.getByLabel('Send a test to').fill('alex@example.com')
+  await page.getByRole('button', { name: 'Send a test' }).click()
+  await page.getByText('Sent to alex@example.com.').waitFor()
+  if (!mailbox.some((m) => m.includes('To: alex@example.com'))) throw new Error('the test email did not reach the mail server')
+  await page.getByRole('button', { name: 'Add someone' }).click()
+  await page.getByLabel('Name', { exact: true }).fill('Aunt Mary')
+  await page.getByLabel('Email', { exact: true }).fill('mary@example.org')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  await page.getByText('no letter yet').waitFor()
+  await page.getByRole('button', { name: 'Letter', exact: true }).click()
+  await page.getByRole('button', { name: 'Suggest one' }).click()
+  const packPassword = await page.getByLabel('The pack’s password').inputValue()
+  if (!/^[a-z2-9]{4}(-[a-z2-9]{4}){4}$/.test(packPassword)) throw new Error(`odd suggested password: ${packPassword}`)
+  await page.getByRole('button', { name: 'Make the letter' }).click()
+  await page.getByText('Save the password in your password manager first').waitFor()
+  await page.getByText('This password is saved in our password manager').click()
+  await page.getByRole('button', { name: 'Make the letter' }).click()
+  await page.getByText('The letter is ready.').waitFor()
+  const letterDownload = page.waitForEvent('download')
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click()
+  const letterFile = readFileSync(await (await letterDownload).path())
+  if (!letterFile.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new Error('the letter is not a PDF')
+  await shot(page, '06r-emergency-letter')
+  await page.getByRole('button', { name: 'Done' }).click()
+  await page.getByText(/letter made/).waitFor()
+  // The password never reached the server.
+  if ((await page.evaluate(async () => (await fetch('/api/emergency')).text())).includes(packPassword)) throw new Error('the pack password reached the server')
+
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)
   await page.getByRole('heading', { name: 'Where you’re signed in' }).waitFor()
@@ -1020,6 +1085,7 @@ try {
   }
 } finally {
   await browser.close()
+  smtp.close()
   await new Promise((resolve) => { server.once('exit', resolve); server.kill() })
   rmSync(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   rmSync(data + '-key', { recursive: true, force: true })
