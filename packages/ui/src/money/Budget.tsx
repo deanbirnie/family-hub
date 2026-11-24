@@ -3,7 +3,7 @@
  * job"), planned expenses with saving towards them, spending against the
  * plan, debts paid off smallest balance first, and the milestones.
  */
-import { ArrowLeft, ArrowRight, CheckCircle2, Circle, CircleDot, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CheckCircle2, Circle, CircleDot, Pencil, Plus, Trash2, Upload } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { HubContext } from '../Shell.tsx'
 import { Badge, Banner, Button, Card, Dialog, Spinner, errorText, useAction } from '../ui.tsx'
@@ -27,6 +27,7 @@ import {
   type Txn,
 } from './budget-model.ts'
 import { amountText, parseRand, rand, shortDate } from './model.ts'
+import { BUILT_IN_FORMATS, findHeaderRow, guessMapping, parseCsv, readRows, ruleMatchFor, signatureOf, type ImportMapping, type SavedFormat } from './csv.ts'
 import { Actions, conflict, Labelled } from './form.tsx'
 
 /** Loads one month of the budget, and saves the plan. */
@@ -60,6 +61,15 @@ export function BudgetTab({ ctx }: { ctx: HubContext }) {
   const [editCats, setEditCats] = useState(false)
   const [move, setMove] = useState<{ to: string; amount: number } | null>(null)
   const [txn, setTxn] = useState<Txn | 'new' | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [rulePrompt, setRulePrompt] = useState<{ match: string; categoryId: string } | null>(null)
+  const addRule = useAction(async () => {
+    if (!rulePrompt) return
+    await api.post('/api/budget/rules', { item: rulePrompt })
+    await api.post('/api/budget-rules/apply')
+    setRulePrompt(null)
+    await load()
+  })
 
   const start = useAction(async () => {
     await api.post(`/api/budget/months/${month}/start`)
@@ -137,7 +147,11 @@ export function BudgetTab({ ctx }: { ctx: HubContext }) {
             <Button busy={start.busy} onClick={() => void start.run()}>
               Plan {monthName(month)}
             </Button>
+            <Button variant="ghost" icon={<Upload size={16} aria-hidden />} onClick={() => setImporting(true)}>
+              Import from the bank
+            </Button>
           </div>
+          {view.transactions.length > 0 && <p className="muted small">{view.transactions.length} transactions this month so far.</p>}
         </Card>
       </div>
     )
@@ -253,13 +267,34 @@ export function BudgetTab({ ctx }: { ctx: HubContext }) {
       <Card
         title="Spending"
         actions={
-          <Button variant="ghost" icon={<Plus size={16} aria-hidden />} onClick={() => setTxn('new')}>
-            Add
-          </Button>
+          <>
+            <Button variant="ghost" icon={<Upload size={16} aria-hidden />} onClick={() => setImporting(true)}>
+              Import
+            </Button>
+            <Button variant="ghost" icon={<Plus size={16} aria-hidden />} onClick={() => setTxn('new')}>
+              Add
+            </Button>
+          </>
         }
       >
+        {rulePrompt && (
+          <Banner kind="info">
+            <div className="row">
+              <span>Always put anything with</span>
+              <input className="qi-search" aria-label="Text to match" value={rulePrompt.match} maxLength={80} onChange={(e) => setRulePrompt({ ...rulePrompt, match: e.target.value })} />
+              <span>in {cats.find((c) => c.id === rulePrompt.categoryId)?.name ?? (rulePrompt.categoryId === 'income' ? 'Income' : 'Between our accounts')}?</span>
+              <Button busy={addRule.busy} onClick={() => void addRule.run()}>
+                Yes
+              </Button>
+              <Button variant="ghost" onClick={() => setRulePrompt(null)}>
+                No
+              </Button>
+            </div>
+            {addRule.error && <div className="field-error small">{addRule.error}</div>}
+          </Banner>
+        )}
         {view.transactions.length === 0 ? (
-          <p className="muted small">Spending and income for the month. Type them in, or import your bank’s CSV export (coming next).</p>
+          <p className="muted small">Spending and income for the month. Import your bank’s CSV export, or type them in.</p>
         ) : (
           <>
             {view.uncategorised > 0 && <p className="small field-error">{view.uncategorised} still to put in a category.</p>}
@@ -280,7 +315,11 @@ export function BudgetTab({ ctx }: { ctx: HubContext }) {
                     aria-label={`Category for ${t.description}`}
                     value={t.categoryId ?? ''}
                     onChange={async (e) => {
-                      await api.request('PUT', `/api/budget-transactions/${t.id}`, { baseVersion: t.version, item: { ...t, categoryId: e.target.value || null } }).catch(conflict)
+                      const categoryId = e.target.value || null
+                      await api.request('PUT', `/api/budget-transactions/${t.id}`, { baseVersion: t.version, item: { ...t, categoryId } }).catch(conflict)
+                      // Offer a rule, unless one already covers it.
+                      const match = ruleMatchFor(t.description)
+                      if (categoryId && match.length >= 2 && !view.rules.some((r) => t.description.toLowerCase().includes(r.match))) setRulePrompt({ match, categoryId })
                       void load()
                     }}
                   >
@@ -299,6 +338,7 @@ export function BudgetTab({ ctx }: { ctx: HubContext }) {
             </ul>
           </>
         )}
+        {view.rules.length > 0 && <Rules ctx={ctx} view={view} reload={load} />}
       </Card>
 
       {editCats && (
@@ -322,6 +362,16 @@ export function BudgetTab({ ctx }: { ctx: HubContext }) {
             void edit((p) => ({ ...p, moves: [...p.moves, m] }))
           }}
           onClose={() => setMove(null)}
+        />
+      )}
+      {importing && (
+        <ImportDialog
+          ctx={ctx}
+          view={view}
+          onClose={(changed) => {
+            setImporting(false)
+            if (changed) void load()
+          }}
         />
       )}
       {txn && (
@@ -631,6 +681,278 @@ function YearView({ ctx, month }: { ctx: HubContext; month: string }) {
       </div>
       <p className="muted small">Each cell: spent (or received), with the plan below. Red where spending went over the plan.</p>
     </Card>
+  )
+}
+
+// ---- importing from the bank ---------------------------------------------------------------------
+
+const colOptions = (header: string[]) =>
+  header.map((h, i) => (
+    <option key={i} value={i}>
+      {h || `Column ${i + 1}`}
+    </option>
+  ))
+
+/**
+ * Reads the bank's CSV export on this device, with a saved way of reading
+ * that bank's layout (or one the parent sets up once), and sends only the
+ * transactions. Ones already imported are skipped by the hub.
+ */
+function ImportDialog({ ctx, view, onClose }: { ctx: HubContext; view: BudgetView; onClose: (changed?: boolean) => void }) {
+  const { api } = ctx.platform
+  const [accountId, setAccountId] = useState(view.accounts[0]?.id ?? '')
+  const [rows, setRows] = useState<string[][] | null>(null)
+  const [fileName, setFileName] = useState('')
+  const [mapping, setMapping] = useState<ImportMapping | null>(null)
+  const [saved, setSaved] = useState<SavedFormat | null>(null)
+  const [formatName, setFormatName] = useState('')
+  const [showMapping, setShowMapping] = useState(false)
+  const [result, setResult] = useState<{ added: number; skipped: number; uncategorised: number } | null>(null)
+  const header = rows && mapping ? (rows[mapping.headerRow] ?? []) : []
+  const read = rows && mapping ? readRows(rows, mapping) : null
+
+  const pick = useAction(async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) throw new Error('That file is too big for a bank export.')
+    const parsed = parseCsv(await file.text())
+    if (parsed.length < 2) throw new Error('That file has no rows. Export the statement as CSV from online banking.')
+    const headerRow = findHeaderRow(parsed)
+    const signature = signatureOf(parsed[headerRow]!)
+    const { formats } = await api.get<{ formats: SavedFormat[] }>('/api/budget-formats')
+    const known = formats.find((f) => f.signature === signature) ?? BUILT_IN_FORMATS.map((f) => ({ ...f, id: '' })).find((f) => f.signature === signature) ?? null
+    setRows(parsed)
+    setFileName(file.name)
+    setSaved(known)
+    setMapping(known ? { ...known.mapping, headerRow } : guessMapping(parsed[headerRow]!, headerRow, parsed.slice(headerRow + 1, headerRow + 6)))
+    setShowMapping(!known)
+    const account = view.accounts.find((a) => a.id === accountId)
+    setFormatName(known?.name ?? account?.bank ?? 'My bank')
+  })
+  const run = useAction(async () => {
+    if (!rows || !mapping || !read) return
+    if (read.rows.length === 0) throw new Error('No transactions could be read. Check which column is which below.')
+    // Keep the way of reading this layout for next time, if it is new or was changed.
+    if (!saved || JSON.stringify({ ...saved.mapping, headerRow: mapping.headerRow }) !== JSON.stringify(mapping) || !saved.id) {
+      await api.post('/api/budget-formats', { name: formatName || 'My bank', signature: signatureOf(header), mapping })
+    }
+    setResult(await api.post<{ added: number; skipped: number; uncategorised: number }>('/api/budget-import', { accountId: accountId || null, rows: read.rows }))
+  })
+  const set = <K extends keyof ImportMapping>(k: K, v: ImportMapping[K]) => setMapping((m) => (m ? { ...m, [k]: v } : m))
+  const num = (v: string) => (v === '' ? null : Number(v))
+
+  if (result) {
+    return (
+      <Dialog open title="Imported" onClose={() => onClose(true)}>
+        <div className="stack">
+          <p>
+            <strong>{result.added}</strong> new transaction{result.added === 1 ? '' : 's'} added
+            {result.skipped > 0 && `, ${result.skipped} already in the hub skipped`}.
+          </p>
+          {result.uncategorised > 0 && <p className="small">{result.uncategorised} still need a category. Choose one for each; the hub offers to remember it for next time.</p>}
+          <div className="row">
+            <Button onClick={() => onClose(true)}>Done</Button>
+          </div>
+        </div>
+      </Dialog>
+    )
+  }
+
+  return (
+    <Dialog open title="Import from the bank" onClose={() => onClose()}>
+      <div className="stack">
+        <p className="muted small">Export a statement as CSV from online banking, then choose the file here. It is read on this device: only the transactions are sent to the hub, never the file. Ones already imported are skipped, so overlapping exports are fine.</p>
+        {view.accounts.length > 0 ? (
+          <Labelled id="imp-account" label="Account">
+            <select id="imp-account" className="select" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
+              {view.accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.bank}, {a.nickname}
+                </option>
+              ))}
+            </select>
+          </Labelled>
+        ) : (
+          <p className="small">Tip: add your accounts (bank and nickname) under Accounts, to know which account each transaction came from.</p>
+        )}
+        <label className="btn btn-secondary file-pick">
+          <Upload size={16} aria-hidden />
+          <span>{fileName || 'Choose the CSV file'}</span>
+          <input
+            type="file"
+            accept=".csv,text/csv,text/plain"
+            aria-label="Bank export (CSV)"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void pick.run(f)
+            }}
+          />
+        </label>
+        {pick.error && <Banner kind="error">{pick.error}</Banner>}
+
+        {rows && mapping && read && (
+          <>
+            {saved ? (
+              <p className="small">
+                Read as <strong>{saved.name}</strong>.{' '}
+                <button className="link" onClick={() => setShowMapping(!showMapping)}>
+                  {showMapping ? 'Hide how it is read' : 'Change how it is read'}
+                </button>
+              </p>
+            ) : (
+              <p className="small">This layout is new: check which column is which. It is remembered for next time.</p>
+            )}
+            {showMapping && (
+              <fieldset className="radio-group">
+                <legend>Which column is which</legend>
+                <div className="import-preview">
+                  <table>
+                    <thead>
+                      <tr>
+                        {header.map((h, i) => (
+                          <th key={i}>{h || `Column ${i + 1}`}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.slice(mapping.headerRow + 1, mapping.headerRow + 4).map((r, i) => (
+                        <tr key={i}>
+                          {header.map((_, j) => (
+                            <td key={j}>{r[j]}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="row">
+                  <Labelled id="imp-date" label="Date">
+                    <select id="imp-date" className="select" value={mapping.date} onChange={(e) => set('date', Number(e.target.value))}>
+                      {colOptions(header)}
+                    </select>
+                  </Labelled>
+                  <Labelled id="imp-style" label="Written as">
+                    <select id="imp-style" className="select" value={mapping.dateStyle} onChange={(e) => set('dateStyle', e.target.value as ImportMapping['dateStyle'])}>
+                      <option value="dmy">day/month/year</option>
+                      <option value="ymd">year-month-day</option>
+                      <option value="mdy">month/day/year</option>
+                    </select>
+                  </Labelled>
+                </div>
+                <div className="row">
+                  <Labelled id="imp-desc" label="Description">
+                    <select id="imp-desc" className="select" value={mapping.description[0]} onChange={(e) => set('description', [Number(e.target.value), ...mapping.description.slice(1)])}>
+                      {colOptions(header)}
+                    </select>
+                  </Labelled>
+                  <Labelled id="imp-desc2" label="Also add (optional)">
+                    <select id="imp-desc2" className="select" value={mapping.description[1] ?? ''} onChange={(e) => set('description', e.target.value === '' ? [mapping.description[0]!] : [mapping.description[0]!, Number(e.target.value)])}>
+                      <option value="">Nothing</option>
+                      {colOptions(header)}
+                    </select>
+                  </Labelled>
+                </div>
+                <Labelled id="imp-mode" label="Amounts">
+                  <select
+                    id="imp-mode"
+                    className="select"
+                    value={mapping.amount !== null ? 'one' : 'two'}
+                    onChange={(e) => setMapping({ ...mapping, ...(e.target.value === 'one' ? { amount: 0, moneyIn: null, moneyOut: null } : { amount: null, moneyIn: 0, moneyOut: 1 }) })}
+                  >
+                    <option value="one">One column (money out is negative or positive)</option>
+                    <option value="two">Money in and money out in two columns</option>
+                  </select>
+                </Labelled>
+                {mapping.amount !== null ? (
+                  <div className="row">
+                    <Labelled id="imp-amount" label="Amount">
+                      <select id="imp-amount" className="select" value={mapping.amount} onChange={(e) => set('amount', Number(e.target.value))}>
+                        {colOptions(header)}
+                      </select>
+                    </Labelled>
+                    <Labelled id="imp-out" label="Money out is">
+                      <select id="imp-out" className="select" value={mapping.outIs} onChange={(e) => set('outIs', e.target.value as ImportMapping['outIs'])}>
+                        <option value="negative">Negative (−450.00)</option>
+                        <option value="positive">Positive</option>
+                      </select>
+                    </Labelled>
+                  </div>
+                ) : (
+                  <div className="row">
+                    <Labelled id="imp-in" label="Money in">
+                      <select id="imp-in" className="select" value={mapping.moneyIn ?? ''} onChange={(e) => set('moneyIn', num(e.target.value))}>
+                        {colOptions(header)}
+                      </select>
+                    </Labelled>
+                    <Labelled id="imp-outcol" label="Money out">
+                      <select id="imp-outcol" className="select" value={mapping.moneyOut ?? ''} onChange={(e) => set('moneyOut', num(e.target.value))}>
+                        {colOptions(header)}
+                      </select>
+                    </Labelled>
+                  </div>
+                )}
+                <div className="row">
+                  <Labelled id="imp-dec" label="Decimal mark">
+                    <select id="imp-dec" className="select" value={mapping.decimal} onChange={(e) => set('decimal', e.target.value as ImportMapping['decimal'])}>
+                      <option value=".">Point (1 234.50)</option>
+                      <option value=",">Comma (1 234,50)</option>
+                    </select>
+                  </Labelled>
+                  <Labelled id="imp-name" label="Remember it as">
+                    <input id="imp-name" className="qi-search" maxLength={60} value={formatName} onChange={(e) => setFormatName(e.target.value)} />
+                  </Labelled>
+                </div>
+              </fieldset>
+            )}
+            <div className="stack-sm">
+              <strong className="small">
+                {read.rows.length} transaction{read.rows.length === 1 ? '' : 's'} read
+                {read.unread > 0 && ` · ${read.unread} other row${read.unread === 1 ? '' : 's'} left out (totals, blanks)`}
+              </strong>
+              <ul className="item-list small">
+                {read.rows.slice(0, 4).map((r, i) => (
+                  <li key={i}>
+                    <span className="muted">{r.date}</span>
+                    <div className="item-main">{r.description}</div>
+                    <span className={r.amount < 0 ? '' : 'budget-in'}>{signedRand(r.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            {run.error && <Banner kind="error">{run.error}</Banner>}
+            <div className="row">
+              <Button busy={run.busy} disabled={read.rows.length === 0} onClick={() => void run.run()}>
+                Import {read.rows.length} transaction{read.rows.length === 1 ? '' : 's'}
+              </Button>
+              <Button variant="ghost" onClick={() => onClose()}>
+                Cancel
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </Dialog>
+  )
+}
+
+function Rules({ ctx, view, reload }: { ctx: HubContext; view: BudgetView; reload: () => Promise<void> }) {
+  const remove = useAction(async (id: string) => {
+    await ctx.platform.api.del(`/api/budget/rules/${id}`)
+    await reload()
+  })
+  const name = (id: string) => (id === 'income' ? 'Income' : id === 'transfer' ? 'Between our accounts' : (view.categories.find((c) => c.id === id)?.name ?? 'Removed category'))
+  return (
+    <details>
+      <summary className="small">Rules ({view.rules.length})</summary>
+      <ul className="item-list small">
+        {view.rules.map((r) => (
+          <li key={r.id}>
+            <div className="item-main">
+              Anything with “{r.match}” → {name(r.categoryId)}
+            </div>
+            <Button variant="ghost" icon={<Trash2 size={14} aria-hidden />} aria-label={`Remove the rule for ${r.match}`} busy={remove.busy} onClick={() => void remove.run(r.id)} />
+          </li>
+        ))}
+      </ul>
+    </details>
   )
 }
 

@@ -106,6 +106,7 @@ export interface BudgetView {
   milestonesVersion: number
   progress: { emergency: number | null; essentialMonth: number; debtLeft: number; retirementPlanned: number | null; income: number }
   accounts: { id: string; bank: string; nickname: string }[]
+  rules: { id: string; version: number; match: string; categoryId: string }[]
 }
 
 export interface Summary {

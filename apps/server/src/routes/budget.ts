@@ -13,6 +13,9 @@ import {
   cleanPlan,
   cleanPlanned,
   cleanTxn,
+  cleanRule,
+  cleanMapping,
+  categorise,
   generatedLines,
   milestones,
   month,
@@ -31,6 +34,7 @@ import {
   type Debt,
   type MonthPlan,
   type Planned,
+  type Rule,
 } from '../budget.ts'
 import { HttpError, readJson } from '../http.ts'
 import { readAll, type Account } from '../household.ts'
@@ -127,6 +131,7 @@ export function budgetRoutes(api: Api, s: Services): void {
         income,
       },
       accounts: readAll<Account>(s, 'account').map((a) => ({ id: a.id, bank: a.item.bank, nickname: a.item.nickname })),
+      rules: readBudget<Rule>(s, 'rule').map((r) => ({ id: r.id, version: r.version, ...r.item })),
     }
   })
 
@@ -188,6 +193,7 @@ export function budgetRoutes(api: Api, s: Services): void {
   // Planned expenses and debts: one record each.
   const KINDS: Record<string, { kind: string; clean: (raw: unknown) => unknown }> = {
     planned: { kind: 'planned', clean: cleanPlanned },
+    rules: { kind: 'rule', clean: cleanRule },
     debts: { kind: 'debt', clean: cleanDebt },
   }
   const kindOf = (k: string | undefined) => {
@@ -242,6 +248,89 @@ export function budgetRoutes(api: Api, s: Services): void {
   })
   api.authed('DELETE', '/api/budget-transactions/:id', parents, (ctx) => {
     if (Number(db.prepare('DELETE FROM transactions WHERE id = ?').run(ctx.params.id!).changes) === 0) throw new HttpError(404, 'That has been deleted.', 'not_found')
+    return undefined
+  })
+
+  // ---- importing a bank's CSV export (read on the parent's device; only the transactions come here) ----
+
+  /**
+   * Adds the transactions from one export: { accountId, rows: [{ date, description, amount }] }.
+   * Ones already imported are skipped by a keyed fingerprint (the same purchase twice on one day
+   * counts as two, by its place among identical ones), and the rules put each in a category.
+   */
+  api.authed('POST', '/api/budget-import', parents, async (ctx) => {
+    const body = await readJson(ctx.req)
+    const accountId = typeof body.accountId === 'string' && body.accountId ? body.accountId : null
+    if (accountId && !readAll<Account>(s, 'account').some((a) => a.id === accountId)) throw new HttpError(400, 'Choose one of your accounts.', 'invalid')
+    if (!Array.isArray(body.rows) || body.rows.length === 0 || body.rows.length > 5000) throw new HttpError(400, 'An import has from 1 to 5 000 transactions.', 'invalid')
+    const rows = body.rows.map((r: unknown) => cleanTxn({ ...(r as object), accountId, categoryId: null, note: '' }))
+    if ((db.prepare('SELECT COUNT(*) AS n FROM transactions').get() as { n: number }).n + rows.length > MAX_TXNS) throw new HttpError(400, 'That is more than the hub keeps.', 'invalid')
+    const rules = readBudget<Rule>(s, 'rule').map((r) => r.item)
+    const seen = new Map<string, number>()
+    let added = 0
+    let skipped = 0
+    let uncategorised = 0
+    const now = s.now()
+    const insert = db.prepare('INSERT OR IGNORE INTO transactions (id, month, fingerprint, sealed, version, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)')
+    db.exec('BEGIN IMMEDIATE')
+    try {
+      for (const t of rows) {
+        const base = `${accountId ?? ''}|${t.date}|${t.amount}|${t.description.trim().toLowerCase().replace(/\s+/g, ' ')}`
+        const n = (seen.get(base) ?? 0) + 1
+        seen.set(base, n)
+        const id = newId()
+        const item = { ...t, categoryId: categorise(rules, t.description) }
+        if (Number(insert.run(id, monthOf(t.date), s.serverKey.fingerprint('transaction', `${base}|${n}`), sealTxn(s, id, item), now, now).changes) === 1) {
+          added++
+          if (!item.categoryId) uncategorised++
+        } else skipped++
+      }
+      db.exec('COMMIT')
+    } catch (e) {
+      db.exec('ROLLBACK')
+      throw e
+    }
+    s.audit('budget.imported', ctx, ctx.user.id, `${added} added, ${skipped} skipped`)
+    return { added, skipped, uncategorised }
+  })
+
+  /** Puts uncategorised transactions in categories by the rules (after a new rule). */
+  api.authed('POST', '/api/budget-rules/apply', parents, () => {
+    const rules = readBudget<Rule>(s, 'rule').map((r) => r.item)
+    let changed = 0
+    for (const t of readTxns(s)) {
+      if (t.item.categoryId) continue
+      const categoryId = categorise(rules, t.item.description)
+      if (!categoryId) continue
+      db.prepare('UPDATE transactions SET sealed = ?, version = version + 1, updated_at = ? WHERE id = ?').run(sealTxn(s, t.id, { ...t.item, categoryId }), s.now(), t.id)
+      changed++
+    }
+    return { changed }
+  })
+
+  /** Saved ways of reading a bank's export, by its header row. No personal data in them. */
+  api.authed('GET', '/api/budget-formats', parents, () => ({
+    formats: (db.prepare('SELECT id, name, signature, mapping FROM import_formats ORDER BY name').all() as { id: string; name: string; signature: string; mapping: string }[]).map((f) => ({
+      id: f.id,
+      name: f.name,
+      signature: f.signature,
+      mapping: JSON.parse(f.mapping) as unknown,
+    })),
+  }))
+  api.authed('POST', '/api/budget-formats', parents, async (ctx) => {
+    const body = await readJson(ctx.req)
+    const name = typeof body.name === 'string' && body.name.trim() && body.name.length <= 60 ? body.name.trim() : null
+    const signature = typeof body.signature === 'string' && body.signature.length <= 2000 ? body.signature : null
+    if (!name || !signature) throw new HttpError(400, 'Name the format.', 'invalid')
+    const mapping = cleanMapping(body.mapping)
+    // The same header row replaces the format saved for it (a bank that changed its export).
+    db.prepare('DELETE FROM import_formats WHERE signature = ?').run(signature)
+    const id = newId()
+    db.prepare('INSERT INTO import_formats (id, name, signature, mapping, created_at) VALUES (?, ?, ?, ?, ?)').run(id, name, signature, JSON.stringify(mapping), s.now())
+    return { format: { id, name, signature, mapping } }
+  })
+  api.authed('DELETE', '/api/budget-formats/:id', parents, (ctx) => {
+    db.prepare('DELETE FROM import_formats WHERE id = ?').run(ctx.params.id!)
     return undefined
   })
 }

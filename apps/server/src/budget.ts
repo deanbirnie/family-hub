@@ -89,6 +89,29 @@ export interface Milestones {
   ticks: Record<string, { done: boolean; note: string }>
 }
 
+/** "Anything with WOOLWORTHS goes in Groceries": matched case-insensitively within the description. */
+export interface Rule {
+  match: string
+  categoryId: string
+}
+
+/** How to read one bank's CSV export: which column is which. Holds no personal data. */
+export interface ImportMapping {
+  /** The header row (0-based); rows after it are transactions. */
+  headerRow: number
+  date: number
+  dateStyle: 'ymd' | 'dmy' | 'mdy'
+  /** Columns joined to make the description. */
+  description: number[]
+  /** One signed amount column, or separate money in and money out. */
+  amount: number | null
+  moneyIn: number | null
+  moneyOut: number | null
+  /** In a single amount column, money out is negative (most banks); or positive. */
+  outIs: 'negative' | 'positive'
+  decimal: '.' | ','
+}
+
 export interface Txn {
   date: string
   description: string
@@ -201,6 +224,39 @@ export function cleanMilestones(raw: unknown): Milestones {
     extraDebt: cents(o.extraDebt ?? 0, 'The extra for debt'),
     ticks,
   }
+}
+
+export function cleanRule(raw: unknown): Rule {
+  const o = obj(raw)
+  const match = text(o, 'match', 80, 'The text to match', true).toLowerCase()
+  if (match.length < 2) bad('Match at least two letters.')
+  return { match, categoryId: key(o.categoryId, 'The category') }
+}
+
+/** The category a description falls in by the rules: the longest matching text wins. */
+export function categorise(rules: Rule[], description: string): string | null {
+  const d = description.toLowerCase()
+  return rules.filter((r) => d.includes(r.match)).sort((a, b) => b.match.length - a.match.length)[0]?.categoryId ?? null
+}
+
+const col = (v: unknown, label: string) => (v === null || v === undefined || v === '' ? null : int(v, label, 0, 200))
+
+export function cleanMapping(raw: unknown): ImportMapping {
+  const o = obj(raw)
+  const m: ImportMapping = {
+    headerRow: int(o.headerRow ?? 0, 'The header row', 0, 50),
+    date: int(o.date, 'The date column', 0, 200),
+    dateStyle: oneOf(o.dateStyle, ['ymd', 'dmy', 'mdy'] as const, 'The date style'),
+    description: list(o.description, 5, 'The description columns').map((c) => int(c, 'A description column', 0, 200)),
+    amount: col(o.amount, 'The amount column'),
+    moneyIn: col(o.moneyIn, 'The money in column'),
+    moneyOut: col(o.moneyOut, 'The money out column'),
+    outIs: oneOf(o.outIs, ['negative', 'positive'] as const, 'Which way money out is', 'negative'),
+    decimal: oneOf(o.decimal, ['.', ','] as const, 'The decimal mark', '.'),
+  }
+  if (m.description.length === 0) bad('Choose the description column.')
+  if (m.amount === null && (m.moneyIn === null || m.moneyOut === null)) bad('Choose the amount column, or both money in and money out.')
+  return m
 }
 
 export function cleanTxn(raw: unknown): Txn {

@@ -369,6 +369,20 @@ On each parent's phone, once it has the app version with notifications
       income and give every rand a job until "left to plan" is zero. (You are
       reminded from the 25th.)
 
+## 25. Importing from the bank (after the import pull request is merged and deployed)
+
+- [ ] 1. In online banking, export a statement as **CSV** (ABSA and
+      Capitec both offer it), then **Bills & budget → Budget → Import**,
+      choose the account and the file.
+- [ ] 2. The first time for each bank, check which column is which (the
+      hub guesses from the headings) and the dates and amounts in the
+      preview, then import. It is remembered for next time.
+- [ ] 3. Put each new transaction in a category. When the hub offers
+      "Always put anything with … in …?", say yes for shops you use often,
+      so later imports sort themselves.
+- [ ] 4. Export overlapping dates without worrying: transactions already in
+      the hub are skipped.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

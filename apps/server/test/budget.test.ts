@@ -136,3 +136,52 @@ describe('the budget API', () => {
     expect(allItems(server.services).filter((i) => i.key.startsWith('bp:'))).toEqual([])
   })
 })
+
+describe('importing a bank export', () => {
+  it('skips what was already imported, keeps real repeats, and categorises by the rules', async () => {
+    server = await startServer()
+    const { client } = await setUpAdmin(server)
+    const account = await client.post<{ item: { id: string } }>('/api/money/accounts', { item: { bank: 'Capitec', nickname: 'Joint' } })
+    await client.post('/api/budget/rules', { item: { match: 'Woolworths', categoryId: 'groceries' } })
+    await client.post('/api/budget/rules', { item: { match: 'woolworths food', categoryId: 'eating-out' } })
+    const week1 = [
+      { date: '2026-11-02', description: 'WOOLWORTHS SEA POINT', amount: -45000 },
+      { date: '2026-11-02', description: 'SEATTLE COFFEE', amount: -4500 },
+      { date: '2026-11-02', description: 'SEATTLE COFFEE', amount: -4500 }, // two coffees: both count
+      { date: '2026-11-03', description: 'Woolworths Food Cafe', amount: -12000 },
+    ]
+    const first = await client.post<{ added: number; skipped: number; uncategorised: number }>('/api/budget-import', { accountId: account.body.item.id, rows: week1 })
+    expect(first.body).toEqual({ added: 4, skipped: 0, uncategorised: 2 })
+    // An overlapping export: the first four again, and one new.
+    const again = await client.post<{ added: number; skipped: number }>('/api/budget-import', {
+      accountId: account.body.item.id,
+      rows: [...week1, { date: '2026-11-05', description: 'SALARY', amount: 2_500_000 }],
+    })
+    expect(again.body).toMatchObject({ added: 1, skipped: 4 })
+    const nov = await client.get<{ transactions: { description: string; categoryId: string | null }[]; rules: unknown[] }>('/api/budget?month=2026-11')
+    expect(nov.body.transactions).toHaveLength(5)
+    expect(nov.body.transactions.find((t) => t.description === 'WOOLWORTHS SEA POINT')!.categoryId).toBe('groceries')
+    // The longer match wins.
+    expect(nov.body.transactions.find((t) => t.description === 'Woolworths Food Cafe')!.categoryId).toBe('eating-out')
+    expect(nov.body.rules).toHaveLength(2)
+    // A new rule, applied to what is still uncategorised.
+    await client.post('/api/budget/rules', { item: { match: 'seattle', categoryId: 'eating-out' } })
+    expect((await client.post<{ changed: number }>('/api/budget-rules/apply')).body.changed).toBe(2)
+    // Nothing readable, and no plain fingerprint input.
+    const raw = JSON.stringify(server.services.db.prepare('SELECT * FROM transactions').all())
+    for (const w of ['WOOLWORTHS', 'SEATTLE', 'SALARY', '45000']) expect(raw).not.toContain(w)
+    expect((await client.post('/api/budget-import', { accountId: 'nope', rows: week1 })).status).toBe(400)
+    expect((await client.post('/api/budget-import', { rows: [] })).status).toBe(400)
+  })
+
+  it('keeps one saved format per header row', async () => {
+    server = await startServer()
+    const { client } = await setUpAdmin(server)
+    const mapping = { headerRow: 0, date: 0, dateStyle: 'ymd', description: [1], amount: 2, decimal: '.' }
+    await client.post('/api/budget-formats', { name: 'Capitec', signature: 'date|description|amount', mapping })
+    await client.post('/api/budget-formats', { name: 'Capitec (new layout)', signature: 'date|description|amount', mapping: { ...mapping, dateStyle: 'dmy' } })
+    const list = await client.get<{ formats: { name: string; mapping: { dateStyle: string } }[] }>('/api/budget-formats')
+    expect(list.body.formats).toEqual([expect.objectContaining({ name: 'Capitec (new layout)', mapping: expect.objectContaining({ dateStyle: 'dmy' }) })])
+    expect((await client.post('/api/budget-formats', { name: 'x', signature: 'a', mapping: { ...mapping, amount: null } })).status).toBe(400)
+  })
+})
