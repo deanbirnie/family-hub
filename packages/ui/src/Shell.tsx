@@ -13,6 +13,7 @@ import { QuickInfoPage } from './pages/QuickInfo.tsx'
 import { ContactsPage } from './pages/Contacts.tsx'
 import { CalendarPage } from './calendar/CalendarPage.tsx'
 import { HealthPage } from './health/HealthPage.tsx'
+import { MoneyPage } from './money/MoneyPage.tsx'
 import { HomePage } from './pages/Home.tsx'
 import { MembersPage } from './pages/Members.tsx'
 import { SettingsPage } from './pages/Settings.tsx'
@@ -112,6 +113,7 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
   else if (path === '/info') page = <QuickInfoPage ctx={ctx} />
   else if (path === '/contacts') page = <ContactsPage ctx={ctx} />
   else if (path === '/calendar') page = <CalendarPage ctx={ctx} />
+  else if (path === '/money') page = <MoneyPage ctx={ctx} />
   else if (path === '/health' || path.startsWith('/health/episodes/')) page = <HealthPage ctx={ctx} episodeId={path.startsWith('/health/episodes/') ? decodeURIComponent(path.slice('/health/episodes/'.length)) : null} />
   else if (module) page = <ComingSoon module={module} />
   else if (path === '/family') page = <MembersPage ctx={ctx} />

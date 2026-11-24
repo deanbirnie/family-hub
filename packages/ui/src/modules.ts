@@ -111,9 +111,10 @@ export const MODULES: HubModule[] = [
     name: 'Bills & budget',
     path: '/money',
     icon: PiggyBank,
-    description: 'Due dates for bills and renewals, and a simple shared budget.',
-    status: 'planned',
+    description: 'Bills, subscriptions and invoices with due dates and renewal deadlines; the budget comes next.',
+    status: 'ready',
     phase: 6,
+    parentsOnly: true,
   },
   {
     id: 'home',

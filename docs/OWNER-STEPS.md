@@ -324,6 +324,20 @@ On each parent's phone, once it has the app version with notifications
       layout (change every number and description). Never send real
       transactions or account numbers.
 
+## 22. Bills, subscriptions and invoices (after the 6a pull request is merged and deployed)
+
+- [ ] 1. **Bills & budget → Accounts:** add each account you pay from, as
+      the bank and a nickname only (never the account number).
+- [ ] 2. **Bills:** add the regular ones (rates and levies, insurance,
+      school fees, the cellphone and internet contracts, loans). For
+      contracts, fill in the end date and the notice period, so you are
+      reminded before the last day to cancel.
+- [ ] 3. **Subscriptions:** add streaming, apps, cloud storage, the gym, and
+      any free trials (with the trial end date).
+- [ ] 4. **Invoices:** add unpaid ones as they arrive, with the PDF.
+- [ ] 5. **Settings → Notifications:** keep **Bills, subscriptions and
+      invoices** ticked.
+
 ## Later steps (added as features land)
 
 - Nothing yet.
