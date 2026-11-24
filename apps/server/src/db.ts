@@ -396,6 +396,41 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX home_care_kind ON home_care (kind);
   `,
+  // 19: The budget (phase 6c, routes/budget.ts): categories, month plans,
+  // planned expenses, debts, rules and milestones, each sealed with the
+  // server key. Transactions are sealed one by one; only their month is plain
+  // (to read one month at a time), and a keyed fingerprint recognises ones
+  // already imported. Import formats hold no personal data.
+  `
+  CREATE TABLE budget (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL CHECK (kind IN ('categories', 'month', 'planned', 'debt', 'rule', 'milestones')),
+    key TEXT,
+    sealed TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE (kind, key)
+  );
+  CREATE TABLE transactions (
+    id TEXT PRIMARY KEY,
+    month TEXT NOT NULL,
+    fingerprint TEXT UNIQUE,
+    sealed TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX transactions_month ON transactions (month);
+  CREATE TABLE import_formats (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    signature TEXT NOT NULL,
+    mapping TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

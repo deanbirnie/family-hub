@@ -17,6 +17,7 @@ import type { Services } from './app.ts'
 import { applicableLead, daysBetween, localNow, nextOccurrence, yearsAt, zonedToEpoch, type Due } from './schedule.ts'
 import { eventOccurrences, FAMILY } from './routes/calendar.ts'
 import { contactDates, openContact, REMIND, type Contact, type ImportantDate } from './routes/contacts.ts'
+import { budgetItems } from './budget.ts'
 import { homeCareItems } from './home-care.ts'
 import { householdItems } from './household.ts'
 import { generateVapidKeys, sendPush, type PushKeys, type PushMessage, type SendOutcome, type VapidKeys } from './webpush.ts'
@@ -413,7 +414,7 @@ export function eventReminders(s: Services, nowMs: number): EventReminder[] {
 
 /** Every reminder there is. */
 export function allItems(s: Services): ReminderItem[] {
-  return [...quickInfoItems(s), ...contactDateItems(s), ...healthItems(s), ...householdItems(s), ...homeCareItems(s)]
+  return [...quickInfoItems(s), ...contactDateItems(s), ...healthItems(s), ...householdItems(s), ...homeCareItems(s), ...budgetItems(s)]
 }
 
 export interface DueNow {

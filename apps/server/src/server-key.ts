@@ -32,6 +32,8 @@ export interface ServerKey {
   open(sealed: string, purpose: string, aad: string): string
   /** The key for one document's contents. */
   fileKey(fileId: string, salt: Buffer): Buffer
+  /** A keyed one-way fingerprint (HMAC-SHA-256) of a value, for recognising it again without keeping it. */
+  fingerprint(purpose: string, value: string): string
   /** The key itself, as stored in the key file, for a parent to copy to a password manager. */
   exportKey(): string
 }
@@ -65,6 +67,9 @@ export function serverKeyFrom(master: Buffer): ServerKey {
     },
     fileKey(fileId, salt) {
       return subkey(master, `file/${fileId}`, salt)
+    },
+    fingerprint(purpose, value) {
+      return createHmac('sha256', subkey(master, `hmac/${purpose}`)).update(value).digest('base64url')
     },
     exportKey() {
       return master.toString('base64')

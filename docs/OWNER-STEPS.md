@@ -353,6 +353,22 @@ On each parent's phone, once it has the app version with notifications
       with the jobs.
 - [ ] 5. **Settings → Notifications:** keep **Home and car** ticked.
 
+## 24. The budget (after the 6c budget pull request is merged and deployed)
+
+- [ ] 1. **Bills & budget → Budget → Change categories:** rename, remove or
+      add categories to suit you, put them in order of priority, and fill in
+      what is already saved in the funds that save up (emergency fund,
+      holidays, car upkeep, …).
+- [ ] 2. **Debt:** add each debt (not the home loan) with its balance,
+      minimum payment and interest rate, and set the extra you can put
+      towards the smallest each month.
+- [ ] 3. **Planned:** add the costs you know are coming (school camp,
+      uniforms, Christmas, the car service), with the month and, for bigger
+      ones, the month to start saving.
+- [ ] 4. Before each month starts, open **Budget**, plan the month, add the
+      income and give every rand a job until "left to plan" is zero. (You are
+      reminded from the 25th.)
+
 ## Later steps (added as features land)
 
 - Nothing yet.

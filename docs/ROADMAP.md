@@ -668,6 +668,10 @@ vet.
 - **Sinking funds:** categories that save each month for known irregular
   costs (car service, annual insurance, school uniforms, Christmas,
   holidays); their balance carries over from month to month.
+- **Planned expenses:** a known cost in a future month ("School camp,
+  R1 200, July") shows up in that month's plan, or is saved for a little
+  each month from a chosen month (added with the owner, for school costs
+  and anything else known ahead).
 - **Spending against the plan:** each category shows planned, spent and
   left. Overspending is covered by moving money from another category, so
   the plan always still adds up.
@@ -740,11 +744,12 @@ bank connections of any kind.
 
 **6c. Budget and debt**
 
-- [ ] The zero-based monthly budget, priorities, sinking funds and moving
-      money between categories.
-- [ ] Bank CSV import (ABSA, Capitec, saved formats and column mapping),
-      categorising and rules.
-- [ ] Debts, smallest balance first, and the milestones.
+- [x] The zero-based monthly budget, priorities, sinking funds and moving
+      money between categories; planned expenses (with saving towards them);
+      spending typed in.
+- [ ] Bank CSV import (saved formats and column mapping, then ABSA and
+      Capitec presets once their headings are in), categorising and rules.
+- [x] Debts, smallest balance first, and the milestones.
 
 **Later**
 
