@@ -26,7 +26,10 @@ describe('family key', () => {
     await expect(unwrapFamilyKey(randomBytes(32), wrapped, 'recovery')).rejects.toThrow(/does not open/)
     // A wrapped copy cannot be passed off as another kind.
     await expect(unwrapFamilyKey(recovery, wrapped, 'passkey')).rejects.toThrow()
-    const tampered = wrapped.slice(0, -2) + (wrapped.endsWith('A') ? 'B' : 'A') + wrapped.slice(-1)
+    // Flip one bit in the second-to-last character (always data, never padding). Decide the new
+    // letter from that character itself, so the copy is always different from the original.
+    const tampered = wrapped.slice(0, -2) + (wrapped.at(-2) === 'A' ? 'B' : 'A') + wrapped.slice(-1)
+    expect(tampered).not.toBe(wrapped)
     await expect(unwrapFamilyKey(recovery, tampered, 'recovery')).rejects.toThrow()
   })
 
