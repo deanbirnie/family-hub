@@ -6,7 +6,8 @@
  * terms, the school's contacts and their roles, extra-murals by term, and
  * reminders for the irregular things.
  */
-import { Bell, CalendarPlus, FolderOpen, GraduationCap, Pencil, Phone, Plus, Trash2, Trophy, Users } from 'lucide-react'
+import { Backpack, Bell, CalendarPlus, CheckCircle2, Circle, FileSignature, FolderOpen, GraduationCap, ListChecks, Pencil, Phone, Plus, Trash2, Trophy, Users } from 'lucide-react'
+import { AttachDocuments, Documents } from '../health/parts.tsx'
 import { useCallback, useEffect, useState } from 'react'
 import { PlannedDialog } from '../money/Budget.tsx'
 import { monthName, type Category, type Planned } from '../money/budget-model.ts'
@@ -98,7 +99,26 @@ interface Reminder extends Base {
   notes: string
   done: boolean
 }
-type Item = Year | SchoolContact | Activity | Reminder
+interface Form extends Base {
+  kind: 'form'
+  what: string
+  needs: 'sign' | 'pay' | 'sign and pay' | 'return'
+  amount: number | null
+  due: string
+  documents: { id: string; name: string }[]
+  done: boolean
+  doneOn: string | null
+  notes: string
+}
+interface SList extends Base {
+  kind: 'list'
+  type: 'uniform' | 'stationery' | 'kit' | 'bring'
+  name: string
+  year: number
+  items: { text: string; qty: string; done: boolean; day: string | null }[]
+  notes: string
+}
+type Item = Year | SchoolContact | Activity | Reminder | Form | SList
 
 interface Data {
   profiles: { id: string; displayName: string; userId: string | null }[]
@@ -140,6 +160,9 @@ type Editing =
   | { what: 'dates'; profileId: string }
   | { what: 'cost'; profileId: string; planned?: Planned }
   | { what: 'add-child' }
+  | { what: 'form'; profileId: string; form?: Form }
+  | { what: 'list'; profileId: string; list?: SList; type?: SList['type'] }
+  | { what: 'copy-list'; list: SList }
 
 export function SchoolPage({ ctx }: { ctx: HubContext }) {
   if (ctx.user.role !== 'admin') {
@@ -239,6 +262,9 @@ function SchoolBody({ ctx }: { ctx: HubContext }) {
       )}
       {editing?.what === 'reminder' && <ReminderDialog ctx={ctx} extras={extras} profileId={editing.profileId} reminder={editing.reminder} onClose={done} />}
       {editing?.what === 'dates' && child && <DatesDialog ctx={ctx} child={child} today={extras.today} onClose={done} />}
+      {editing?.what === 'form' && <FormDialog ctx={ctx} extras={extras} profileId={editing.profileId} form={editing.form} onClose={done} />}
+      {editing?.what === 'list' && <ListDialog ctx={ctx} extras={extras} profileId={editing.profileId} list={editing.list} type={editing.type} onClose={done} />}
+      {editing?.what === 'copy-list' && <CopyListDialog ctx={ctx} data={data} list={editing.list} year={Number(extras.today.slice(0, 4))} onClose={done} />}
       {editing?.what === 'cost' && (
         <PlannedDialog
           ctx={ctx}
@@ -266,6 +292,23 @@ function ChildSchool({ ctx, data, extras, dates, child, edit, reload }: { ctx: H
   const activities = data.items.filter((i): i is Activity => i.kind === 'activity' && i.profileId === child.id).sort((a, b) => a.from.localeCompare(b.from))
   const reminders = data.items.filter((i): i is Reminder => i.kind === 'reminder' && (i.profileId === child.id || i.profileId === null)).sort((a, b) => a.date.localeCompare(b.date))
   const upcomingReminders = reminders.filter((r) => !r.done && r.date >= t)
+  const forms = data.items.filter((i): i is Form => i.kind === 'form' && i.profileId === child.id).sort((a, b) => a.due.localeCompare(b.due))
+  const lists = data.items.filter((i): i is SList => i.kind === 'list' && i.profileId === child.id).sort((a, b) => b.year - a.year || a.name.localeCompare(b.name))
+  const bring = lists.filter((l) => l.type === 'bring' && (!year || l.year === year.year))
+  const setList = useAction(async (l: SList, items: SList['items']) => {
+    const { id, version, kind: _k, profileId: _p, ...item } = l
+    void _k
+    void _p
+    await api.request('PUT', `/api/school/lists/${id}`, { baseVersion: version, item: { ...item, items } }).catch(conflict)
+    await reload()
+  })
+  const formDone = useAction(async (f: Form) => {
+    const { id, version, kind: _k, profileId: _p, ...item } = f
+    void _k
+    void _p
+    await api.request('PUT', `/api/school/forms/${id}`, { baseVersion: version, item: { ...item, done: !f.done, doneOn: !f.done ? t : null } }).catch(conflict)
+    await reload()
+  })
   const pastReminders = reminders.filter((r) => r.done || r.date < t)
   const costs = extras.planned.filter((p) => p.profileId === child.id && p.tag.toLowerCase() === 'school').sort((a, b) => a.month.localeCompare(b.month))
   const fees = year?.feesBillId ? extras.bills.find((b) => b.id === year.feesBillId) : undefined
@@ -337,6 +380,21 @@ function ChildSchool({ ctx, data, extras, dates, child, edit, reload }: { ctx: H
           </>
         )}
       </Card>
+
+      {year && (
+        <PlanTheYear
+          checks={[
+            { done: year.terms.length > 0, text: 'The terms and their dates', action: () => edit({ what: 'year', profileId: child.id, year }) },
+            { done: !!year.feesBillId, text: 'The fees, as a bill (linked here)', action: () => edit({ what: 'year', profileId: child.id, year }) },
+            { done: contacts.length > 0, text: 'The teacher and the school office in School contacts', action: () => edit({ what: 'contact', profileId: child.id }) },
+            { done: lists.some((l) => l.year === year.year && (l.type === 'stationery' || l.type === 'uniform')), text: 'The stationery and uniform lists', action: () => edit({ what: 'list', profileId: child.id, type: 'stationery' }) },
+            { done: costs.some((p) => p.month.startsWith(String(year.year))), text: 'This year’s school costs planned (camp, uniform, photos)', action: () => edit({ what: 'cost', profileId: child.id }) },
+            { done: childDates.length > 0, text: 'The dates the school has sent so far', action: () => edit({ what: 'dates', profileId: child.id }) },
+            { done: bring.length > 0, text: 'What to bring on which day', action: () => edit({ what: 'list', profileId: child.id, type: 'bring' }) },
+          ]}
+          year={year.year}
+        />
+      )}
 
       <Card
         title={
@@ -418,6 +476,109 @@ function ChildSchool({ ctx, data, extras, dates, child, edit, reload }: { ctx: H
           </details>
         )}
         {toggleDone.error && <Banner kind="error">{toggleDone.error}</Banner>}
+      </Card>
+
+      <WhatToBring lists={bring} today={t} onEdit={(l) => edit({ what: 'list', profileId: child.id, list: l })} onAdd={() => edit({ what: 'list', profileId: child.id, type: 'bring' })} />
+
+      <Card
+        title={
+          <>
+            <FileSignature size={18} aria-hidden /> Forms and permission slips
+          </>
+        }
+        actions={
+          <Button variant="ghost" icon={<Plus size={16} aria-hidden />} onClick={() => edit({ what: 'form', profileId: child.id })}>
+            Add a form
+          </Button>
+        }
+      >
+        {forms.filter((f) => !f.done).length === 0 && <p className="muted small">Outings, indemnities, consent forms: what each needs (sign, pay, return), by when, with the form itself. Reminded 3 days and a day before, until it is done.</p>}
+        <ul className="item-list">
+          {forms
+            .filter((f) => !f.done)
+            .map((f) => (
+              <li key={f.id}>
+                <input type="checkbox" aria-label={`Done: ${f.what}`} checked={f.done} onChange={() => void formDone.run(f)} />
+                <div className="item-main">
+                  <div>
+                    <strong>{f.what}</strong> <Badge>{f.needs}</Badge> {f.amount !== null && rand(f.amount)}
+                  </div>
+                  <div className={`small ${f.due < t ? 'field-error' : 'muted'}`}>
+                    by {shortDate(f.due, t)} ({relative(t, f.due)}){f.notes && ` · ${f.notes}`}
+                  </div>
+                  {f.documents.length > 0 && <Documents ctx={ctx} documents={f.documents} />}
+                </div>
+                <Button variant="ghost" icon={<Pencil size={16} aria-hidden />} aria-label={`Edit ${f.what}`} onClick={() => edit({ what: 'form', profileId: child.id, form: f })} />
+              </li>
+            ))}
+        </ul>
+        {forms.some((f) => f.done) && (
+          <details>
+            <summary className="small">Done ({forms.filter((f) => f.done).length})</summary>
+            <ul className="item-list small">
+              {forms
+                .filter((f) => f.done)
+                .reverse()
+                .map((f) => (
+                  <li key={f.id}>
+                    <input type="checkbox" aria-label={`Done: ${f.what}`} checked onChange={() => void formDone.run(f)} />
+                    <div className="item-main">
+                      {f.what} <span className="muted">{f.doneOn ? `done ${shortDate(f.doneOn, t)}` : ''}</span>
+                    </div>
+                  </li>
+                ))}
+            </ul>
+          </details>
+        )}
+        {formDone.error && <Banner kind="error">{formDone.error}</Banner>}
+      </Card>
+
+      <Card
+        title={
+          <>
+            <ListChecks size={18} aria-hidden /> Uniform, stationery and kit
+          </>
+        }
+        actions={
+          <Button variant="ghost" icon={<Plus size={16} aria-hidden />} onClick={() => edit({ what: 'list', profileId: child.id, type: 'stationery' })}>
+            Add a list
+          </Button>
+        }
+      >
+        {lists.filter((l) => l.type !== 'bring').length === 0 && <p className="muted small">The school’s stationery list, the uniform, sports kit: ticked as bought. Copy a list to next year or to another child.</p>}
+        {lists
+          .filter((l) => l.type !== 'bring')
+          .map((l) => {
+            const got = l.items.filter((x) => x.done).length
+            return (
+              <div key={l.id} className="school-list">
+                <div className="row">
+                  <strong>{l.name}</strong>
+                  <span className="muted small">
+                    {l.year} · {got} of {l.items.length} {l.type === 'uniform' || l.type === 'kit' ? 'got' : 'bought'}
+                  </span>
+                  <Button variant="ghost" aria-label={`Copy ${l.name}`} onClick={() => edit({ what: 'copy-list', list: l })}>
+                    Copy
+                  </Button>
+                  <Button variant="ghost" icon={<Pencil size={16} aria-hidden />} aria-label={`Edit ${l.name}`} onClick={() => edit({ what: 'list', profileId: child.id, list: l })} />
+                </div>
+                <ul className="school-items">
+                  {l.items.map((x, i) => (
+                    <li key={i}>
+                      <label className="check">
+                        <input type="checkbox" checked={x.done} onChange={() => void setList.run(l, l.items.map((y, j) => (j === i ? { ...y, done: !y.done } : y)))} />
+                        <span className={x.done ? 'school-got' : ''}>
+                          {x.text}
+                          {x.qty && <span className="muted"> × {x.qty}</span>}
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
+        {setList.error && <Banner kind="error">{setList.error}</Banner>}
       </Card>
 
       <Card
@@ -1005,6 +1166,248 @@ function DatesDialog({ ctx, child, today, onClose }: { ctx: HubContext; child: D
         </button>
         {save.error && <Banner kind="error">{save.error}</Banner>}
         <Actions busy={save.busy} onCancel={() => onClose()} submit="Add to the calendar" />
+      </form>
+    </Dialog>
+  )
+}
+
+// ---- 7b: plan the year, what to bring, forms, lists ---------------------------------------------
+
+function PlanTheYear({ checks, year }: { checks: { done: boolean; text: string; action: () => void }[]; year: number }) {
+  const left = checks.filter((c) => !c.done).length
+  const [open, setOpen] = useState(left > 0)
+  return (
+    <Card title={`Plan ${year}`} actions={<span className="muted small">{left === 0 ? 'All done' : `${checks.length - left} of ${checks.length} done`}</span>}>
+      <button className="link small" onClick={() => setOpen(!open)}>
+        {open ? 'Hide the checklist' : 'Show the checklist'}
+      </button>
+      {open && (
+        <ul className="item-list">
+          {checks.map((c) => (
+            <li key={c.text}>
+              {c.done ? <CheckCircle2 size={18} aria-label="Done" className="school-done" /> : <Circle size={18} aria-label="Still to do" />}
+              <div className="item-main">{c.text}</div>
+              {!c.done && (
+                <Button variant="ghost" onClick={c.action}>
+                  Do it
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  )
+}
+
+const DAY_INDEX: Record<string, number> = { MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6, SU: 0 }
+
+/** What to bring on which day, with tomorrow's (or Monday's, at the weekend) first. */
+function WhatToBring({ lists, today, onEdit, onAdd }: { lists: SList[]; today: string; onEdit: (l: SList) => void; onAdd: () => void }) {
+  const items = lists.flatMap((l) => l.items.map((x) => ({ ...x, list: l })))
+  const d = new Date(`${today}T12:00:00`)
+  let next = (d.getDay() + 1) % 7
+  if (next === 6 || next === 0) next = 1
+  const nextCode = Object.keys(DAY_INDEX).find((k) => DAY_INDEX[k] === next)!
+  const label = next === (d.getDay() + 1) % 7 ? 'Tomorrow' : 'Monday'
+  const days = WEEKDAYS.filter(([code]) => items.some((x) => x.day === code))
+  return (
+    <Card
+      title={
+        <>
+          <Backpack size={18} aria-hidden /> What to bring
+        </>
+      }
+      actions={
+        lists[0] ? (
+          <Button variant="ghost" icon={<Pencil size={16} aria-hidden />} aria-label="Edit what to bring" onClick={() => onEdit(lists[0]!)} />
+        ) : (
+          <Button variant="ghost" icon={<Plus size={16} aria-hidden />} onClick={onAdd}>
+            Set it up
+          </Button>
+        )
+      }
+    >
+      {items.length === 0 ? (
+        <p className="muted small">The swimming bag on Tuesdays, the library book on Fridays: set the week up once.</p>
+      ) : (
+        <>
+          <p className="school-tomorrow">
+            <strong>{label}:</strong>{' '}
+            {items
+              .filter((x) => x.day === nextCode)
+              .map((x) => x.text)
+              .join(', ') || 'nothing extra'}
+          </p>
+          <ul className="item-list small">
+            {days.map(([code, name]) => (
+              <li key={code}>
+                <div className="item-main">
+                  <strong>{name}</strong>{' '}
+                  {items
+                    .filter((x) => x.day === code)
+                    .map((x) => x.text)
+                    .join(', ')}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </Card>
+  )
+}
+
+function FormDialog({ ctx, extras, profileId, form, onClose }: { ctx: HubContext; extras: Extras; profileId: string; form?: Form; onClose: (c?: boolean) => void }) {
+  const [f, setF] = useState(() => ({ what: form?.what ?? '', needs: form?.needs ?? 'sign', due: form?.due ?? plusDays(extras.today, 5), notes: form?.notes ?? '', done: form?.done ?? false }))
+  const [amount, setAmount] = useState(form?.amount != null ? amountText(form.amount) : '')
+  const [documents, setDocuments] = useState(form?.documents ?? [])
+  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }))
+  const save = useAction(async () => {
+    const c = amount.trim() ? parseRand(amount) : null
+    if (amount.trim() && c === null) throw new Error('Enter the amount, for example 150.00.')
+    await saveItem(ctx, 'forms', profileId, { ...f, amount: c, documents, doneOn: f.done ? (form?.doneOn ?? extras.today) : null }, form)
+    onClose(true)
+  })
+  const remove = useRemove(ctx, 'forms', form, 'Delete this form? Its documents stay in the School folder.', onClose)
+  return (
+    <Dialog open title={form ? 'Edit the form' : 'Add a form or permission slip'} onClose={() => onClose()}>
+      <form className="stack" onSubmit={(e) => (e.preventDefault(), void save.run())}>
+        <Labelled id="form-what" label="What it is">
+          <input id="form-what" className="qi-search" maxLength={200} required placeholder="e.g. Zoo outing, Swimming indemnity" value={f.what} onChange={(e) => set('what', e.target.value)} />
+        </Labelled>
+        <div className="row">
+          <Labelled id="form-needs" label="It needs">
+            <select id="form-needs" className="select" value={f.needs} onChange={(e) => set('needs', e.target.value as Form['needs'])}>
+              <option value="sign">Signing</option>
+              <option value="pay">Paying</option>
+              <option value="sign and pay">Signing and paying</option>
+              <option value="return">Filling in and returning</option>
+            </select>
+          </Labelled>
+          <Labelled id="form-amount" label="Amount (R)">
+            <input id="form-amount" className="qi-search" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          </Labelled>
+        </div>
+        <Labelled id="form-due" label="Back by">
+          <input id="form-due" className="qi-search" type="date" required value={f.due} onChange={(e) => set('due', e.target.value)} />
+        </Labelled>
+        <Labelled id="form-notes" label="Notes">
+          <input id="form-notes" className="qi-search" maxLength={1000} value={f.notes} onChange={(e) => set('notes', e.target.value)} />
+        </Labelled>
+        <AttachDocuments ctx={ctx} documents={documents} onChange={setDocuments} folder={{ path: `/api/school/folder/${profileId}`, name: 'School' }} />
+        {form && (
+          <label className="check">
+            <input type="checkbox" checked={f.done} onChange={(e) => set('done', e.target.checked)} />
+            <span>Done</span>
+          </label>
+        )}
+        {(save.error || remove.error) && <Banner kind="error">{save.error || remove.error}</Banner>}
+        <Actions busy={save.busy} onCancel={() => onClose()} onDelete={form ? () => void remove.run() : undefined} deleting={remove.busy} />
+      </form>
+    </Dialog>
+  )
+}
+
+const LIST_TYPES: [SList['type'], string][] = [
+  ['stationery', 'Stationery'],
+  ['uniform', 'Uniform'],
+  ['kit', 'Sports or other kit'],
+  ['bring', 'What to bring (by day)'],
+]
+
+function ListDialog({ ctx, extras, profileId, list, type, onClose }: { ctx: HubContext; extras: Extras; profileId: string; list?: SList; type?: SList['type']; onClose: (c?: boolean) => void }) {
+  const kind = list?.type ?? type ?? 'stationery'
+  const [f, setF] = useState(() => ({ type: kind, name: list?.name ?? (kind === 'bring' ? 'What to bring' : LIST_TYPES.find(([v]) => v === kind)![1]), year: String(list?.year ?? Number(extras.today.slice(0, 4))), notes: list?.notes ?? '' }))
+  const [items, setItems] = useState<SList['items']>(list?.items ?? [{ text: '', qty: '', done: false, day: kind === 'bring' ? 'MO' : null }])
+  const set = (k: keyof typeof f, v: string) => setF((x) => ({ ...x, [k]: v }))
+  const bring = f.type === 'bring'
+  const save = useAction(async () => {
+    const clean = items.filter((x) => x.text.trim()).map((x) => ({ ...x, day: bring ? (x.day ?? 'MO') : null }))
+    await saveItem(ctx, 'lists', profileId, { ...f, year: Number(f.year), items: clean }, list)
+    onClose(true)
+  })
+  const remove = useRemove(ctx, 'lists', list, `Delete ${list?.name}?`, onClose)
+  return (
+    <Dialog open title={list ? `Edit ${list.name}` : 'Add a list'} onClose={() => onClose()}>
+      <form className="stack" onSubmit={(e) => (e.preventDefault(), void save.run())}>
+        <div className="row">
+          <Labelled id="list-type" label="Kind">
+            <select id="list-type" className="select" value={f.type} onChange={(e) => set('type', e.target.value)}>
+              {LIST_TYPES.map(([v, l]) => (
+                <option key={v} value={v}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </Labelled>
+          <Labelled id="list-year" label="Year">
+            <input id="list-year" className="qi-search year-input" type="number" min={2000} max={2100} value={f.year} onChange={(e) => set('year', e.target.value)} />
+          </Labelled>
+        </div>
+        <Labelled id="list-name" label="Name">
+          <input id="list-name" className="qi-search" maxLength={80} required value={f.name} onChange={(e) => set('name', e.target.value)} />
+        </Labelled>
+        <fieldset className="radio-group">
+          <legend>{bring ? 'What, on which day' : 'Items'}</legend>
+          {items.map((x, i) => (
+            <div key={i} className="row">
+              {bring && (
+                <select className="select select-small" aria-label={`Day for item ${i + 1}`} value={x.day ?? 'MO'} onChange={(e) => setItems(items.map((y, j) => (j === i ? { ...y, day: e.target.value } : y)))}>
+                  {WEEKDAYS.map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <input className="qi-search" aria-label={`Item ${i + 1}`} maxLength={200} placeholder={bring ? 'e.g. Swimming bag' : 'e.g. HB pencils'} value={x.text} onChange={(e) => setItems(items.map((y, j) => (j === i ? { ...y, text: e.target.value } : y)))} />
+              {!bring && <input className="qi-search year-input" aria-label={`How many of item ${i + 1}`} maxLength={30} placeholder="How many" value={x.qty} onChange={(e) => setItems(items.map((y, j) => (j === i ? { ...y, qty: e.target.value } : y)))} />}
+              <Button type="button" variant="ghost" icon={<Trash2 size={14} aria-hidden />} aria-label={`Remove item ${i + 1}`} onClick={() => setItems(items.filter((_, j) => j !== i))} />
+            </div>
+          ))}
+          <button type="button" className="link small" onClick={() => setItems([...items, { text: '', qty: '', done: false, day: bring ? (items[items.length - 1]?.day ?? 'MO') : null }])}>
+            + Another
+          </button>
+        </fieldset>
+        <Labelled id="list-notes" label="Notes">
+          <input id="list-notes" className="qi-search" maxLength={1000} placeholder="e.g. Label everything with the child's name" value={f.notes} onChange={(e) => set('notes', e.target.value)} />
+        </Labelled>
+        {(save.error || remove.error) && <Banner kind="error">{save.error || remove.error}</Banner>}
+        <Actions busy={save.busy} onCancel={() => onClose()} onDelete={list ? () => void remove.run() : undefined} deleting={remove.busy} />
+      </form>
+    </Dialog>
+  )
+}
+
+/** A list again, for next year or another child, with nothing ticked. */
+function CopyListDialog({ ctx, data, list, year, onClose }: { ctx: HubContext; data: Data; list: SList; year: number; onClose: (c?: boolean) => void }) {
+  const [to, setTo] = useState(list.profileId ?? data.profiles[0]?.id ?? '')
+  const [toYear, setToYear] = useState(String(Math.max(year, list.year + 1)))
+  const save = useAction(async () => {
+    await saveItem(ctx, 'lists', to, { type: list.type, name: list.name, year: Number(toYear), notes: list.notes, items: list.items.map((x) => ({ ...x, done: false })) })
+    onClose(true)
+  })
+  return (
+    <Dialog open title={`Copy ${list.name}`} onClose={() => onClose()}>
+      <form className="stack" onSubmit={(e) => (e.preventDefault(), void save.run())}>
+        <div className="row">
+          <Labelled id="copy-to" label="For">
+            <select id="copy-to" className="select" value={to} onChange={(e) => setTo(e.target.value)}>
+              {data.profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.displayName}
+                </option>
+              ))}
+            </select>
+          </Labelled>
+          <Labelled id="copy-year" label="Year">
+            <input id="copy-year" className="qi-search year-input" type="number" min={2000} max={2100} value={toYear} onChange={(e) => setToYear(e.target.value)} />
+          </Labelled>
+        </div>
+        <p className="muted small">The copy starts with nothing ticked.</p>
+        {save.error && <Banner kind="error">{save.error}</Banner>}
+        <Actions busy={save.busy} onCancel={() => onClose()} submit="Copy" />
       </form>
     </Dialog>
   )

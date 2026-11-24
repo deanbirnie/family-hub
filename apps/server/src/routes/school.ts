@@ -9,7 +9,7 @@ import { cleanSchool, readSchool, sealSchool, type SchoolKind } from '../school.
 import { newId } from '../secrets.ts'
 import { childSchoolFolder } from './files.ts'
 
-const KINDS: Record<string, SchoolKind> = { years: 'year', contacts: 'contact', activities: 'activity', reminders: 'reminder' }
+const KINDS: Record<string, SchoolKind> = { years: 'year', contacts: 'contact', activities: 'activity', reminders: 'reminder', forms: 'form', lists: 'list' }
 const MAX_ITEMS = 20_000
 
 export function schoolRoutes(api: Api, s: Services): void {

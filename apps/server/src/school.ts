@@ -13,7 +13,7 @@ import { bad, cents, date, id, int, list, obj, oneOf, text } from './household.t
 import type { ReminderItem } from './notifications.ts'
 import { localNow } from './schedule.ts'
 
-export type SchoolKind = 'year' | 'contact' | 'activity' | 'reminder'
+export type SchoolKind = 'year' | 'contact' | 'activity' | 'reminder' | 'form' | 'list'
 export const WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const
 export type Weekday = (typeof WEEKDAYS)[number]
 
@@ -74,7 +74,29 @@ export interface SchoolReminder {
   done: boolean
 }
 
-export type SchoolItem = SchoolYear | SchoolContact | Activity | SchoolReminder
+/** A form or permission slip: what it needs, by when, and whether it is done. */
+export interface SchoolForm {
+  what: string
+  needs: 'sign' | 'pay' | 'sign and pay' | 'return'
+  amount: number | null
+  due: string
+  /** The form itself, scanned or downloaded, in the child's School folder. */
+  documents: { id: string; name: string }[]
+  done: boolean
+  doneOn: string | null
+  notes: string
+}
+
+/** A list for a school year: uniform, stationery, kit, or what to bring on which day. */
+export interface SchoolList {
+  type: 'uniform' | 'stationery' | 'kit' | 'bring'
+  name: string
+  year: number
+  items: { text: string; qty: string; done: boolean; day: Weekday | null }[]
+  notes: string
+}
+
+export type SchoolItem = SchoolYear | SchoolContact | Activity | SchoolReminder | SchoolForm | SchoolList
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 
@@ -129,6 +151,40 @@ export function cleanSchool(kind: SchoolKind, raw: unknown): SchoolItem {
       notes: text(o, 'notes', 2000, 'Notes'),
     }
   }
+  if (kind === 'form') {
+    const done = o.done === true
+    return {
+      what: text(o, 'what', 200, 'What it is', true),
+      needs: oneOf(o.needs, ['sign', 'pay', 'sign and pay', 'return'] as const, 'What it needs', 'sign'),
+      amount: o.amount === null || o.amount === undefined || o.amount === '' ? null : cents(o.amount, 'The amount'),
+      due: date(o, 'due', 'The deadline', true)!,
+      documents: list(o.documents, 10, 'Documents').map((d) => {
+        const e = obj(d)
+        return { id: id(e, 'id') ?? bad('A document is not valid.'), name: text(e, 'name', 240, 'A document name', true) }
+      }),
+      done,
+      doneOn: done ? date(o, 'doneOn', 'The day it was done') : null,
+      notes: text(o, 'notes', 1000, 'Notes'),
+    }
+  }
+  if (kind === 'list') {
+    const type = oneOf(o.type, ['uniform', 'stationery', 'kit', 'bring'] as const, 'The kind of list')
+    return {
+      type,
+      name: text(o, 'name', 80, 'The name', true),
+      year: int(o.year, 'The year', 2000, 2100),
+      items: list(o.items, 300, 'Items').map((x) => {
+        const e = obj(x)
+        return {
+          text: text(e, 'text', 200, 'An item', true),
+          qty: text(e, 'qty', 30, 'How many'),
+          done: e.done === true,
+          day: type === 'bring' ? oneOf(e.day, WEEKDAYS, 'The day') : null,
+        }
+      }),
+      notes: text(o, 'notes', 1000, 'Notes'),
+    }
+  }
   return {
     what: text(o, 'what', 200, 'What', true),
     date: date(o, 'date', 'The date', true)!,
@@ -160,10 +216,10 @@ export function readSchool(s: Services, kind?: SchoolKind): { id: string; kind: 
 
 /** School reminders not yet done. Generic notification text; the details show in the app. */
 export function schoolItems(s: Services): ReminderItem[] {
-  if (!s.db.prepare("SELECT 1 FROM school WHERE kind = 'reminder' LIMIT 1").get()) return []
+  if (!s.db.prepare("SELECT 1 FROM school WHERE kind IN ('reminder', 'form') LIMIT 1").get()) return []
   const today = localNow(s.now(), s.config.timeZone).date
   const names = new Map((s.db.prepare('SELECT id, display_name FROM family_profiles').all() as { id: string; display_name: string }[]).map((p) => [p.id, p.display_name]))
-  return readSchool(s, 'reminder')
+  const reminders: ReminderItem[] = readSchool(s, 'reminder')
     .filter((r) => !(r.item as SchoolReminder).done && (r.item as SchoolReminder).date >= today)
     .map((r) => {
       const rem = r.item as SchoolReminder
@@ -181,4 +237,24 @@ export function schoolItems(s: Services): ReminderItem[] {
         detail: () => rem.notes || null,
       }
     })
+  // Forms and permission slips: reminded before the deadline until done.
+  const forms: ReminderItem[] = readSchool(s, 'form')
+        .filter((r) => !(r.item as SchoolForm).done && (r.item as SchoolForm).due >= today)
+        .map((r) => {
+          const f = r.item as SchoolForm
+          return {
+            key: `sf:${r.id}`,
+            category: 'school' as const,
+            title: `${f.what} (${f.needs}${f.amount !== null ? ` R ${(f.amount / 100).toFixed(2)}` : ''})`,
+            whose: r.profileId ? (names.get(r.profileId) ?? null) : null,
+            due: { date: f.due, yearly: false },
+            leads: [3, 1, 0],
+            notice: () => 'A school form is due. Tap to see.',
+            url: '/school',
+            audience: 'all',
+            horizon: 21,
+            detail: () => f.notes || null,
+          }
+        })
+  return [...reminders, ...forms]
 }

@@ -812,7 +812,7 @@ design allows for primary and high school later.
 - [x] 7a. The child's school page, the School folder, quick dates to the
       calendar, fees and costs linked from Bills & budget; school contacts,
       extra-murals by term and reminders.
-- [ ] 7b. Forms and permission slips; uniform, stationery and "what to
+- [x] 7b. Forms and permission slips; uniform, stationery and "what to
       bring" lists; "plan the year".
 - [ ] 7c. Timetable and homework (when needed).
 

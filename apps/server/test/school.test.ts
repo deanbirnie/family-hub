@@ -65,4 +65,32 @@ describe('the School API', () => {
     for (const r of [kid.get('/api/school'), kid.post('/api/school/reminders', { profileId: null, item: {} }), kid.get(`/api/school/folder/${sam}`)]) expect((await r).status).toBe(403)
     expect((await client.post('/api/school/years', { profileId: 'nobody', item: { year: 2027, school: 'x' } })).status).toBe(400)
   })
+
+  it('keeps forms (reminded until done) and lists (what to bring by day)', async () => {
+    server = await startServer() // 2026-11-20
+    const { client } = await setUpAdmin(server)
+    const sam = (await client.post<{ profile: { id: string } }>('/api/quick-info/profiles', { displayName: 'Sam' })).body.profile.id
+    const form = await client.post<{ item: { id: string; version: number } }>('/api/school/forms', { profileId: sam, item: { what: 'Zoo outing', needs: 'sign and pay', amount: 15000, due: '2026-11-23' } })
+    expect(form.status).toBe(200)
+    const up = await client.get<{ items: { title: string; category: string }[] }>('/api/reminders/upcoming')
+    expect(up.body.items.filter((i) => i.category === 'school').map((i) => i.title)).toEqual(['Zoo outing (sign and pay R 150.00)'])
+    const parent = (await client.get<{ user: { id: string } }>('/api/auth/session')).body.user.id
+    const { dueMessagesFor } = await import('../src/notifications.ts')
+    expect(dueMessagesFor(server.services, parent, '2026-11-20').map((m) => m.body)).toContain('A school form is due. Tap to see.')
+    // Done: no more reminders.
+    await client.call('PUT', `/api/school/forms/${form.body.item.id}`, { baseVersion: 1, item: { what: 'Zoo outing', needs: 'sign and pay', amount: 15000, due: '2026-11-23', done: true, doneOn: '2026-11-20' } })
+    expect((await client.get<{ items: { category: string }[] }>('/api/reminders/upcoming')).body.items.filter((i) => i.category === 'school')).toEqual([])
+
+    const bring = await client.post('/api/school/lists', {
+      profileId: sam,
+      item: { type: 'bring', name: 'What to bring', year: 2027, items: [{ text: 'Swimming bag', day: 'TU' }, { text: 'Library book', day: 'FR' }] },
+    })
+    expect(bring.status).toBe(200)
+    // Items on a "what to bring" list need a day; a stationery list's do not.
+    expect((await client.post('/api/school/lists', { profileId: sam, item: { type: 'bring', name: 'x', year: 2027, items: [{ text: 'Hat' }] } })).status).toBe(400)
+    const stationery = await client.post<{ item: { items: { day: string | null }[] } }>('/api/school/lists', { profileId: sam, item: { type: 'stationery', name: 'Stationery', year: 2027, items: [{ text: 'Crayons', qty: '1 box', day: 'MO' }] } })
+    expect(stationery.body.item.items[0]!.day).toBeNull()
+    const raw = JSON.stringify(server.services.db.prepare('SELECT * FROM school').all())
+    for (const w of ['Zoo', 'Swimming', 'Crayons']) expect(raw).not.toContain(w)
+  })
 })

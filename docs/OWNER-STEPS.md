@@ -397,6 +397,17 @@ On each parent's phone, once it has the app version with notifications
       them.
 - [ ] 5. **Settings → Notifications:** keep **School reminders** ticked.
 
+## 27. School paperwork and lists (after the 7b pull request is merged and deployed)
+
+- [ ] 1. **School → Plan the year:** work through the checklist; each step
+      has a "Do it" button.
+- [ ] 2. Add forms and permission slips as they come home, with the form
+      itself; tick them when done.
+- [ ] 3. Add the school's stationery and uniform lists and tick them off as
+      you buy; copy them for next year or the next child.
+- [ ] 4. Set up **What to bring** once (the swimming bag on Tuesdays, the
+      library book on Fridays).
+
 ## Later steps (added as features land)
 
 - Nothing yet.
