@@ -121,8 +121,9 @@ export const MODULES: HubModule[] = [
     name: 'Home & car',
     path: '/home-care',
     icon: Wrench,
-    description: 'Service dates, warranties, manuals and contacts for the house and cars.',
-    status: 'planned',
+    description: 'Vehicle services, warranties and manuals, maintenance that comes back, and the tradespeople worth calling again.',
+    status: 'ready',
     phase: 6,
+    parentsOnly: true,
   },
 ]

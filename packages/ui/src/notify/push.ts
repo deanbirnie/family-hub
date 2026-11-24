@@ -28,6 +28,7 @@ export interface NotificationSettings {
   events: boolean
   health: boolean
   household: boolean
+  home: boolean
   sendHour: number
 }
 

@@ -734,9 +734,9 @@ bank connections of any kind.
 
 **6b. Home and car**
 
-- [ ] Vehicles (linked to Quick Info), service history and next service.
-- [ ] Warranties and manuals; recurring maintenance with reminders.
-- [ ] Jobs, tradespeople and "would use again".
+- [x] Vehicles (linked to Quick Info), service history and next service.
+- [x] Warranties and manuals; recurring maintenance with reminders.
+- [x] Jobs, tradespeople and "would use again".
 
 **6c. Budget and debt**
 

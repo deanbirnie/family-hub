@@ -25,6 +25,7 @@ import { notificationRoutes } from './routes/notifications.ts'
 import { calendarRoutes } from './routes/calendar.ts'
 import { healthRoutes } from './routes/health.ts'
 import { householdRoutes } from './routes/household.ts'
+import { homeCareRoutes } from './routes/home-care.ts'
 import { calendarSyncRoutes, syncDue } from './routes/calendar-sync.ts'
 import { fetchIcs, type IcsFetcher } from './fetch-ics.ts'
 import { runReminders } from './notifications.ts'
@@ -138,6 +139,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   calendarSyncRoutes(api, services)
   healthRoutes(api, services)
   householdRoutes(api, services)
+  homeCareRoutes(api, services)
 
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     void dispatch(services, router, req, res)

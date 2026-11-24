@@ -381,6 +381,21 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX household_kind ON household (kind);
   `,
+  // 18: Home and car (phase 6b, routes/home-care.ts): vehicles (linked to a
+  // Quick Info vehicle by ID), things with warranties, recurring maintenance
+  // and jobs done. Sealed with the server key; only the kind is plain.
+  `
+  CREATE TABLE home_care (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL CHECK (kind IN ('vehicle', 'item', 'task', 'job')),
+    sealed TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE INDEX home_care_kind ON home_care (kind);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

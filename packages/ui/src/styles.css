@@ -2012,3 +2012,38 @@ progress {
   letter-spacing: 0.04em;
   margin-top: 8px;
 }
+
+/* ---- Home and car ---- */
+
+.care-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 0;
+}
+
+.care-facts dt {
+  color: var(--muted);
+}
+
+.care-facts dd {
+  margin: 0;
+}
+
+.care-vote {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  color: var(--muted);
+}
+
+@media (max-width: 420px) {
+  .care-facts {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .care-facts dd {
+    margin-bottom: 6px;
+  }
+}

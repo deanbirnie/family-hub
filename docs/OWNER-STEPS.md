@@ -338,6 +338,21 @@ On each parent's phone, once it has the app version with notifications
 - [ ] 5. **Settings → Notifications:** keep **Bills, subscriptions and
       invoices** ticked.
 
+## 23. Home and car (after the 6b pull request is merged and deployed)
+
+- [ ] 1. **Home & car → Add a vehicle** for each car, linked to its Quick
+      Info vehicle (open the family vault first), with the service interval.
+      Then **Log a service or repair** for the last service, with the
+      odometer, so the next one can be worked out. Add an odometer reading
+      now and then.
+- [ ] 2. **Warranties:** add the appliances and electronics whose warranties
+      matter, with the receipt and manual.
+- [ ] 3. **Maintenance:** tap the suggestions that apply (geyser, gutters,
+      smoke detectors, …) and fill in when each was last done.
+- [ ] 4. Add the tradespeople you use to Contacts, so their numbers show
+      with the jobs.
+- [ ] 5. **Settings → Notifications:** keep **Home and car** ticked.
+
 ## Later steps (added as features land)
 
 - Nothing yet.
