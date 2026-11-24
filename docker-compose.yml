@@ -30,6 +30,14 @@ services:
       TZ: "${TZ:-Africa/Johannesburg}"
       # The hub's https address (the one you open in the browser), for push notifications.
       FAMILY_HUB_PUBLIC_URL: "${FAMILY_HUB_PUBLIC_URL:-}"
+      # Email from the hub (in case of emergency): the account it sends from.
+      # Put these in a .env file next to this one (never in git); see
+      # "Email from the hub" in docs/OWNER-STEPS.md. Empty: no email.
+      FAMILY_HUB_SMTP_HOST: "${FAMILY_HUB_SMTP_HOST:-}"
+      FAMILY_HUB_SMTP_PORT: "${FAMILY_HUB_SMTP_PORT:-}"
+      FAMILY_HUB_SMTP_USER: "${FAMILY_HUB_SMTP_USER:-}"
+      FAMILY_HUB_SMTP_PASSWORD: "${FAMILY_HUB_SMTP_PASSWORD:-}"
+      FAMILY_HUB_SMTP_FROM: "${FAMILY_HUB_SMTP_FROM:-}"
     volumes:
       # The database and the family's documents. Back this up.
       - family-hub-data:/data

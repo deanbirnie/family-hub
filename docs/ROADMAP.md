@@ -896,7 +896,7 @@ email**, because the hub (on a home server) may not be kept running.
 
 ### Build order
 
-- [ ] 9a. Email from the hub; trusted parties; the letters.
+- [x] 9a. Email from the hub; trusted parties; the letters.
 - [ ] 9b. The pack: instructions, the password-protected PDF made on the
       device, refreshed when the vault is open; downloading it.
 - [ ] 9c. Release on request, the second confirmation, the inactivity

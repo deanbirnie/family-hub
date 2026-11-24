@@ -486,6 +486,20 @@ const MIGRATIONS: string[] = [
   ALTER TABLE wishlist_claims ADD COLUMN link_id TEXT REFERENCES wishlist_links(id) ON DELETE SET NULL;
   ALTER TABLE wishlist_claims ADD COLUMN undo_hash TEXT;
   `,
+  // 23: In case of emergency (phase 9a, routes/emergency.ts): the trusted
+  // parties, each sealed, with the hash of the request link in their letter.
+  `
+  CREATE TABLE trusted_parties (
+    id TEXT PRIMARY KEY,
+    sealed TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    request_hash TEXT UNIQUE,
+    letter_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

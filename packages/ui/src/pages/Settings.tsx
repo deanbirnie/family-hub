@@ -3,6 +3,7 @@ import { Download, Laptop, Lock, LogOut, RefreshCw, Smartphone, Trash2 } from 'l
 import { useState, useSyncExternalStore } from 'react'
 import { RecoveryCodesList } from '../auth/screens.tsx'
 import { describeAgent, EVENT_NAMES, formatDateTime, timeAgo } from '../format.ts'
+import { navigate } from '../router.ts'
 import type { HubContext } from '../Shell.tsx'
 import { VaultCard } from '../vault/VaultCard.tsx'
 import { NotificationsCard } from '../notify/NotificationsCard.tsx'
@@ -23,9 +24,19 @@ export function SettingsPage({ ctx }: { ctx: HubContext }) {
       <ActivityCard ctx={ctx} />
       {ctx.user.role === 'admin' && <VaultCard ctx={ctx} />}
       {ctx.user.role === 'admin' && <FamilyCard ctx={ctx} />}
+      {ctx.user.role === 'admin' && <EmergencyCard />}
       {ctx.user.role === 'admin' && ctx.serverKeySaved === true && <ServerKeyCard ctx={ctx} />}
       <AboutCard ctx={ctx} />
     </div>
+  )
+}
+
+/** The way to "In case of emergency": trusted parties, letters and the hub's email. */
+function EmergencyCard() {
+  return (
+    <Card title="In case of emergency" actions={<Button variant="ghost" onClick={() => navigate('/emergency')}>Open</Button>}>
+      <p className="muted small">If something happens to both of you: who takes over the children, the letters to give them, and the hub’s email.</p>
+    </Card>
   )
 }
 

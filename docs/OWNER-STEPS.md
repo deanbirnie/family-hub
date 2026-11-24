@@ -438,6 +438,46 @@ On each parent's phone, once it has the app version with notifications
 - [ ] 3. **Plan in the budget** on Christmas (and any big birthday), so the
       month's budget has the gifts in it.
 
+## 31. Email from the hub, and the trusted parties (after the 9a pull request is merged and deployed)
+
+The hub sends email in an emergency through an account you give it. A
+separate Gmail account just for the hub is best (e.g. `ourfamily.hub@gmail.com`),
+so the app password cannot read your own mail.
+
+- [ ] 1. In that Google account: turn on 2-Step Verification, then open
+      <https://myaccount.google.com/apppasswords>, make an app password named
+      "Family Hub" and copy the 16 letters.
+- [ ] 2. On the server, next to `docker-compose.yml`, add to the `.env` file
+      (create it if there is none; it must not go into git):
+
+      ```
+      FAMILY_HUB_SMTP_HOST=smtp.gmail.com
+      FAMILY_HUB_SMTP_PORT=465
+      FAMILY_HUB_SMTP_USER=ourfamily.hub@gmail.com
+      FAMILY_HUB_SMTP_PASSWORD=the16letterapppassword
+      ```
+
+      Then restrict who can read it and restart the hub:
+
+      ```bash
+      chmod 600 .env
+      ```
+
+      ```bash
+      docker compose up -d
+      ```
+
+      (Or put the password in a Docker secret and set
+      `FAMILY_HUB_SMTP_PASSWORD_FILE` to its path instead.)
+- [ ] 3. **Settings → In case of emergency → Send a test** to your own
+      address, and check it arrived (and is not in spam).
+- [ ] 4. Add the trusted parties: at least one **guardian**, and anyone **to
+      inform**.
+- [ ] 5. **Wait with the letters** until the release pull request (9c) is
+      deployed: until then the link in a letter opens nothing. When you do
+      make them, choose the pack's password once (Suggest one), save it in
+      your password manager, and use the same one for every guardian.
+
 ## Later steps (added as features land)
 
 - Nothing yet.
