@@ -93,4 +93,23 @@ describe('the School API', () => {
     const raw = JSON.stringify(server.services.db.prepare('SELECT * FROM school').all())
     for (const w of ['Zoo', 'Swimming', 'Crayons']) expect(raw).not.toContain(w)
   })
+
+  it('keeps the timetable in order, and reminds homework and tests until done', async () => {
+    server = await startServer() // 2026-11-20
+    const { client } = await setUpAdmin(server)
+    const sam = (await client.post<{ profile: { id: string } }>('/api/quick-info/profiles', { displayName: 'Sam' })).body.profile.id
+    const tt = await client.post<{ item: { lessons: { day: string; subject: string }[] } }>('/api/school/timetables', {
+      profileId: sam,
+      item: { year: 2027, lessons: [{ day: 'TU', start: '08:00', end: '08:45', subject: 'Maths' }, { day: 'MO', start: '09:00', end: '09:45', subject: 'English' }, { day: 'MO', start: '08:00', end: '08:45', subject: 'Afrikaans' }] },
+    })
+    expect(tt.body.item.lessons.map((l) => l.subject)).toEqual(['Afrikaans', 'English', 'Maths'])
+    await client.post('/api/school/homework', { profileId: sam, item: { type: 'test', subject: 'Maths', what: 'Times tables', due: '2026-11-26' } })
+    await client.post('/api/school/homework', { profileId: sam, item: { type: 'homework', subject: 'English', what: 'Reading log', due: '2026-11-21', done: true } })
+    const up = await client.get<{ items: { title: string; category: string }[] }>('/api/reminders/upcoming')
+    expect(up.body.items.filter((i) => i.category === 'school').map((i) => i.title)).toEqual(['Test (Maths): Times tables'])
+    const parent = (await client.get<{ user: { id: string } }>('/api/auth/session')).body.user.id
+    const { dueMessagesFor } = await import('../src/notifications.ts')
+    expect(dueMessagesFor(server.services, parent, '2026-11-20').map((m) => m.body)).toContain('A school test is coming up. Tap to see.')
+    expect((await client.post('/api/school/timetables', { profileId: sam, item: { year: 2027, lessons: [{ day: 'MO', start: '09:00', end: '08:00', subject: 'x' }] } })).status).toBe(400)
+  })
 })

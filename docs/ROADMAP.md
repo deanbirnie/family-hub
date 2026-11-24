@@ -762,7 +762,7 @@ bank connections of any kind.
       reminders, the vet as a provider, episodes), plus species, breed,
       microchip number, insurance, food, and deworming and tick schedules.
 
-## Phase 7 — School hub ← next
+## Phase 7 — School hub ✅
 
 School touches the calendar, the budget, files, contacts and reminders. The
 school hub is **a page per child that brings these together without keeping
@@ -814,9 +814,10 @@ design allows for primary and high school later.
       extra-murals by term and reminders.
 - [x] 7b. Forms and permission slips; uniform, stationery and "what to
       bring" lists; "plan the year".
-- [ ] 7c. Timetable and homework (when needed).
+- [x] 7c. Timetable and homework, projects and tests (ready for when
+      needed).
 
-## Phase 8 — Wishlists and the gift planner
+## Phase 8 — Wishlists and the gift planner ← next
 
 - **Wishlists** for everyone with an account, kept by themselves: what, a
   link, a rough price, how much they want it, size or colour, notes.

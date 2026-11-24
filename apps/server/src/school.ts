@@ -13,7 +13,7 @@ import { bad, cents, date, id, int, list, obj, oneOf, text } from './household.t
 import type { ReminderItem } from './notifications.ts'
 import { localNow } from './schedule.ts'
 
-export type SchoolKind = 'year' | 'contact' | 'activity' | 'reminder' | 'form' | 'list'
+export type SchoolKind = 'year' | 'contact' | 'activity' | 'reminder' | 'form' | 'list' | 'timetable' | 'homework'
 export const WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'] as const
 export type Weekday = (typeof WEEKDAYS)[number]
 
@@ -96,7 +96,23 @@ export interface SchoolList {
   notes: string
 }
 
-export type SchoolItem = SchoolYear | SchoolContact | Activity | SchoolReminder | SchoolForm | SchoolList
+/** The week's lessons for a school year. */
+export interface Timetable {
+  year: number
+  lessons: { day: Weekday; start: string; end: string; subject: string; note: string }[]
+}
+
+/** Homework, a project or a test, with when it is due. */
+export interface Homework {
+  type: 'homework' | 'project' | 'test'
+  subject: string
+  what: string
+  due: string
+  done: boolean
+  notes: string
+}
+
+export type SchoolItem = SchoolYear | SchoolContact | Activity | SchoolReminder | SchoolForm | SchoolList | Timetable | Homework
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 
@@ -185,6 +201,30 @@ export function cleanSchool(kind: SchoolKind, raw: unknown): SchoolItem {
       notes: text(o, 'notes', 1000, 'Notes'),
     }
   }
+  if (kind === 'timetable') {
+    return {
+      year: int(o.year, 'The year', 2000, 2100),
+      lessons: list(o.lessons, 80, 'Lessons')
+        .map((x) => {
+          const e = obj(x)
+          const start = typeof e.start === 'string' && TIME.test(e.start) ? e.start : bad('A start time must be like 08:00.')
+          const end = typeof e.end === 'string' && TIME.test(e.end) ? e.end : bad('An end time must be like 08:45.')
+          if (end <= start) bad('A lesson ends before it starts.')
+          return { day: oneOf(e.day, WEEKDAYS, 'A day'), start, end, subject: text(e, 'subject', 60, 'A subject', true), note: text(e, 'note', 100, 'A note') }
+        })
+        .sort((a, b) => WEEKDAYS.indexOf(a.day) - WEEKDAYS.indexOf(b.day) || a.start.localeCompare(b.start)),
+    }
+  }
+  if (kind === 'homework') {
+    return {
+      type: oneOf(o.type, ['homework', 'project', 'test'] as const, 'What kind', 'homework'),
+      subject: text(o, 'subject', 60, 'The subject'),
+      what: text(o, 'what', 300, 'What', true),
+      due: date(o, 'due', 'When it is due', true)!,
+      done: o.done === true,
+      notes: text(o, 'notes', 1000, 'Notes'),
+    }
+  }
   return {
     what: text(o, 'what', 200, 'What', true),
     date: date(o, 'date', 'The date', true)!,
@@ -216,7 +256,7 @@ export function readSchool(s: Services, kind?: SchoolKind): { id: string; kind: 
 
 /** School reminders not yet done. Generic notification text; the details show in the app. */
 export function schoolItems(s: Services): ReminderItem[] {
-  if (!s.db.prepare("SELECT 1 FROM school WHERE kind IN ('reminder', 'form') LIMIT 1").get()) return []
+  if (!s.db.prepare("SELECT 1 FROM school WHERE kind IN ('reminder', 'form', 'homework') LIMIT 1").get()) return []
   const today = localNow(s.now(), s.config.timeZone).date
   const names = new Map((s.db.prepare('SELECT id, display_name FROM family_profiles').all() as { id: string; display_name: string }[]).map((p) => [p.id, p.display_name]))
   const reminders: ReminderItem[] = readSchool(s, 'reminder')
@@ -256,5 +296,24 @@ export function schoolItems(s: Services): ReminderItem[] {
             detail: () => f.notes || null,
           }
         })
-  return [...reminders, ...forms]
+  // Homework, projects and tests: the day before and on the day, until done.
+  const homework: ReminderItem[] = readSchool(s, 'homework')
+    .filter((r) => !(r.item as Homework).done && (r.item as Homework).due >= today)
+    .map((r) => {
+      const h = r.item as Homework
+      return {
+        key: `sh:${r.id}`,
+        category: 'school' as const,
+        title: `${h.type === 'test' ? 'Test' : h.type === 'project' ? 'Project' : 'Homework'}${h.subject ? ` (${h.subject})` : ''}: ${h.what}`,
+        whose: r.profileId ? (names.get(r.profileId) ?? null) : null,
+        due: { date: h.due, yearly: false },
+        leads: h.type === 'homework' ? [1, 0] : [7, 1],
+        notice: () => (h.type === 'test' ? 'A school test is coming up. Tap to see.' : 'School work is due. Tap to see.'),
+        url: '/school',
+        audience: 'all',
+        horizon: 14,
+        detail: () => h.notes || null,
+      }
+    })
+  return [...reminders, ...forms, ...homework]
 }

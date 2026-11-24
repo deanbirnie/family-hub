@@ -6,7 +6,7 @@
  * terms, the school's contacts and their roles, extra-murals by term, and
  * reminders for the irregular things.
  */
-import { Backpack, Bell, CalendarPlus, CheckCircle2, Circle, FileSignature, FolderOpen, GraduationCap, ListChecks, Pencil, Phone, Plus, Trash2, Trophy, Users } from 'lucide-react'
+import { Backpack, Bell, BookOpen, Clock, CalendarPlus, CheckCircle2, Circle, FileSignature, FolderOpen, GraduationCap, ListChecks, Pencil, Phone, Plus, Trash2, Trophy, Users } from 'lucide-react'
 import { AttachDocuments, Documents } from '../health/parts.tsx'
 import { useCallback, useEffect, useState } from 'react'
 import { PlannedDialog } from '../money/Budget.tsx'
@@ -118,7 +118,21 @@ interface SList extends Base {
   items: { text: string; qty: string; done: boolean; day: string | null }[]
   notes: string
 }
-type Item = Year | SchoolContact | Activity | Reminder | Form | SList
+interface Timetable extends Base {
+  kind: 'timetable'
+  year: number
+  lessons: { day: string; start: string; end: string; subject: string; note: string }[]
+}
+interface Homework extends Base {
+  kind: 'homework'
+  type: 'homework' | 'project' | 'test'
+  subject: string
+  what: string
+  due: string
+  done: boolean
+  notes: string
+}
+type Item = Year | SchoolContact | Activity | Reminder | Form | SList | Timetable | Homework
 
 interface Data {
   profiles: { id: string; displayName: string; userId: string | null }[]
@@ -163,6 +177,8 @@ type Editing =
   | { what: 'form'; profileId: string; form?: Form }
   | { what: 'list'; profileId: string; list?: SList; type?: SList['type'] }
   | { what: 'copy-list'; list: SList }
+  | { what: 'timetable'; profileId: string; timetable?: Timetable }
+  | { what: 'homework'; profileId: string; homework?: Homework }
 
 export function SchoolPage({ ctx }: { ctx: HubContext }) {
   if (ctx.user.role !== 'admin') {
@@ -264,6 +280,8 @@ function SchoolBody({ ctx }: { ctx: HubContext }) {
       {editing?.what === 'dates' && child && <DatesDialog ctx={ctx} child={child} today={extras.today} onClose={done} />}
       {editing?.what === 'form' && <FormDialog ctx={ctx} extras={extras} profileId={editing.profileId} form={editing.form} onClose={done} />}
       {editing?.what === 'list' && <ListDialog ctx={ctx} extras={extras} profileId={editing.profileId} list={editing.list} type={editing.type} onClose={done} />}
+      {editing?.what === 'timetable' && <TimetableDialog ctx={ctx} extras={extras} profileId={editing.profileId} timetable={editing.timetable} onClose={done} />}
+      {editing?.what === 'homework' && <HomeworkDialog ctx={ctx} extras={extras} profileId={editing.profileId} homework={editing.homework} onClose={done} />}
       {editing?.what === 'copy-list' && <CopyListDialog ctx={ctx} data={data} list={editing.list} year={Number(extras.today.slice(0, 4))} onClose={done} />}
       {editing?.what === 'cost' && (
         <PlannedDialog
@@ -300,6 +318,15 @@ function ChildSchool({ ctx, data, extras, dates, child, edit, reload }: { ctx: H
     void _k
     void _p
     await api.request('PUT', `/api/school/lists/${id}`, { baseVersion: version, item: { ...item, items } }).catch(conflict)
+    await reload()
+  })
+  const timetable = data.items.filter((i): i is Timetable => i.kind === 'timetable' && i.profileId === child.id).sort((a, b) => b.year - a.year)[0]
+  const homework = data.items.filter((i): i is Homework => i.kind === 'homework' && i.profileId === child.id).sort((a, b) => a.due.localeCompare(b.due))
+  const homeworkDone = useAction(async (h: Homework) => {
+    const { id, version, kind: _k, profileId: _p, ...item } = h
+    void _k
+    void _p
+    await api.request('PUT', `/api/school/homework/${id}`, { baseVersion: version, item: { ...item, done: !h.done } }).catch(conflict)
     await reload()
   })
   const formDone = useAction(async (f: Form) => {
@@ -706,6 +733,43 @@ function ChildSchool({ ctx, data, extras, dates, child, edit, reload }: { ctx: H
           </ul>
         )}
       </Card>
+
+      <Card
+        title={
+          <>
+            <BookOpen size={18} aria-hidden /> Homework, projects and tests
+          </>
+        }
+        actions={
+          <Button variant="ghost" icon={<Plus size={16} aria-hidden />} onClick={() => edit({ what: 'homework', profileId: child.id })}>
+            Add
+          </Button>
+        }
+      >
+        {homework.filter((h) => !h.done).length === 0 && <p className="muted small">For when they are older: homework (reminded the day before), projects and tests (a week and a day before).</p>}
+        <ul className="item-list">
+          {homework
+            .filter((h) => !h.done)
+            .map((h) => (
+              <li key={h.id}>
+                <input type="checkbox" aria-label={`Done: ${h.what}`} checked={h.done} onChange={() => void homeworkDone.run(h)} />
+                <div className="item-main">
+                  <div>
+                    {h.type !== 'homework' && <Badge tone={h.type === 'test' ? 'warning' : 'accent'}>{h.type === 'test' ? 'Test' : 'Project'}</Badge>} {h.subject && <strong>{h.subject}: </strong>}
+                    {h.what}
+                  </div>
+                  <div className={`small ${h.due < t ? 'field-error' : 'muted'}`}>
+                    {shortDate(h.due, t)} ({relative(t, h.due)}){h.notes && ` · ${h.notes}`}
+                  </div>
+                </div>
+                <Button variant="ghost" icon={<Pencil size={16} aria-hidden />} aria-label={`Edit ${h.what}`} onClick={() => edit({ what: 'homework', profileId: child.id, homework: h })} />
+              </li>
+            ))}
+        </ul>
+        {homeworkDone.error && <Banner kind="error">{homeworkDone.error}</Banner>}
+      </Card>
+
+      <TimetableCard timetable={timetable} today={t} onEdit={() => edit({ what: 'timetable', profileId: child.id, timetable })} />
 
       <Card title="Documents">
         <p className="muted small">Reports, letters and forms, in {child.displayName}’s folder inside the School folder in Files (parents only).</p>
@@ -1408,6 +1472,144 @@ function CopyListDialog({ ctx, data, list, year, onClose }: { ctx: HubContext; d
         <p className="muted small">The copy starts with nothing ticked.</p>
         {save.error && <Banner kind="error">{save.error}</Banner>}
         <Actions busy={save.busy} onCancel={() => onClose()} submit="Copy" />
+      </form>
+    </Dialog>
+  )
+}
+
+// ---- 7c: timetable and homework ---------------------------------------------------------------
+
+function TimetableCard({ timetable, today, onEdit }: { timetable?: Timetable; today: string; onEdit: () => void }) {
+  const day = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][new Date(`${today}T12:00:00`).getDay()]
+  const days = WEEKDAYS.filter(([code]) => timetable?.lessons.some((l) => l.day === code))
+  return (
+    <Card
+      title={
+        <>
+          <Clock size={18} aria-hidden /> Timetable{timetable ? ` ${timetable.year}` : ''}
+        </>
+      }
+      actions={
+        <Button variant="ghost" icon={timetable ? <Pencil size={16} aria-hidden /> : <Plus size={16} aria-hidden />} aria-label={timetable ? 'Edit the timetable' : undefined} onClick={onEdit}>
+          {timetable ? '' : 'Add the timetable'}
+        </Button>
+      }
+    >
+      {!timetable || timetable.lessons.length === 0 ? (
+        <p className="muted small">For when they are older: the week’s lessons, with today’s first.</p>
+      ) : (
+        <div className="timetable">
+          {days.map(([code, name]) => (
+            <div key={code} className={`timetable-day ${code === day ? 'timetable-today' : ''}`}>
+              <strong>{code === day ? `Today (${name})` : name}</strong>
+              <ul>
+                {timetable.lessons
+                  .filter((l) => l.day === code)
+                  .map((l, i) => (
+                    <li key={i}>
+                      <span className="muted">{l.start}</span> {l.subject}
+                      {l.note && <span className="muted"> · {l.note}</span>}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function TimetableDialog({ ctx, extras, profileId, timetable, onClose }: { ctx: HubContext; extras: Extras; profileId: string; timetable?: Timetable; onClose: (c?: boolean) => void }) {
+  const [year, setYear] = useState(String(timetable?.year ?? Number(extras.today.slice(0, 4))))
+  const [lessons, setLessons] = useState<Timetable['lessons']>(timetable?.lessons ?? [{ day: 'MO', start: '08:00', end: '08:45', subject: '', note: '' }])
+  const set = (i: number, change: Partial<Timetable['lessons'][number]>) => setLessons(lessons.map((l, j) => (j === i ? { ...l, ...change } : l)))
+  const save = useAction(async () => {
+    await saveItem(ctx, 'timetables', profileId, { year: Number(year), lessons: lessons.filter((l) => l.subject.trim()) }, timetable)
+    onClose(true)
+  })
+  const remove = useRemove(ctx, 'timetables', timetable, 'Delete the timetable?', onClose)
+  return (
+    <Dialog open title="Timetable" onClose={() => onClose()}>
+      <form className="stack" onSubmit={(e) => (e.preventDefault(), void save.run())}>
+        <Labelled id="tt-year" label="Year">
+          <input id="tt-year" className="qi-search year-input" type="number" min={2000} max={2100} value={year} onChange={(e) => setYear(e.target.value)} />
+        </Labelled>
+        <fieldset className="radio-group">
+          <legend>Lessons</legend>
+          {lessons.map((l, i) => (
+            <div key={i} className="row">
+              <select className="select select-small" aria-label={`Day of lesson ${i + 1}`} value={l.day} onChange={(e) => set(i, { day: e.target.value })}>
+                {WEEKDAYS.slice(0, 5).map(([v, n]) => (
+                  <option key={v} value={v}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              <input className="qi-search year-input" type="time" aria-label={`Start of lesson ${i + 1}`} value={l.start} onChange={(e) => set(i, { start: e.target.value })} />
+              <input className="qi-search year-input" type="time" aria-label={`End of lesson ${i + 1}`} value={l.end} onChange={(e) => set(i, { end: e.target.value })} />
+              <input className="qi-search" aria-label={`Subject of lesson ${i + 1}`} maxLength={60} placeholder="Subject" value={l.subject} onChange={(e) => set(i, { subject: e.target.value })} />
+              <Button type="button" variant="ghost" icon={<Trash2 size={14} aria-hidden />} aria-label={`Remove lesson ${i + 1}`} onClick={() => setLessons(lessons.filter((_, j) => j !== i))} />
+            </div>
+          ))}
+          <button
+            type="button"
+            className="link small"
+            onClick={() => {
+              const last = lessons[lessons.length - 1]
+              setLessons([...lessons, { day: last?.day ?? 'MO', start: last?.end ?? '08:00', end: last?.end ?? '08:45', subject: '', note: '' }])
+            }}
+          >
+            + Another lesson
+          </button>
+        </fieldset>
+        {(save.error || remove.error) && <Banner kind="error">{save.error || remove.error}</Banner>}
+        <Actions busy={save.busy} onCancel={() => onClose()} onDelete={timetable ? () => void remove.run() : undefined} deleting={remove.busy} />
+      </form>
+    </Dialog>
+  )
+}
+
+function HomeworkDialog({ ctx, extras, profileId, homework, onClose }: { ctx: HubContext; extras: Extras; profileId: string; homework?: Homework; onClose: (c?: boolean) => void }) {
+  const [f, setF] = useState(() => ({ type: homework?.type ?? 'homework', subject: homework?.subject ?? '', what: homework?.what ?? '', due: homework?.due ?? plusDays(extras.today, 1), notes: homework?.notes ?? '', done: homework?.done ?? false }))
+  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }))
+  const save = useAction(async () => {
+    await saveItem(ctx, 'homework', profileId, f, homework)
+    onClose(true)
+  })
+  const remove = useRemove(ctx, 'homework', homework, 'Delete this?', onClose)
+  return (
+    <Dialog open title={homework ? 'Edit' : 'Add homework, a project or a test'} onClose={() => onClose()}>
+      <form className="stack" onSubmit={(e) => (e.preventDefault(), void save.run())}>
+        <div className="row">
+          <Labelled id="hw-type" label="Kind">
+            <select id="hw-type" className="select" value={f.type} onChange={(e) => set('type', e.target.value as Homework['type'])}>
+              <option value="homework">Homework</option>
+              <option value="project">Project</option>
+              <option value="test">Test</option>
+            </select>
+          </Labelled>
+          <Labelled id="hw-subject" label="Subject">
+            <input id="hw-subject" className="qi-search" maxLength={60} value={f.subject} onChange={(e) => set('subject', e.target.value)} />
+          </Labelled>
+        </div>
+        <Labelled id="hw-what" label="What">
+          <input id="hw-what" className="qi-search" maxLength={300} required placeholder="e.g. Times tables 1–5; Volcano model" value={f.what} onChange={(e) => set('what', e.target.value)} />
+        </Labelled>
+        <Labelled id="hw-due" label={f.type === 'test' ? 'On' : 'Due'}>
+          <input id="hw-due" className="qi-search" type="date" required value={f.due} onChange={(e) => set('due', e.target.value)} />
+        </Labelled>
+        <Labelled id="hw-notes" label="Notes">
+          <input id="hw-notes" className="qi-search" maxLength={1000} value={f.notes} onChange={(e) => set('notes', e.target.value)} />
+        </Labelled>
+        {homework && (
+          <label className="check">
+            <input type="checkbox" checked={f.done} onChange={(e) => set('done', e.target.checked)} />
+            <span>Done</span>
+          </label>
+        )}
+        {(save.error || remove.error) && <Banner kind="error">{save.error || remove.error}</Banner>}
+        <Actions busy={save.busy} onCancel={() => onClose()} onDelete={homework ? () => void remove.run() : undefined} deleting={remove.busy} />
       </form>
     </Dialog>
   )
