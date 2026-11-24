@@ -30,6 +30,7 @@ export interface FileRow {
 }
 
 const HEALTH_FOLDER_SETTING = 'health_folder_id'
+const HOUSEHOLD_FOLDER_SETTING = 'household_folder_id'
 
 /** Whether an item is in (or is) a parents-only folder. */
 export function isParentsOnly(s: Services, id: string): boolean {
@@ -45,18 +46,26 @@ export function isParentsOnly(s: Services, id: string): boolean {
 }
 
 /** The Health folder (parents only), made on first use at the top level. */
-export function healthFolder(s: Services, userId: string): string {
-  const stored = (s.db.prepare('SELECT value FROM settings WHERE key = ?').get(HEALTH_FOLDER_SETTING) as { value: string } | undefined)?.value
+/** A top-level folder only parents can open, made on first use (Health, Household). */
+function parentsFolder(s: Services, userId: string, setting: string, base: string): string {
+  const stored = (s.db.prepare('SELECT value FROM settings WHERE key = ?').get(setting) as { value: string } | undefined)?.value
   if (stored && s.db.prepare('SELECT 1 FROM files WHERE id = ? AND deleted_at IS NULL').get(stored)) return stored
-  let name = 'Health'
-  for (let i = 2; s.db.prepare('SELECT 1 FROM files WHERE parent_id IS NULL AND name = ? AND deleted_at IS NULL').get(name); i++) name = `Health (${i})`
+  let name = base
+  for (let i = 2; s.db.prepare('SELECT 1 FROM files WHERE parent_id IS NULL AND name = ? AND deleted_at IS NULL').get(name); i++) name = `${base} (${i})`
   const id = randomUUID()
   const now = s.now()
   s.db.prepare("INSERT INTO files (id, parent_id, name, kind, created_by, created_at, updated_at, parents_only) VALUES (?, NULL, ?, 'folder', ?, ?, ?, 1)").run(id, name, userId, now, now)
-  s.db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run(HEALTH_FOLDER_SETTING, id)
+  s.db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run(setting, id)
   return id
 }
-const isHealthFolder = (s: Services, id: string) => (s.db.prepare('SELECT value FROM settings WHERE key = ?').get(HEALTH_FOLDER_SETTING) as { value: string } | undefined)?.value === id
+
+export const healthFolder = (s: Services, userId: string) => parentsFolder(s, userId, HEALTH_FOLDER_SETTING, 'Health')
+/** Invoices, receipts, warranties and manuals (phase 6). */
+export const householdFolder = (s: Services, userId: string) => parentsFolder(s, userId, HOUSEHOLD_FOLDER_SETTING, 'Household')
+
+/** The Health or Household folder: kept where it is, under its name. */
+const isKeptFolder = (s: Services, id: string) =>
+  (s.db.prepare('SELECT 1 FROM settings WHERE key IN (?, ?) AND value = ?').get(HEALTH_FOLDER_SETTING, HOUSEHOLD_FOLDER_SETTING, id) as object | undefined) !== undefined
 
 export const fileInfo = (f: FileRow) => ({
   id: f.id, parentId: f.parent_id, name: f.name, kind: f.kind,
@@ -154,7 +163,7 @@ export function fileRoutes(api: Api, s: Services): void {
   api.authed('DELETE', '/api/files/:id', {}, (ctx) => {
     const item = find(ctx.params.id!)
     guard(ctx, item.id)
-    if (isHealthFolder(s, item.id)) throw new HttpError(400, 'The Health folder is kept for Health; delete what is in it instead.', 'invalid')
+    if (isKeptFolder(s, item.id)) throw new HttpError(400, `The ${item.name} folder is kept for the app; delete what is in it instead.`, 'invalid')
     tx(s.db, () => {
       s.db.prepare(`WITH RECURSIVE tree(id) AS (SELECT ? UNION ALL SELECT f.id FROM files f JOIN tree t ON f.parent_id = t.id WHERE f.deleted_at IS NULL)
         UPDATE files SET deleted_at = ?, trash_root = ? WHERE id IN tree AND deleted_at IS NULL`).run(item.id, s.now(), item.id)
@@ -208,7 +217,7 @@ export function fileRoutes(api: Api, s: Services): void {
     const name = body.name === undefined ? item.name : fileName(body.name)
     const parentId = body.parentId === undefined ? item.parent_id : destination(body.parentId)
     guard(ctx, parentId)
-    if (isHealthFolder(s, item.id) && (name !== item.name || parentId !== item.parent_id)) throw new HttpError(400, 'The Health folder stays where it is.', 'invalid')
+    if (isKeptFolder(s, item.id) && (name !== item.name || parentId !== item.parent_id)) throw new HttpError(400, `The ${item.name} folder stays where it is.`, 'invalid')
     const chain = ancestors(parentId)
     if (item.kind === 'folder' && (item.id === parentId || chain.some((f) => f.id === item.id))) {
       throw new HttpError(400, 'A folder cannot be moved inside itself.', 'folder_cycle')

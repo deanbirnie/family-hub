@@ -82,11 +82,19 @@ export function FieldInput({ def, value, onChange, contacts }: { def: FieldDef; 
   )
 }
 
-/** Link documents from the parents-only Health folder in Files, or upload one into it. */
-export function AttachDocuments({ ctx, documents, onChange }: { ctx: HubContext; documents: LinkedDocument[]; onChange: (d: LinkedDocument[]) => void }) {
+/** Which parents-only folder documents go in. */
+export interface DocumentFolder {
+  /** The API path that gives its ID. */
+  path: string
+  name: string
+}
+const HEALTH_FOLDER: DocumentFolder = { path: '/api/health/folder', name: 'Health' }
+
+/** Link documents from a parents-only folder in Files (Health by default), or upload one into it. */
+export function AttachDocuments({ ctx, documents, onChange, folder: where = HEALTH_FOLDER }: { ctx: HubContext; documents: LinkedDocument[]; onChange: (d: LinkedDocument[]) => void; folder?: DocumentFolder }) {
   const { api } = ctx.platform
   const [picking, setPicking] = useState<{ id: string; name: string }[] | null>(null)
-  const folder = async () => (await api.get<{ folderId: string }>('/api/health/folder')).folderId
+  const folder = async () => (await api.get<{ folderId: string }>(where.path)).folderId
   const upload = useAction(async (file: File) => {
     const parent = await folder()
     const res = await fetch(`${api.baseUrl}/api/files/upload?${new URLSearchParams({ name: file.name, parent })}`, {
@@ -117,10 +125,10 @@ export function AttachDocuments({ ctx, documents, onChange }: { ctx: HubContext;
       <div className="row">
         <label className="btn btn-secondary file-pick">
           <Upload size={16} aria-hidden />
-          <span>{upload.busy ? 'Uploading…' : 'Upload to the Health folder'}</span>
+          <span>{upload.busy ? 'Uploading…' : `Upload to the ${where.name} folder`}</span>
           <input
             type="file"
-            aria-label="Upload a health document"
+            aria-label={where.name === 'Health' ? 'Upload a health document' : `Upload to the ${where.name} folder`}
             onChange={(e) => {
               const f = e.target.files?.[0]
               if (f) void upload.run(f)
@@ -133,7 +141,7 @@ export function AttachDocuments({ ctx, documents, onChange }: { ctx: HubContext;
       </div>
       {picking && (
         <div className="stack-sm">
-          {picking.length === 0 && <p className="muted small">The Health folder is empty.</p>}
+          {picking.length === 0 && <p className="muted small">The {where.name} folder is empty.</p>}
           {picking
             .filter((f) => !documents.some((d) => d.id === f.id))
             .map((f) => (
@@ -143,7 +151,7 @@ export function AttachDocuments({ ctx, documents, onChange }: { ctx: HubContext;
             ))}
         </div>
       )}
-      <p className="muted small">Documents are kept in Files, in a Health folder only parents can open.</p>
+      <p className="muted small">Documents are kept in Files, in a {where.name} folder only parents can open.</p>
       {(upload.error || pick.error) && <Banner kind="error">{upload.error || pick.error}</Banner>}
     </fieldset>
   )

@@ -236,11 +236,11 @@ login (those are never stored). Each sealed item is bound to its own ID.
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Accounts: bank name and a nickname ("Capitec, joint"). Never account or card numbers | One sealed record per account | S | 🔜 6a |
-| Bills and subscriptions: payee (name or Contacts link), category, amount, how often, due day, how paid, which account, contract dates, notice period, trial end, review date, who uses it, how to cancel, notes | One sealed record per bill | S | 🔜 6a |
-| Price history and payments made (date, amount, marked by whom) | Inside the bill's sealed record, or one sealed record per payment | S | 🔜 6a |
-| Invoices: from whom, invoice number, dates, amount, status, notes, what it belongs to | One sealed record per invoice | S | 🔜 6a |
-| Invoices, receipts, warranties, manuals and service invoices (the files) | Files, in a Household folder only parents can open (like the Health folder) | S, over https | 🔜 6a |
+| Accounts: bank name and a nickname ("Capitec, joint"). Never account or card numbers | One sealed record per account | S | ✅ |
+| Bills and subscriptions: payee (name or Contacts link), category, amount, how often, due day, how paid, which account, contract dates, notice period, trial end, review date, who uses it, how to cancel, notes | One sealed record per bill | S | ✅ |
+| Price history and payments made (date, amount, marked by whom) | Inside the bill's sealed record, or one sealed record per payment | S | ✅ |
+| Invoices: from whom, invoice number, dates, amount, status, notes, what it belongs to | One sealed record per invoice | S | ✅ |
+| Invoices, receipts, warranties, manuals and service invoices (the files) | Files, in a Household folder only parents can open (like the Health folder) | S, over https | ✅ |
 | Vehicles' service history, next service, tyres, battery, warranties (registration, VIN and licence disc stay in Quick Info, E2E) | One sealed record per item, linked to the Quick Info vehicle by its ID | S | 🔜 6b |
 | Home items with warranties (what, make, model, where bought, dates), recurring maintenance and when last done, jobs (who, cost, "would use again", notes) | One sealed record per item | S | 🔜 6b |
 | The budget: income, categories, planned amounts, priorities, sinking-fund balances, money moved between categories | One sealed record per month | S | 🔜 6c |
@@ -250,9 +250,9 @@ login (those are never stored). Each sealed item is bound to its own ID.
 | Import formats: header names, which column is which, date style, decimal mark | One record per format (holds no personal data) | P | 🔜 6c |
 | Categorising rules ("WOOLWORTHS" → Groceries): they reveal where the family shops | One sealed record per rule | S | 🔜 6c |
 | Debts (not the home loan): creditor, kind, balance and its history, interest rate, minimum payment; milestones and the emergency-fund target | One sealed record per debt; one for the milestones | S | 🔜 6c |
-| Household reminders (bill due, notice deadline, trial ending, review, invoice due, warranty ending, service and maintenance due, plan next month's budget) | Reminder records: date, how far ahead, a generic title and the item's ID | P (the server sends them) | 🔜 6a–6c |
-| Reminder notification text | Generic ("A bill is due. Tap to see.", "A renewal deadline is coming up.", "Home maintenance is due.") | Encrypted to the device (RFC 8291) | 🔜 6a–6c |
-| Household events (added, changed, removed, imported with counts; never details) | `audit_log` | P | 🔜 6a–6c |
+| Household reminders (bill due, overdue, notice deadline, trial ending, review, invoice due; later warranty ending, service and maintenance due, plan next month's budget) | Worked out by the server from the sealed items each time; nothing extra is stored except the delivery record (the item's ID, the date and how far ahead), so each is sent once | P (delivery records) | ✅ 6a; 🔜 6b–6c |
+| Reminder notification text | Generic ("A bill is due. Tap to see.", "A renewal deadline is coming up.", "A free trial ends soon.", "An invoice is overdue."; later "Home maintenance is due.") | Encrypted to the device (RFC 8291) | ✅ 6a; 🔜 6b–6c |
+| Household events (added, changed, removed with the kind of item; later imports with counts; never details) | `audit_log` | P | ✅ 6a; 🔜 6b–6c |
 
 ### Later phases (proposed; confirm at the start of each phase)
 

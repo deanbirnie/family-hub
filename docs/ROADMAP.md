@@ -601,8 +601,8 @@ planning pull request.
 - Payee (from Contacts, or just a name), category, amount, how often
   (monthly, every N months, yearly, once), the due day, and how it is paid
   (debit order, EFT, card, cash), and from which account (nickname).
-- Debit orders count as paid unless a parent marks a problem; bills paid by
-  hand are marked paid (date, amount).
+- Debit orders and card charges count as paid unless a parent marks a
+  problem; bills paid by hand are marked paid (date, amount).
 - **Price history:** each change of amount is kept with its date ("R199 → R229
   from March"), with the yearly increase shown.
 - **Contracts and renewals:** start, end, and the cancellation notice period.
@@ -726,11 +726,11 @@ bank connections of any kind.
 
 **6a. Bills, subscriptions and invoices**
 
-- [ ] Money page (parents only), accounts (bank and nickname), the
+- [x] Money page (parents only), accounts (bank and nickname), the
       parents-only Household folder.
-- [ ] Bills with price history, contracts and notice-period reminders.
-- [ ] Subscriptions, free trials and review reminders.
-- [ ] Invoices with status, documents and due reminders.
+- [x] Bills with price history, contracts and notice-period reminders.
+- [x] Subscriptions, free trials and review reminders.
+- [x] Invoices with status, documents and due reminders.
 
 **6b. Home and car**
 

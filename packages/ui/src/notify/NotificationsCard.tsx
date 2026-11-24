@@ -207,6 +207,10 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
                 <input type="checkbox" checked={data.settings.health} disabled={!data.settings.enabled} onChange={(e) => void save.run({ health: e.target.checked })} />
                 <span>Health reminders (repeat scripts, vaccinations, check-ups, measuring, and medicine doses in an episode, to the minute)</span>
               </label>
+              <label className="check">
+                <input type="checkbox" checked={data.settings.household} disabled={!data.settings.enabled} onChange={(e) => void save.run({ household: e.target.checked })} />
+                <span>Bills, subscriptions and invoices (due, overdue, renewal notice deadlines, free trials ending)</span>
+              </label>
               <div className="field">
                 <label htmlFor="send-hour">Send date and expiry reminders from</label>
                 <select id="send-hour" className="select" value={data.settings.sendHour} disabled={!data.settings.enabled} onChange={(e) => void save.run({ sendHour: Number(e.target.value) })}>
