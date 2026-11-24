@@ -881,6 +881,45 @@ try {
   await sam.goto(`${base}/`)
   await sam.locator('section.card', { has: sam.getByRole('heading', { name: 'Today' }) }).getByText('Swimming', { exact: true }).waitFor()
 
+  // Wishlists: Alex adds a wish; Sam marks it as theirs to get; Alex never sees that.
+  await page.goto(`${base}/wishlists`)
+  await page.getByRole('button', { name: 'My list' }).waitFor()
+  await page.getByRole('button', { name: 'Add a wish' }).click()
+  await page.getByLabel('What', { exact: true }).fill('Trail running shoes')
+  await page.getByLabel('Link to it (optional)').fill('https://shop.example.com/shoes')
+  await page.getByLabel('About how much (optional)').fill('1 899')
+  await page.getByLabel('How much', { exact: true }).selectOption('really')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  await page.getByText('Trail running shoes').waitFor()
+  await page.locator('section.card', { has: page.getByRole('heading', { name: 'Sizes' }) }).getByRole('button', { name: 'Add sizes' }).click()
+  await page.getByLabel('Shoes', { exact: true }).fill('UK 9')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  await page.getByText('UK 9').waitFor()
+  await shot(page, '06n-wishlist')
+  // Sam opens Alex's list and is getting the shoes.
+  const alexList = await sam.evaluate(async () => {
+    const w = await (await fetch('/api/wishlists')).json()
+    const item = w.items.find((i) => i.what === 'Trail running shoes')
+    return w.profiles.find((p) => p.id === item.profileId).displayName
+  })
+  await sam.goto(`${base}/wishlists`)
+  await sam.getByRole('button', { name: alexList, exact: true }).click()
+  const shoes = sam.locator('.item-list li', { hasText: 'Trail running shoes' })
+  await shoes.getByRole('button', { name: 'I’m getting this' }).click()
+  await sam.getByLabel('A note for the others (optional)').fill('Ordered')
+  await sam.getByRole('dialog').getByRole('button', { name: 'I’m getting this' }).click()
+  await sam.getByRole('dialog').waitFor({ state: 'hidden' })
+  await shoes.getByText('You’re getting this.').waitFor()
+  await shot(sam, '06o-wishlist-claimed')
+  // Alex sees the wish, but nothing about who is getting it.
+  await page.reload()
+  await page.getByText('Trail running shoes').waitFor()
+  if (await page.locator('.item-list', { hasText: 'Trail running shoes' }).getByText(/getting|Sam|Ordered/).count()) throw new Error('the owner of a wishlist can see who is getting what')
+  const ownView = await page.evaluate(async () => (await fetch('/api/wishlists')).text())
+  if (ownView.includes('Ordered') || ownView.includes('"claims"')) throw new Error('the server tells the owner about claims')
+
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)
   await page.getByRole('heading', { name: 'Where you’re signed in' }).waitFor()
