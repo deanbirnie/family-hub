@@ -315,6 +315,15 @@ On each parent's phone, once it has the app version with notifications
 - [ ] 3. Open Health on each phone now and then (and after changes), so the
       card stays current. It shows when it was last updated.
 
+## 21. Bank export layouts (before the budget, 6c)
+
+- [ ] 1. In ABSA's and Capitec's online banking, export a statement as CSV
+      (a short date range is enough).
+- [ ] 2. Open each in a text editor and copy only **the first line (the
+      column headings)** into the chat, plus **one made-up line** in the same
+      layout (change every number and description). Never send real
+      transactions or account numbers.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

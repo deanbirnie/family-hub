@@ -208,7 +208,7 @@ Nothing outside the hub reads the calendar live (no iCal feed or CalDAV):
 exports are files a person chooses to send, so two-factor sign-in remains
 the only way in.
 
-### Health (phase 5; agreed, being built)
+### Health (phase 5)
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
@@ -228,15 +228,39 @@ database shows at most how many records each person has. Reminders reveal
 only that a health reminder for that person is due at a time (the owner
 chose this over phone-only dose alarms so reminders also work in browsers).
 
+### Household admin (phase 6; agreed with the owner, being built)
+
+The owner chose the server key (S) for money: the server works out reminders
+and totals itself, and nothing here is an account number, card number or bank
+login (those are never stored). Each sealed item is bound to its own ID.
+
+| Data | Where | Tier | Status |
+|---|---|---|---|
+| Accounts: bank name and a nickname ("Capitec, joint"). Never account or card numbers | One sealed record per account | S | 🔜 6a |
+| Bills and subscriptions: payee (name or Contacts link), category, amount, how often, due day, how paid, which account, contract dates, notice period, trial end, review date, who uses it, how to cancel, notes | One sealed record per bill | S | 🔜 6a |
+| Price history and payments made (date, amount, marked by whom) | Inside the bill's sealed record, or one sealed record per payment | S | 🔜 6a |
+| Invoices: from whom, invoice number, dates, amount, status, notes, what it belongs to | One sealed record per invoice | S | 🔜 6a |
+| Invoices, receipts, warranties, manuals and service invoices (the files) | Files, in a Household folder only parents can open (like the Health folder) | S, over https | 🔜 6a |
+| Vehicles' service history, next service, tyres, battery, warranties (registration, VIN and licence disc stay in Quick Info, E2E) | One sealed record per item, linked to the Quick Info vehicle by its ID | S | 🔜 6b |
+| Home items with warranties (what, make, model, where bought, dates), recurring maintenance and when last done, jobs (who, cost, "would use again", notes) | One sealed record per item | S | 🔜 6b |
+| The budget: income, categories, planned amounts, priorities, sinking-fund balances, money moved between categories | One sealed record per month | S | 🔜 6c |
+| Transactions: date, description, amount, account, category, "transfer" mark | One sealed record per transaction | S | 🔜 6c |
+| A fingerprint of each transaction, to skip ones already imported | HMAC-SHA-256 with a key derived from the server key, of the account, date, amount and description | H | 🔜 6c |
+| The bank's CSV file | Read on the parent's device only; never uploaded or kept | Not stored | 🔜 6c |
+| Import formats: header names, which column is which, date style, decimal mark | One record per format (holds no personal data) | P | 🔜 6c |
+| Categorising rules ("WOOLWORTHS" → Groceries): they reveal where the family shops | One sealed record per rule | S | 🔜 6c |
+| Debts (not the home loan): creditor, kind, balance and its history, interest rate, minimum payment; milestones and the emergency-fund target | One sealed record per debt; one for the milestones | S | 🔜 6c |
+| Household reminders (bill due, notice deadline, trial ending, review, invoice due, warranty ending, service and maintenance due, plan next month's budget) | Reminder records: date, how far ahead, a generic title and the item's ID | P (the server sends them) | 🔜 6a–6c |
+| Reminder notification text | Generic ("A bill is due. Tap to see.", "A renewal deadline is coming up.", "Home maintenance is due.") | Encrypted to the device (RFC 8291) | 🔜 6a–6c |
+| Household events (added, changed, removed, imported with counts; never details) | `audit_log` | P | 🔜 6a–6c |
+
 ### Later phases (proposed; confirm at the start of each phase)
 
 | Phase | Data | Proposed tier | Why |
 |---|---|---|---|
-| 6 Household admin | Bills, amounts, budgets | S | Financial, but the server must send due-date reminders. |
-| 6 Household admin | Bank account or card numbers | E2E, or don't store at all | Fraud risk. |
-| 6 Home & car | Service history, warranties | P or S | Low risk; decide with the phase. |
 | 7 Lists, chores, noticeboard | Items, chores, notices | S suggested (was P) | Posts and to-dos can hold things like "key under the mat"; decide with the phase. |
 | 8 Meals | Plans, recipes | P | Not personal. Allergies come from Health, not stored here. |
+| Later: home loan | Balance, rate, extra payments | S (as the other debts) | Decide with the feature. |
 | 9 Wishlists | A family member's own wishlist, and ideas others add for them | S | Hidden from the recipient by access rules, not encryption. (Gift ideas for friends and family are in phase 3.) |
 | 9 In case of emergency | Instructions for a trusted person | ❓ | Released after a waiting period, which needs either server access (S) or key escrow to the trusted person (E2E). Decide with the phase. |
 
