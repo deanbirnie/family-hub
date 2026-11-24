@@ -677,6 +677,28 @@ try {
   await hd.getByRole('button', { name: 'Save' }).click()
   await hd.waitFor({ state: 'detached' })
   await page.locator('.budget-cat', { hasText: 'Groceries' }).getByText(/Spent R\s850\.00/).waitFor()
+  // The bank's CSV export: a new layout (columns guessed, then remembered), duplicates skipped on the second import, and a rule offered.
+  const dmy = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+  const today = isoIn(0)
+  const csv = `Statement for Joint\n\nDate,Description,Reference,Money In,Money Out,Balance\n${dmy(today)},SPAR KLOOF ST,Card 1234,,312.40,1000.00\n${dmy(today)},Salary ACME,,25000.00,,26000.00\n,Closing balance,,,,26000.00\n`
+  const importCsv = async () => {
+    await page.getByRole('button', { name: 'Import', exact: true }).click()
+    await hd.getByLabel('Bank export (CSV)').setInputFiles({ name: 'statement.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) })
+    await hd.getByText('2 transactions read').waitFor()
+    await hd.getByRole('button', { name: 'Import 2 transactions' }).click()
+  }
+  await importCsv()
+  await hd.getByText('2 new transactions added').waitFor()
+  await hd.getByRole('button', { name: 'Done' }).click()
+  await hd.waitFor({ state: 'detached' })
+  await importCsv()
+  await hd.getByText('2 already in the hub skipped').waitFor()
+  await hd.getByRole('button', { name: 'Done' }).click()
+  await hd.waitFor({ state: 'detached' })
+  await page.getByLabel('Category for SPAR KLOOF ST').selectOption('groceries')
+  await page.getByText('Always put anything with').waitFor()
+  await page.getByRole('button', { name: 'Yes', exact: true }).click()
+  await page.getByText('Rules (1)').waitFor()
   await shot(page, '07o-budget')
   await page.getByRole('button', { name: '12 months', exact: true }).click()
   await page.getByRole('heading', { name: 'The last 12 months' }).waitFor()

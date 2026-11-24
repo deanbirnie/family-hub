@@ -747,8 +747,10 @@ bank connections of any kind.
 - [x] The zero-based monthly budget, priorities, sinking funds and moving
       money between categories; planned expenses (with saving towards them);
       spending typed in.
-- [ ] Bank CSV import (saved formats and column mapping, then ABSA and
-      Capitec presets once their headings are in), categorising and rules.
+- [x] Bank CSV import (saved formats and column mapping), categorising and
+      rules.
+- [ ] ABSA and Capitec presets, once their export headings are in (owner
+      step 21); until then each is set up once with the column mapping.
 - [x] Debts, smallest balance first, and the milestones.
 
 **Later**

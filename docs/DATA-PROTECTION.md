@@ -244,15 +244,15 @@ login (those are never stored). Each sealed item is bound to its own ID.
 | Vehicles: a nickname chosen by the parents, service intervals, odometer readings, roadworthy, warranty and service-plan dates, tyres, battery (registration, VIN and licence disc stay in Quick Info, E2E, and are never copied here) | One sealed record per vehicle in `home_care`, linked to the Quick Info vehicle by its ID | S | ✅ |
 | Home items with warranties (what, make, model, serial number, where bought, price, dates), recurring maintenance and when last done, jobs (what, for which, who, cost, odometer, "would use again" and why, invoice link, notes) | One sealed record per item in `home_care` | S | ✅ |
 | The budget: categories (order, group, saves up, opening balances), each month's income and lines, money moved between categories; planned expenses (what, amount, month, saving from, for whom, tag) | One sealed record per month (`budget`, keyed by the month, which is plain), one for the categories, one per planned expense | S | ✅ |
-| Transactions: date, description, amount, account, category, "transfer" mark, note | One sealed record per transaction (`transactions`); only its month is plain, to read one month at a time | S | ✅ (typed in); 🔜 imported |
-| A fingerprint of each transaction, to skip ones already imported | HMAC-SHA-256 with a key derived from the server key, of the account, date, amount and description | H | 🔜 6c |
-| The bank's CSV file | Read on the parent's device only; never uploaded or kept | Not stored | 🔜 6c |
-| Import formats: header names, which column is which, date style, decimal mark | One record per format (holds no personal data) | P | 🔜 6c |
-| Categorising rules ("WOOLWORTHS" → Groceries): they reveal where the family shops | One sealed record per rule | S | 🔜 6c |
+| Transactions: date, description, amount, account, category, "transfer" mark, note | One sealed record per transaction (`transactions`); only its month is plain, to read one month at a time | S | ✅ |
+| A fingerprint of each transaction, to skip ones already imported | `transactions.fingerprint`: HMAC-SHA-256 with a key derived from the server key, of the account, date, amount, description and its place among identical ones in the export | H | ✅ |
+| The bank's CSV file | Read on the parent's device only; never uploaded or kept | Not stored | ✅ |
+| Import formats: a name, the header row's column names, which column is which, date style, decimal mark | `import_formats`, one row per layout (holds no personal data) | P | ✅ |
+| Categorising rules ("WOOLWORTHS" → Groceries): they reveal where the family shops | One sealed record per rule (`budget`) | S | ✅ |
 | Debts (not the home loan): name, kind, balance and its history, interest rate, minimum payment, paid-off date; milestones (emergency-fund target, months, extra for debt, ticks and notes) | One sealed record per debt; one for the milestones | S | ✅ |
 | Household reminders (bill due, overdue, notice deadline, trial ending, review, invoice due, vehicle service and roadworthy due, maintenance due, warranty ending, plan next month's budget from the 25th once the budget is in use) | Worked out by the server from the sealed items each time; nothing extra is stored except the delivery record (the item's ID, the date and how far ahead), so each is sent once | P (delivery records) | ✅ |
 | Reminder notification text | Generic ("A bill is due. Tap to see.", "A renewal deadline is coming up.", "A free trial ends soon.", "An invoice is overdue.", "A vehicle service is due soon.", "A roadworthy is due soon.", "Home maintenance is due.", "A warranty ends soon.", "Time to plan next month’s budget.") | Encrypted to the device (RFC 8291) | ✅ |
-| Household events (added, changed, removed with the kind of item; later imports with counts; never details) | `audit_log` | P | ✅ (imports with counts 🔜) |
+| Household events (added, changed, removed with the kind of item; later imports with counts; never details) | `audit_log` | P | ✅ |
 
 ### Later phases (proposed; confirm at the start of each phase)
 

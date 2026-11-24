@@ -2208,3 +2208,20 @@ progress {
     width: 100%;
   }
 }
+
+.import-preview {
+  overflow-x: auto;
+  font-size: 0.75rem;
+}
+
+.import-preview table {
+  border-collapse: collapse;
+}
+
+.import-preview th,
+.import-preview td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  text-align: left;
+}
