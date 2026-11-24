@@ -957,6 +957,32 @@ try {
   await visitor.reload()
   await visitor.getByText(/This wishlist link is not working/).waitFor()
 
+  // The gift planner: an idea for Gran's birthday (in five days), bought, then into the budget.
+  await page.goto(`${base}/wishlists`)
+  await page.getByRole('button', { name: 'Gift planner' }).click()
+  await page.getByRole('heading', { name: 'Gift planner' }).waitFor()
+  await page.getByRole('button', { name: 'Add a gift idea' }).click()
+  await page.getByLabel('For', { exact: true }).selectOption({ label: 'Gran Tester' })
+  await page.getByLabel('The gift').fill('Cashmere scarf')
+  const granDay = await page.getByLabel('For which day').locator('option', { hasText: 'Gran Tester’s birthday' }).getAttribute('value')
+  await page.getByLabel('For which day').selectOption(granDay)
+  await page.getByLabel('About how much').fill('450')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  const granCard = page.locator('section.card', { has: page.getByRole('heading', { name: /Gran Tester’s birthday/ }) })
+  await granCard.getByText('Cashmere scarf').waitFor()
+  await granCard.getByRole('button', { name: 'Bought: Cashmere scarf' }).click()
+  await granCard.getByRole('button', { name: 'Wrapped: Cashmere scarf' }).waitFor()
+  await granCard.getByRole('button', { name: 'Plan in the budget' }).click()
+  if ((await page.getByLabel('What', { exact: true }).inputValue()) !== 'Gifts: Gran Tester’s birthday') throw new Error('the planned expense is not named for the occasion')
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  await granCard.getByText(/in the budget: Gifts: Gran Tester’s birthday, R\s450\.00/).waitFor()
+  if (await granCard.getByRole('button', { name: 'Plan in the budget' }).count()) throw new Error('a gift in the budget is offered for the budget again')
+  // Christmas is always there; Gran's Contacts page shows the gift as bought.
+  await page.locator('section.card', { has: page.getByRole('heading', { name: /Christmas/ }) }).waitFor()
+  await shot(page, '06q-gift-planner')
+
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)
   await page.getByRole('heading', { name: 'Where you’re signed in' }).waitFor()

@@ -429,6 +429,15 @@ On each parent's phone, once it has the app version with notifications
 - [ ] 3. Open the link in a private browser window, mark something, and
       check it shows on the child's list with "(via the link)".
 
+## 30. The gift planner (after the 8c pull request is merged and deployed)
+
+- [ ] 1. **Wishlists → Gift planner → Add a gift idea** for the people who
+      matter, choosing the day it is for (their birthday, Christmas, or
+      another day). Only people with ideas are in the planner.
+- [ ] 2. As the day nears, tap **Bought**, **Wrapped** and **Given**.
+- [ ] 3. **Plan in the budget** on Christmas (and any big birthday), so the
+      month's budget has the gifts in it.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

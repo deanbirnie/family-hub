@@ -9,6 +9,7 @@ import { CheckCircle2, Copy, ExternalLink, Gift, Link2, Pencil, Plus, Ruler, Und
 import { useCallback, useEffect, useState } from 'react'
 import { Actions, conflict, Labelled } from '../money/form.tsx'
 import { parseRand, rand } from '../money/model.ts'
+import { navigate } from '../router.ts'
 import type { HubContext } from '../Shell.tsx'
 import { Badge, Banner, Button, Card, Dialog, PageHeader, Spinner, errorText, useAction } from '../ui.tsx'
 
@@ -130,7 +131,17 @@ export function WishlistsPage({ ctx }: { ctx: HubContext }) {
 
   return (
     <div className="page">
-      <PageHeader title="Wishlists" subtitle="Everyone’s wishlist and sizes. Mark what you are getting: the person whose list it is never sees it." />
+      <PageHeader
+        title="Wishlists"
+        subtitle="Everyone’s wishlist and sizes. Mark what you are getting: the person whose list it is never sees it."
+        actions={
+          ctx.user.role === 'admin' && (
+            <Button variant="ghost" icon={<Gift size={16} aria-hidden />} onClick={() => navigate('/gifts')}>
+              Gift planner
+            </Button>
+          )
+        }
+      />
       <div className="row chips" role="group" aria-label="Whose list">
         {people.map((p) => (
           <button key={p.id} className={`chip ${p.id === person.id ? 'chip-on' : ''}`} aria-pressed={p.id === person.id} onClick={() => setPersonId(p.id)}>
