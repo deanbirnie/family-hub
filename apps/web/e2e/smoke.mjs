@@ -920,6 +920,43 @@ try {
   const ownView = await page.evaluate(async () => (await fetch('/api/wishlists')).text())
   if (ownView.includes('Ordered') || ownView.includes('"claims"')) throw new Error('the server tells the owner about claims')
 
+  // Share links: Sam adds a wish; Alex shares Sam's list; a visitor with no account marks it.
+  await sam.evaluate(async () => {
+    const w = await (await fetch('/api/wishlists')).json()
+    const me = w.profiles.find((p) => p.mine)
+    await fetch(`/api/wishlists/${me.id}/items`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-requested-with': 'family-hub' }, body: JSON.stringify({ item: { what: 'Skateboard', price: 89900 } }) })
+  })
+  await page.reload()
+  await page.getByRole('button', { name: 'Sam Tester', exact: true }).click()
+  await page.getByText('Skateboard').waitFor()
+  await page.getByRole('button', { name: 'Make a link' }).click()
+  const shareLink = await page.getByLabel('The link').inputValue()
+  if (!/\/wishlist\/[\w-]{20,}$/.test(shareLink)) throw new Error(`odd share link: ${shareLink}`)
+  await page.getByRole('button', { name: 'Done' }).click()
+  await page.getByText(/A link is on/).waitFor()
+  const visitor = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage()
+  visitor.on('pageerror', (e) => errors.push(e.message))
+  await visitor.goto(shareLink)
+  await visitor.getByRole('heading', { name: 'Sam Tester’s wishlist' }).waitFor()
+  await visitor.getByRole('button', { name: 'I’m getting this' }).click()
+  await visitor.getByLabel('Your name').fill('Granny Jo')
+  await visitor.getByRole('form').getByRole('button', { name: 'I’m getting this' }).click()
+  await visitor.getByText('You marked this.').waitFor()
+  await shot(visitor, '06p-shared-wishlist')
+  // The parents see who; Sam sees nothing.
+  await page.reload()
+  await page.getByRole('button', { name: 'Sam Tester', exact: true }).click()
+  await page.getByText('Granny Jo (via the link) is getting this.').waitFor()
+  await sam.goto(`${base}/wishlists`)
+  await sam.getByText('Skateboard').waitFor()
+  if ((await sam.evaluate(async () => (await fetch('/api/wishlists')).text())).includes('Granny')) throw new Error('the child can see who is getting their gift')
+  // Turned off, the link stops working.
+  page.once('dialog', (d) => void d.accept())
+  await page.getByRole('button', { name: 'Turn off' }).click()
+  await page.getByRole('button', { name: 'Make a link' }).waitFor()
+  await visitor.reload()
+  await visitor.getByText(/This wishlist link is not working/).waitFor()
+
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)
   await page.getByRole('heading', { name: 'Where you’re signed in' }).waitFor()

@@ -471,6 +471,21 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX wishlist_claims_item ON wishlist_claims (item_id);
   `,
+  // 22: share links for the children's wishlists (8b). The token is kept
+  // only as a hash; a visitor's claim has no account but an undo secret, hashed.
+  `
+  CREATE TABLE wishlist_links (
+    id TEXT PRIMARY KEY,
+    profile_id TEXT NOT NULL REFERENCES family_profiles(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+    created_at INTEGER NOT NULL,
+    off_at INTEGER
+  );
+  CREATE INDEX wishlist_links_profile ON wishlist_links (profile_id);
+  ALTER TABLE wishlist_claims ADD COLUMN link_id TEXT REFERENCES wishlist_links(id) ON DELETE SET NULL;
+  ALTER TABLE wishlist_claims ADD COLUMN undo_hash TEXT;
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

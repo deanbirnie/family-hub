@@ -266,14 +266,14 @@ login (those are never stored). Each sealed item is bound to its own ID.
 | Reports, letters and forms (the files) | Files, in a School folder with a folder per child; parents-only to start (the children's own access decided with kids' accounts) | S, over https | ✅ |
 | Reminders (things to plan for or take to school; form deadlines) | Worked out from the sealed items; delivery records only; generic text ("A school reminder is due. Tap to see.", "A school form is due. Tap to see.", "School work is due. Tap to see.", "A school test is coming up. Tap to see.") | P (delivery records) | ✅ |
 
-### Wishlists and the gift planner (phase 8; 8a built, the rest to build)
+### Wishlists and the gift planner (phase 8; 8a and 8b built, the gift planner to build)
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
 | Wishlist items: what, link, rough price, how much wanted, size or colour, notes, received | `wishlist` (kind item), one sealed record per item bound to its ID, with whose list it is (a profile ID) | S | ✅ 8a |
 | "I'm getting this": who, for shared gifts how much, and a note | `wishlist_claims`, one sealed record per claim bound to its ID, with the item and the claimer's account; never sent to the list's owner (the server leaves claims out of everything it sends them) | S, hidden by access rules | ✅ 8a |
-| Share links for a child's wishlist | A random token, stored hashed; can be turned off | H | 🔜 8 |
-| What a share-link visitor enters (their name, what they are getting) | Sealed with the item | S | 🔜 8 |
+| Share links for a child's wishlist | `wishlist_links`: a random 256-bit token, kept only as a SHA-256 hash (shown to the parent once, when made); whose list, who made it, when, when turned off. A new link turns the old one off | H (the token), P (the rest) | ✅ 8b |
+| What a share-link visitor enters (their name, what they are getting, their share, a note) | `wishlist_claims`, sealed like the family's own claims, with the link it came through and a hash of the secret that lets that browser take it back. Visitors see whether a wish is taken and how much is pledged, never names | S (claim), H (undo secret) | ✅ 8b |
 | Sizes card per family member | `wishlist` (kind sizes), one sealed record per person | S | ✅ 8a |
 | Gift planner: status of each idea (idea, bought, wrapped, given), amount, link to a planned expense | Sealed with the Contacts gift idea (phase 3 row) | S | 🔜 8 |
 

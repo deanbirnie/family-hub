@@ -5,7 +5,7 @@
  * server leaves claims out of everything it sends them. A sizes card per
  * person sits alongside.
  */
-import { CheckCircle2, ExternalLink, Gift, Pencil, Plus, Ruler, Undo2, Users } from 'lucide-react'
+import { CheckCircle2, Copy, ExternalLink, Gift, Link2, Pencil, Plus, Ruler, Undo2, Users } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { Actions, conflict, Labelled } from '../money/form.tsx'
 import { parseRand, rand } from '../money/model.ts'
@@ -33,6 +33,8 @@ interface Profile {
   userId: string | null
   mine: boolean
   mayEdit: boolean
+  /** Parents can share the children's lists by link. */
+  mayShare: boolean
 }
 interface Claim {
   id: string
@@ -40,6 +42,8 @@ interface Claim {
   amount: number | null
   note: string
   mine: boolean
+  /** Marked by a visitor through the share link. */
+  byLink: boolean
 }
 interface Item {
   id: string
@@ -70,9 +74,10 @@ interface Data {
   profiles: Profile[]
   items: Item[]
   sizes: Sizes[]
+  links: { id: string; profileId: string; createdAt: number }[]
 }
 
-type Editing = { what: 'item'; profile: Profile; item?: Item } | { what: 'claim'; item: Item; share: boolean } | { what: 'sizes'; profile: Profile; sizes?: Sizes }
+type Editing = { what: 'item'; profile: Profile; item?: Item } | { what: 'claim'; item: Item; share: boolean } | { what: 'sizes'; profile: Profile; sizes?: Sizes } | { what: 'link'; profile: Profile; url: string }
 
 const host = (url: string) => {
   try {
@@ -180,6 +185,8 @@ export function WishlistsPage({ ctx }: { ctx: HubContext }) {
         )}
       </Card>
 
+      {person.mayShare && <ShareCard ctx={ctx} person={person} link={data.links.find((l) => l.profileId === person.id)} onMade={(url) => setEditing({ what: 'link', profile: person, url })} onChanged={() => void load()} />}
+
       <Card
         title={
           <>
@@ -212,7 +219,84 @@ export function WishlistsPage({ ctx }: { ctx: HubContext }) {
       {editing?.what === 'item' && <ItemDialog ctx={ctx} profile={editing.profile} item={editing.item} onClose={done} />}
       {editing?.what === 'claim' && <ClaimDialog ctx={ctx} item={editing.item} share={editing.share} owner={person.displayName} onClose={done} />}
       {editing?.what === 'sizes' && <SizesDialog ctx={ctx} profile={editing.profile} sizes={editing.sizes} onClose={done} />}
+      {editing?.what === 'link' && <LinkDialog name={editing.profile.displayName} url={editing.url} onClose={() => done(true)} />}
     </div>
+  )
+}
+
+/** A visitor's name, marked as coming through the share link. */
+const who = (c: Claim) => (c.byLink ? `${c.name} (via the link)` : c.name)
+
+/** Where share links point: this site in a browser, the server the app talks to on Android. */
+const shareUrl = (ctx: HubContext, secret: string) => {
+  const base = ctx.platform.kind === 'web' ? window.location.origin : (ctx.platform.serverUrl ?? '')
+  return `${base.replace(/\/+$/, '')}/wishlist/${secret}`
+}
+
+function ShareCard({ ctx, person, link, onMade, onChanged }: { ctx: HubContext; person: Profile; link?: Data['links'][number]; onMade: (url: string) => void; onChanged: () => void }) {
+  const { api } = ctx.platform
+  const make = useAction(async () => {
+    if (link && !confirm(`Make a new link for ${person.displayName}’s list? The link you shared before stops working.`)) return
+    const r = await api.post<{ secret: string }>(`/api/wishlists/${person.id}/link`, {})
+    onMade(shareUrl(ctx, r.secret))
+  })
+  const off = useAction(async () => {
+    if (!confirm(`Turn off the link to ${person.displayName}’s list? Anyone who has it will no longer be able to open it.`)) return
+    await api.del(`/api/wishlists/${person.id}/link`)
+    onChanged()
+  })
+  return (
+    <Card
+      title={
+        <>
+          <Link2 size={18} aria-hidden /> Share {person.displayName}’s list
+        </>
+      }
+      actions={
+        <>
+          <Button variant="ghost" icon={<Link2 size={16} aria-hidden />} busy={make.busy} onClick={() => void make.run()}>
+            {link ? 'Make a new link' : 'Make a link'}
+          </Button>
+          {link && (
+            <Button variant="ghost" busy={off.busy} onClick={() => void off.run()}>
+              Turn off
+            </Button>
+          )}
+        </>
+      }
+    >
+      <p className="muted small">
+        {link
+          ? `A link is on, made ${new Date(link.createdAt).toLocaleDateString()}. The hub keeps only a fingerprint of it, so it cannot show it again: make a new one if you need it (the old one then stops working).`
+          : `For grandparents and friends without an account: they see what ${person.displayName} would like and mark what they are getting, with their name, which only the family sees.`}
+      </p>
+      {(make.error || off.error) && <Banner kind="error">{make.error || off.error}</Banner>}
+    </Card>
+  )
+}
+
+function LinkDialog({ name, url, onClose }: { name: string; url: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false)
+  const copy = () =>
+    void navigator.clipboard
+      ?.writeText(url)
+      .then(() => setCopied(true))
+      .catch(() => undefined)
+  return (
+    <Dialog open title={`Link to ${name}’s wishlist`} onClose={onClose}>
+      <div className="stack">
+        <p className="small">Send this to grandparents and friends. Copy it now: it is shown only this once.</p>
+        <input className="qi-search" readOnly aria-label="The link" value={url} onFocus={(e) => e.target.select()} />
+        <div className="row">
+          <Button icon={<Copy size={16} aria-hidden />} onClick={copy}>
+            {copied ? 'Copied' : 'Copy the link'}
+          </Button>
+          <Button variant="ghost" onClick={onClose}>
+            Done
+          </Button>
+        </div>
+      </div>
+    </Dialog>
   )
 }
 
@@ -246,8 +330,8 @@ function WishRow({ item: i, person, onEdit, onClaim, onUnclaim }: { item: Item; 
           <div className="small">
             <CheckCircle2 size={14} aria-hidden />{' '}
             {mine && !others.length && (mine.amount === null ? 'You’re getting this.' : `You’re putting in ${rand(mine.amount)}.`)}
-            {mine && others.length > 0 && `You${mine.amount !== null ? ` (${rand(mine.amount)})` : ''} and ${others.map((c) => c.name + (c.amount !== null ? ` (${rand(c.amount)})` : '')).join(', ')}.`}
-            {!mine && (whole && !shared ? `${others.map((c) => c.name).join(', ')} ${others.length > 1 ? 'are' : 'is'} getting this.` : `Shared by ${others.map((c) => c.name).join(', ')}`)}
+            {mine && others.length > 0 && `You${mine.amount !== null ? ` (${rand(mine.amount)})` : ''} and ${others.map((c) => who(c) + (c.amount !== null ? ` (${rand(c.amount)})` : '')).join(', ')}.`}
+            {!mine && (whole && !shared ? `${others.map(who).join(', ')} ${others.length > 1 ? 'are' : 'is'} getting this.` : `Shared by ${others.map(who).join(', ')}`)}
             {shared && pledged > 0 && ` ${rand(pledged)} so far${i.price !== null ? ` of about ${rand(i.price)}` : ''}.`}
           </div>
         )}

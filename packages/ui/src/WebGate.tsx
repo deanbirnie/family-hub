@@ -9,6 +9,7 @@ import type { Platform } from './platform.ts'
 import { matchPath, navigate, usePath } from './router.ts'
 import { Shell } from './Shell.tsx'
 import { Banner, Button, Spinner, errorText } from './ui.tsx'
+import { SharedWishlist } from './wishlists/SharedWishlist.tsx'
 
 type State =
   | { kind: 'loading' }
@@ -58,6 +59,10 @@ export function WebGate({ platform }: { platform: Platform }) {
     await refresh()
   }
   const step = () => void refresh()
+
+  // A child's wishlist from a share link: for visitors, signed in or not.
+  const shared = matchPath('/wishlist/:token', path)
+  if (shared) return <SharedWishlist api={api} token={shared.token!} />
 
   const invite = matchPath('/invite/:token', path)
   if (invite && state.kind !== 'app' && state.kind !== 'loading' && state.kind !== 'totp' && state.kind !== 'enroll') {
