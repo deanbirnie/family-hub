@@ -4,7 +4,7 @@
  * plan, debts paid off smallest balance first, and the milestones.
  */
 import { ArrowLeft, ArrowRight, CheckCircle2, Circle, CircleDot, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { HubContext } from '../Shell.tsx'
 import { Badge, Banner, Button, Card, Dialog, Spinner, errorText, useAction } from '../ui.tsx'
 import {
@@ -65,13 +65,34 @@ export function BudgetTab({ ctx }: { ctx: HubContext }) {
     await api.post(`/api/budget/months/${month}/start`)
     await load()
   })
-  /** Saves the plan as changed, keeping the version in step. */
-  const save = useAction(async (plan: MonthPlan) => {
-    if (!view) return
-    setView({ ...view, plan })
-    const r = await api.request<{ version: number }>('PUT', `/api/budget/months/${month}`, { plan, baseVersion: view.planVersion }).catch(conflict)
-    setView((v) => (v ? { ...v, plan, planVersion: r.version } : v))
-  })
+  /**
+   * Changes the plan: each change applies to the latest plan (so quick edits never overwrite each
+   * other), shows at once, and is saved in turn with the latest version.
+   */
+  const planRef = useRef<MonthPlan | null>(null)
+  const versionRef = useRef(0)
+  const queue = useRef<Promise<void>>(Promise.resolve())
+  const [saveError, setSaveError] = useState('')
+  useEffect(() => {
+    planRef.current = view?.plan ?? null
+    versionRef.current = view?.planVersion ?? 0
+  }, [view?.month, view?.planVersion]) // eslint-disable-line react-hooks/exhaustive-deps
+  const edit = (change: (p: MonthPlan) => MonthPlan) => {
+    if (!planRef.current) return
+    const next = change(planRef.current)
+    planRef.current = next
+    setView((v) => (v ? { ...v, plan: next } : v))
+    queue.current = queue.current.then(async () => {
+      try {
+        const r = await api.request<{ version: number }>('PUT', `/api/budget/months/${month}`, { plan: next, baseVersion: versionRef.current }).catch(conflict)
+        versionRef.current = r.version
+        setSaveError('')
+      } catch (e) {
+        setSaveError(errorText(e))
+        await load()
+      }
+    })
+  }
 
   if (error) return <Banner kind="error">{error}</Banner>
   if (!view) return <Spinner />
@@ -122,9 +143,9 @@ export function BudgetTab({ ctx }: { ctx: HubContext }) {
     )
   }
 
-  const setLine = (id: string, change: Partial<MonthPlan['lines'][number]>) => void save.run({ ...plan, lines: plan.lines.map((l) => (l.id === id ? { ...l, ...change } : l)) })
-  const removeLine = (id: string) => void save.run({ ...plan, lines: plan.lines.filter((l) => l.id !== id) })
-  const addLine = (categoryId: string) => void save.run({ ...plan, lines: [...plan.lines, { id: newLineId(), categoryId, label: '', amount: 0, source: 'manual' }] })
+  const setLine = (id: string, change: Partial<MonthPlan['lines'][number]>) => void edit((p) => ({ ...p, lines: p.lines.map((l) => (l.id === id ? { ...l, ...change } : l)) }))
+  const removeLine = (id: string) => void edit((p) => ({ ...p, lines: p.lines.filter((l) => l.id !== id) }))
+  const addLine = (categoryId: string) => void edit((p) => ({ ...p, lines: [...p.lines, { id: newLineId(), categoryId, label: '', amount: 0, source: 'manual' }] }))
   const cats = view.categories
 
   return (
@@ -150,24 +171,24 @@ export function BudgetTab({ ctx }: { ctx: HubContext }) {
       {view.suggested.length > 0 && (
         <Banner kind="info">
           {view.suggested.length} new from bills, planned expenses and debts ({view.suggested.map((l) => l.label).join(', ')}).{' '}
-          <button className="link" onClick={() => void save.run({ ...plan, lines: [...plan.lines, ...view.suggested] })}>
+          <button className="link" onClick={() => void edit((p) => ({ ...p, lines: [...p.lines, ...view.suggested] }))}>
             Add {view.suggested.length === 1 ? 'it' : 'them'}
           </button>
         </Banner>
       )}
-      {save.error && <Banner kind="error">{save.error}</Banner>}
+      {saveError && <Banner kind="error">{saveError}</Banner>}
 
       <Card title="Income">
         <ul className="item-list">
           {plan.income.map((i) => (
             <li key={i.id}>
-              <input className="qi-search" aria-label="Income name" defaultValue={i.label} placeholder="e.g. Salary" maxLength={80} onBlur={(e) => e.target.value !== i.label && void save.run({ ...plan, income: plan.income.map((x) => (x.id === i.id ? { ...x, label: e.target.value || 'Income' } : x)) })} />
-              <AmountInput label={`Amount of ${i.label || 'income'}`} value={i.amount} onChange={(amount) => void save.run({ ...plan, income: plan.income.map((x) => (x.id === i.id ? { ...x, amount } : x)) })} />
-              <Button variant="ghost" icon={<Trash2 size={16} aria-hidden />} aria-label={`Remove ${i.label}`} onClick={() => void save.run({ ...plan, income: plan.income.filter((x) => x.id !== i.id) })} />
+              <input className="qi-search" aria-label="Income name" defaultValue={i.label} placeholder="e.g. Salary" maxLength={80} onBlur={(e) => e.target.value !== i.label && void edit((p) => ({ ...p, income: p.income.map((x) => (x.id === i.id ? { ...x, label: e.target.value || 'Income' } : x)) }))} />
+              <AmountInput label={`Amount of ${i.label || 'income'}`} value={i.amount} onChange={(amount) => void edit((p) => ({ ...p, income: p.income.map((x) => (x.id === i.id ? { ...x, amount } : x)) }))} />
+              <Button variant="ghost" icon={<Trash2 size={16} aria-hidden />} aria-label={`Remove ${i.label}`} onClick={() => void edit((p) => ({ ...p, income: p.income.filter((x) => x.id !== i.id) }))} />
             </li>
           ))}
         </ul>
-        <Button variant="ghost" icon={<Plus size={16} aria-hidden />} onClick={() => void save.run({ ...plan, income: [...plan.income, { id: newLineId(), label: 'Salary', amount: 0 }] })}>
+        <Button variant="ghost" icon={<Plus size={16} aria-hidden />} onClick={() => void edit((p) => ({ ...p, income: [...p.income, { id: newLineId(), label: 'Salary', amount: 0 }] }))}>
           Add income
         </Button>
       </Card>
@@ -298,7 +319,7 @@ export function BudgetTab({ ctx }: { ctx: HubContext }) {
           amount={move.amount}
           onSave={(m) => {
             setMove(null)
-            void save.run({ ...plan, moves: [...plan.moves, m] })
+            void edit((p) => ({ ...p, moves: [...p.moves, m] }))
           }}
           onClose={() => setMove(null)}
         />
