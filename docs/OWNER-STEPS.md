@@ -418,6 +418,17 @@ On each parent's phone, once it has the app version with notifications
       "I'm getting this", and ask them to look at their list. They should
       see the item but nothing about who is getting it.
 
+## 29. Wishlist share links (after the 8b pull request is merged and deployed)
+
+- [ ] 1. Share links open the hub's https address, so grandparents need to
+      reach it from outside your home (through your reverse proxy or tunnel;
+      see "Running it at home" in the README). If the hub is only reachable
+      at home, the links only work there.
+- [ ] 2. **Wishlists → a child's list → Make a link**, copy it and send it
+      to the grandparents. It is shown once; "Make a new link" replaces it.
+- [ ] 3. Open the link in a private browser window, mark something, and
+      check it shows on the child's list with "(via the link)".
+
 ## Later steps (added as features land)
 
 - Nothing yet.

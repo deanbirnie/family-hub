@@ -83,3 +83,87 @@ describe('the Wishlists API', () => {
     expect(server.services.db.prepare('SELECT COUNT(*) AS n FROM wishlist_claims').get()).toEqual({ n: 0 })
   })
 })
+
+describe('share links for the children’s wishlists', () => {
+  it('let visitors see the list and mark what they are getting, without names, until the link is turned off', async () => {
+    server = await startServer()
+    const { client: parent } = await setUpAdmin(server)
+    const sam = (await parent.post<{ profile: { id: string } }>('/api/quick-info/profiles', { displayName: 'Sam' })).body.profile.id
+    const mine = (await parent.get<Listing>('/api/wishlists')).body.profiles.find((p) => p.mine)!
+    const bike = await parent.post<{ item: { id: string } }>(`/api/wishlists/${sam}/items`, { item: { what: 'Balance bike', price: 120000 } })
+    const blocks = await parent.post<{ item: { id: string } }>(`/api/wishlists/${sam}/items`, { item: { what: 'Wooden blocks' } })
+    await parent.post(`/api/wishlists/${sam}/items`, { item: { what: 'Old teddy', done: true } })
+    await parent.call('PUT', `/api/wishlists/${sam}/sizes`, { sizes: { shoes: '9 (kids)' } })
+
+    // A parent's own list cannot be shared; a child's can.
+    expect((await parent.post(`/api/wishlists/${mine.id}/link`, {})).status).toBe(403)
+    const made = await parent.post<{ secret: string; link: { id: string } }>(`/api/wishlists/${sam}/link`, {})
+    expect(made.status).toBe(200)
+    const token = made.body.secret
+    expect(JSON.stringify(server.services.db.prepare('SELECT * FROM wishlist_links').all())).not.toContain(token)
+    const listing = await parent.get<{ links: { profileId: string }[] }>("/api/wishlists")
+    expect(listing.body).toMatchObject({ links: [{ profileId: sam }] })
+
+    // A visitor without an account.
+    const granny = new Client(server.url)
+    const seen = await granny.get<{ name: string; items: { id: string; what: string; taken: boolean; pledged: number }[]; sizes: { shoes: string } }>(`/api/shared/wishlist/${token}`)
+    expect(seen.status).toBe(200)
+    expect(seen.body.name).toBe('Sam')
+    expect(seen.body.items.map((i) => i.what).sort()).toEqual(['Balance bike', 'Wooden blocks']) // not what Sam has had
+    expect(seen.body.sizes.shoes).toBe('9 (kids)')
+    expect((await granny.get('/api/wishlists')).status).toBe(401)
+    expect((await granny.get('/api/shared/wishlist/not-a-real-token')).status).toBe(404)
+
+    // Granny is getting the blocks, and puts R300 towards the bike; she needs a name.
+    expect((await granny.post(`/api/shared/wishlist/${token}/items/${blocks.body.item.id}/claims`, { claim: {} })).status).toBe(400)
+    const gift = await granny.post<{ claim: { id: string }; undo: string }>(`/api/shared/wishlist/${token}/items/${blocks.body.item.id}/claims`, { claim: { name: 'Granny Jo', note: 'Posted' } })
+    expect(gift.status).toBe(200)
+    await granny.post(`/api/shared/wishlist/${token}/items/${bike.body.item.id}/claims`, { claim: { name: 'Granny Jo', amount: 30000 } })
+    const after = await granny.get<{ items: { what: string; taken: boolean; pledged: number; sharers: number }[] }>(`/api/shared/wishlist/${token}`)
+    expect(after.body.items.map((i) => [i.what, i.taken, i.pledged, i.sharers]).sort()).toEqual([
+      ['Balance bike', false, 30000, 1],
+      ['Wooden blocks', true, 0, 0],
+    ])
+    // Visitors see no names, not even their own.
+    expect(JSON.stringify(after.body)).not.toContain('Granny')
+
+    // The family sees who.
+    const family = await parent.get<Listing & { items: { claims?: { name: string; byLink: boolean }[] }[] }>('/api/wishlists')
+    expect(family.body.items.find((i) => i.id === blocks.body.item.id)!.claims).toMatchObject([{ name: 'Granny Jo', byLink: true }])
+
+    // Taking it back needs the secret she was given.
+    expect((await granny.post(`/api/shared/wishlist/${token}/claims/${gift.body.claim.id}/undo`, { undo: 'guess' })).status).toBe(404)
+    expect((await granny.post(`/api/shared/wishlist/${token}/claims/${gift.body.claim.id}/undo`, { undo: gift.body.undo })).status).toBe(204)
+
+    // A new link replaces the old one; turning it off stops it.
+    const again = await parent.post<{ secret: string }>(`/api/wishlists/${sam}/link`, {})
+    expect((await granny.get(`/api/shared/wishlist/${token}`)).status).toBe(404)
+    expect((await granny.get(`/api/shared/wishlist/${again.body.secret}`)).status).toBe(200)
+    expect((await parent.del(`/api/wishlists/${sam}/link`)).status).toBe(204)
+    expect((await granny.get(`/api/shared/wishlist/${again.body.secret}`)).status).toBe(404)
+    expect((await parent.get<{ links: unknown[] }>('/api/wishlists')).body.links).toEqual([])
+
+    const raw = JSON.stringify(server.services.db.prepare('SELECT * FROM wishlist_claims').all())
+    for (const w of ['Granny', 'Posted']) expect(raw).not.toContain(w)
+  })
+
+  it('are for parents to make, and only for the children’s lists', async () => {
+    server = await startServer()
+    const { client: parent } = await setUpAdmin(server)
+    const invite = await parent.post<{ token: string }>('/api/invites', { displayName: 'Kid' })
+    const kid = new Client(server.url)
+    await kid.post(`/api/invites/redeem/${invite.body.token}`, { username: 'kid', displayName: 'Kid', password: PASSWORD })
+    nextStep(server)
+    await enrollTotp(server, kid)
+    const profiles = (await kid.get<Listing>('/api/wishlists')).body.profiles
+    const kidProfile = profiles.find((p) => p.mine)!
+    expect((await kid.post(`/api/wishlists/${kidProfile.id}/link`, {})).status).toBe(403)
+    // A parent may share the list of a child with an account; the child still never sees claims.
+    const made = await parent.post<{ secret: string }>(`/api/wishlists/${kidProfile.id}/link`, {})
+    expect(made.status).toBe(200)
+    const item = await kid.post<{ item: { id: string } }>(`/api/wishlists/${kidProfile.id}/items`, { item: { what: 'Skateboard' } })
+    await new Client(server.url).post(`/api/shared/wishlist/${made.body.secret}/items/${item.body.item.id}/claims`, { claim: { name: 'Uncle Ben' } })
+    expect(JSON.stringify((await kid.get('/api/wishlists')).body)).not.toContain('Uncle')
+    expect((await kid.get<{ links: unknown[] }>('/api/wishlists')).body.links).toEqual([])
+  })
+})
