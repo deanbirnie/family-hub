@@ -408,6 +408,16 @@ On each parent's phone, once it has the app version with notifications
 - [ ] 4. Set up **What to bring** once (the swimming bag on Tuesdays, the
       library book on Fridays).
 
+## 28. Wishlists (after the 8a pull request is merged and deployed)
+
+- [ ] 1. **Wishlists → My list:** add a few things, with a link where it
+      is from a shop. Ask everyone with an account to do the same.
+- [ ] 2. Add the children's lists (you keep those for children without an
+      account) and everyone's **Sizes**.
+- [ ] 3. Check the surprise holds: mark something on your partner's list as
+      "I'm getting this", and ask them to look at their list. They should
+      see the item but nothing about who is getting it.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

@@ -121,7 +121,7 @@ manager.
 | Passport numbers and expiry, vehicles (registration, VIN, licence expiry), insurance policies | `quick_info.ciphertext` | E2E | ✅ |
 | Links to documents (file IDs and names) | `quick_info.ciphertext` | E2E | ✅ |
 | Which person a record belongs to, its kind, version, when and by whom it changed | `quick_info` columns | P (the server needs it to list, sync and refuse clashing edits) | ✅ |
-| People in Quick Info (names; a link to their account if they have one), including children without accounts | `family_profiles` | P (names appear across the hub) | ✅ |
+| People in Quick Info (names; a link to their account if they have one), including children without accounts. Everyone with an account gets one when the wishlists are first opened (8a) | `family_profiles` | P (names appear across the hub) | ✅ |
 | Quick Info events (person added or removed, record added, updated or deleted; never values) | `audit_log` | P | ✅ |
 | Values shown or copied on a device | Screen and clipboard only | Masked until tapped; copied sensitive values cleared from the clipboard after 30 s | ✅ |
 
@@ -266,15 +266,15 @@ login (those are never stored). Each sealed item is bound to its own ID.
 | Reports, letters and forms (the files) | Files, in a School folder with a folder per child; parents-only to start (the children's own access decided with kids' accounts) | S, over https | ✅ |
 | Reminders (things to plan for or take to school; form deadlines) | Worked out from the sealed items; delivery records only; generic text ("A school reminder is due. Tap to see.", "A school form is due. Tap to see.", "School work is due. Tap to see.", "A school test is coming up. Tap to see.") | P (delivery records) | ✅ |
 
-### Wishlists and the gift planner (phase 8; agreed, to build)
+### Wishlists and the gift planner (phase 8; 8a built, the rest to build)
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Wishlist items: what, link, rough price, how much wanted, size or colour, notes | One sealed record per item, with whose list it is | S | 🔜 8 |
-| "I'm getting this": who, and for shared gifts how much | Sealed with the item; never sent to the list's owner (the server leaves it out for them) | S, hidden by access rules | 🔜 8 |
+| Wishlist items: what, link, rough price, how much wanted, size or colour, notes, received | `wishlist` (kind item), one sealed record per item bound to its ID, with whose list it is (a profile ID) | S | ✅ 8a |
+| "I'm getting this": who, for shared gifts how much, and a note | `wishlist_claims`, one sealed record per claim bound to its ID, with the item and the claimer's account; never sent to the list's owner (the server leaves claims out of everything it sends them) | S, hidden by access rules | ✅ 8a |
 | Share links for a child's wishlist | A random token, stored hashed; can be turned off | H | 🔜 8 |
 | What a share-link visitor enters (their name, what they are getting) | Sealed with the item | S | 🔜 8 |
-| Sizes card per family member | One sealed record per person | S | 🔜 8 |
+| Sizes card per family member | `wishlist` (kind sizes), one sealed record per person | S | ✅ 8a |
 | Gift planner: status of each idea (idea, bought, wrapped, given), amount, link to a planned expense | Sealed with the Contacts gift idea (phase 3 row) | S | 🔜 8 |
 
 ### In case of emergency (phase 9; agreed, to build)

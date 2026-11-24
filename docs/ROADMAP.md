@@ -839,7 +839,7 @@ design allows for primary and high school later.
 
 ### Build order
 
-- [ ] 8a. Wishlists, "I'm getting this" hidden from the owner, sizes.
+- [x] 8a. Wishlists, "I'm getting this" hidden from the owner, sizes.
 - [ ] 8b. Share links for the children's wishlists.
 - [ ] 8c. The gift planner across Contacts, with planned expenses.
 

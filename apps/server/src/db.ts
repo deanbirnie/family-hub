@@ -447,6 +447,30 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX school_profile ON school (profile_id);
   `,
+  // 21: Wishlists (phase 8, routes/wishlists.ts): each person's wishlist
+  // items and sizes card, and who is getting what. Sealed with the server key.
+  // A claim is kept apart from its item so the list's owner never receives it.
+  `
+  CREATE TABLE wishlist (
+    id TEXT PRIMARY KEY,
+    profile_id TEXT NOT NULL REFERENCES family_profiles(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('item', 'sizes')),
+    sealed TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE INDEX wishlist_profile ON wishlist (profile_id);
+  CREATE TABLE wishlist_claims (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL REFERENCES wishlist(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    sealed TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX wishlist_claims_item ON wishlist_claims (item_id);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

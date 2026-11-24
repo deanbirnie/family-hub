@@ -143,8 +143,8 @@ export const MODULES: HubModule[] = [
     name: 'Wishlists',
     path: '/wishlists',
     icon: Gift,
-    description: 'Everyone’s wishlist, with “I’m getting this” kept secret from them; share links for the children’s lists; the gift planner.',
-    status: 'planned',
+    description: 'Everyone’s wishlist and sizes, with “I’m getting this” kept secret from them. Next: share links for the children’s lists and a gift planner.',
+    status: 'ready',
     phase: 8,
   },
 ]
