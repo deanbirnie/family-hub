@@ -46,10 +46,13 @@ interface Gift {
   id: string
   idea: string
   occasion: string
-  status: 'idea' | 'given'
+  status: 'idea' | 'bought' | 'wrapped' | 'given'
   date: string | null
   link: string
   note: string
+  amount: number | null
+  forDate: string | null
+  plannedId: string | null
 }
 
 interface TimelineData {
@@ -150,7 +153,7 @@ export function TimelineSection({
 
   const notes = data?.notes ?? []
   const shown = showAll ? notes : notes.slice(0, 5)
-  const ideas = (data?.gifts ?? []).filter((g) => g.status === 'idea')
+  const ideas = (data?.gifts ?? []).filter((g) => g.status !== 'given')
   const givenGifts = (data?.gifts ?? []).filter((g) => g.status === 'given')
   const problem = error || spoke.error || addNote.error || removeNote.error || addGift.error || given.error || removeGift.error
 
@@ -265,6 +268,7 @@ export function TimelineSection({
                       g.idea
                     )}
                     {g.occasion && <span className="muted"> · {g.occasion}</span>}
+                    {g.status !== 'idea' && <span className="muted"> · {g.status}</span>}
                   </div>
                 </div>
                 <Button type="button" variant="ghost" icon={<CheckCircle2 size={16} aria-hidden />} aria-label={`Mark ${g.idea} as given`} title="Mark as given" onClick={() => void given.run(g)} />

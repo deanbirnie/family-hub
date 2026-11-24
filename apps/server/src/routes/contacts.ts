@@ -159,15 +159,36 @@ export interface Note {
   text: string
 }
 
-/** A gift idea, or a gift given (with when). */
+/** A gift idea, on its way from idea to bought, wrapped and given (with when). */
 export interface Gift {
   idea: string
   occasion: string
-  status: 'idea' | 'given'
+  status: GiftStatus
+  /** When it was given. */
   date: string | null
   link: string
   note: string
+  /** What it costs (or cost), in cents (gift planner, 8c). */
+  amount: number | null
+  /** The day it is for: an occurrence of their birthday, Christmas, or another day (8c). */
+  forDate: string | null
+  /** The planned expense in the budget that covers it (8c). */
+  plannedId: string | null
 }
+export type GiftStatus = 'idea' | 'bought' | 'wrapped' | 'given'
+export const GIFT_STATUSES: GiftStatus[] = ['idea', 'bought', 'wrapped', 'given']
+/** Gifts recorded before the planner have no amount, day or planned expense. */
+export const giftDefaults = (g: Partial<Gift>): Gift => ({
+  idea: g.idea ?? '',
+  occasion: g.occasion ?? '',
+  status: g.status ?? 'idea',
+  date: g.date ?? null,
+  link: g.link ?? '',
+  note: g.note ?? '',
+  amount: g.amount ?? null,
+  forDate: g.forDate ?? null,
+  plannedId: g.plannedId ?? null,
+})
 
 interface EntryRow {
   id: string
@@ -495,11 +516,27 @@ export function contactRoutes(api: Api, s: Services): void {
   const giftFrom = (body: Record<string, unknown>): Gift => {
     const idea = str(body, 'idea', { max: 200 })
     const occasion = text(body, 'occasion', 60)
-    const status = (body.status ?? 'idea') as Gift['status']
-    if (status !== 'idea' && status !== 'given') throw new HttpError(400, 'A gift is an idea or given.', 'invalid')
+    const status = (body.status ?? 'idea') as GiftStatus
+    if (!GIFT_STATUSES.includes(status)) throw new HttpError(400, 'A gift is an idea, bought, wrapped or given.', 'invalid')
     const link = text(body, 'link', 500)
     if (link && !/^https:\/\/[^\s]+$/.test(link)) throw new HttpError(400, 'Links must start with https://', 'invalid')
-    return { idea, occasion, status, date: status === 'given' ? entryDate(body) : null, link, note: text(body, 'note', 1000) }
+    const amount = body.amount === undefined || body.amount === null || body.amount === '' ? null : body.amount
+    if (amount !== null && (typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount < 0 || amount > 100_000_000_00)) throw new HttpError(400, 'The amount must be in cents.', 'invalid')
+    const forDate = body.forDate === undefined || body.forDate === null || body.forDate === '' ? null : body.forDate
+    if (forDate !== null && (typeof forDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(forDate) || !parseDate(forDate))) throw new HttpError(400, 'Choose the day it is for.', 'invalid')
+    // A planned expense deleted from the budget since simply drops away.
+    const plannedId = typeof body.plannedId === 'string' && db.prepare("SELECT 1 FROM budget WHERE kind = 'planned' AND id = ?").get(body.plannedId) ? body.plannedId : null
+    return {
+      idea,
+      occasion,
+      status,
+      date: status === 'given' ? entryDate(body) : null,
+      link,
+      note: text(body, 'note', 1000),
+      amount: amount as number | null,
+      forDate: forDate as string | null,
+      plannedId: plannedId as string | null,
+    }
   }
   const timeline = (contactId: string) => ({
     notes: (db.prepare('SELECT * FROM contact_notes WHERE contact_id = ?').all(contactId) as unknown as EntryRow[])
@@ -508,7 +545,7 @@ export function contactRoutes(api: Api, s: Services): void {
     gifts: (db.prepare('SELECT * FROM contact_gifts WHERE contact_id = ? ORDER BY created_at DESC').all(contactId) as unknown as EntryRow[]).map((r) => ({
       id: r.id,
       createdAt: r.created_at,
-      ...openEntry<Gift>('contact-gift', r),
+      ...giftDefaults(openEntry<Partial<Gift>>('contact-gift', r)),
     })),
   })
   const count = (table: string, contactId: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE contact_id = ?`).get(contactId) as { n: number }).n

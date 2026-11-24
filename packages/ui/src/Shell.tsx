@@ -17,6 +17,7 @@ import { MoneyPage } from './money/MoneyPage.tsx'
 import { HomeCarePage } from './home/HomeCarePage.tsx'
 import { SchoolPage } from './school/SchoolPage.tsx'
 import { WishlistsPage } from './wishlists/WishlistsPage.tsx'
+import { GiftPlanner } from './wishlists/GiftPlanner.tsx'
 import { HomePage } from './pages/Home.tsx'
 import { MembersPage } from './pages/Members.tsx'
 import { SettingsPage } from './pages/Settings.tsx'
@@ -120,6 +121,7 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
   else if (path === '/home-care') page = <HomeCarePage ctx={ctx} />
   else if (path === '/school') page = <SchoolPage ctx={ctx} />
   else if (path === '/wishlists') page = <WishlistsPage ctx={ctx} />
+  else if (path === '/gifts') page = <GiftPlanner ctx={ctx} />
   else if (path === '/health' || path.startsWith('/health/episodes/')) page = <HealthPage ctx={ctx} episodeId={path.startsWith('/health/episodes/') ? decodeURIComponent(path.slice('/health/episodes/'.length)) : null} />
   else if (module) page = <ComingSoon module={module} />
   else if (path === '/family') page = <MembersPage ctx={ctx} />

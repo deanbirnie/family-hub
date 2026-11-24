@@ -1037,7 +1037,8 @@ export function PlannedDialog({
   people: { id: string; displayName: string }[]
   planned?: Planned
   preset?: Partial<Planned>
-  onClose: (changed?: boolean) => void
+  /** `saved` is the planned expense as stored, for a caller that links to it. */
+  onClose: (changed?: boolean, saved?: Planned) => void
 }) {
   const { api } = ctx.platform
   const base = planned ?? preset ?? {}
@@ -1058,9 +1059,10 @@ export function PlannedDialog({
     const c = parseRand(amount)
     if (c === null) throw new Error('Enter the amount, for example 1200.00.')
     const item = { ...f, amount: c, categoryId: f.categoryId || null, saveFrom: f.saveFrom || null, profileId: f.profileId || null }
-    if (planned) await api.request('PUT', `/api/budget/planned/${planned.id}`, { baseVersion: planned.version, item }).catch(conflict)
-    else await api.post('/api/budget/planned', { item })
-    onClose(true)
+    const r = planned
+      ? await api.request<{ item: Planned }>('PUT', `/api/budget/planned/${planned.id}`, { baseVersion: planned.version, item }).catch(conflict)
+      : await api.post<{ item: Planned }>('/api/budget/planned', { item })
+    onClose(true, r.item)
   })
   const remove = useAction(async () => {
     if (!planned || !window.confirm(`Delete “${planned.name}”?`)) return

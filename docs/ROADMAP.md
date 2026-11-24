@@ -817,7 +817,7 @@ design allows for primary and high school later.
 - [x] 7c. Timetable and homework, projects and tests (ready for when
       needed).
 
-## Phase 8 — Wishlists and the gift planner ← next
+## Phase 8 — Wishlists and the gift planner ✅
 
 - **Wishlists** for everyone with an account, kept by themselves: what, a
   link, a rough price, how much they want it, size or colour, notes.
@@ -841,9 +841,9 @@ design allows for primary and high school later.
 
 - [x] 8a. Wishlists, "I'm getting this" hidden from the owner, sizes.
 - [x] 8b. Share links for the children's wishlists.
-- [ ] 8c. The gift planner across Contacts, with planned expenses.
+- [x] 8c. The gift planner across Contacts, with planned expenses.
 
-## Phase 9 — In case of emergency
+## Phase 9 — In case of emergency ← next
 
 If something happens to both parents, everything the people taking over the
 children need is **taken out of the hub and sent to them as a PDF by
