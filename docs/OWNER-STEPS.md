@@ -301,6 +301,20 @@ On each parent's phone, once it has the app version with notifications
       add a medicine plan due in a few minutes, and check both phones get
       "A medicine is due". Then delete the episode.
 
+## 20. Reports and the emergency card (after the reports pull request is merged and deployed)
+
+- [ ] 1. In a browser: **Health → Visit summary (PDF)** for one person.
+      Check it against what you know, and keep one for the next doctor's
+      visit.
+- [ ] 2. The emergency card is in the Android app, so it reaches the phones
+      with the next release (which needs the Android signing key, step 1,
+      first). After updating, on **each parent's phone**: open **Health**
+      once with the vault open (this makes the card), then lock the app,
+      turn on flight mode, and tap **Emergency card** on the locked screen.
+      It should open with your fingerprint.
+- [ ] 3. Open Health on each phone now and then (and after changes), so the
+      card stays current. It shows when it was last updated.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

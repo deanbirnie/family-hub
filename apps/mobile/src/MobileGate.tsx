@@ -17,6 +17,7 @@ import {
   AuthLayout,
   Banner,
   Button,
+  EmergencyCardView,
   EnrollScreen,
   errorText,
   Field,
@@ -26,16 +27,18 @@ import {
   Spinner,
   TotpScreen,
   useAction,
+  type EmergencyCard,
   type Platform,
   type SessionInfo,
   vault,
 } from '@family-hub/ui'
-import { Fingerprint, Server } from 'lucide-react'
+import { Fingerprint, HeartPulse, Server } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CANCELLED, DeviceAuth, INVALIDATED, toBase64, type DeviceStatus } from './device-auth.ts'
 import { createUpdates } from './updates.ts'
 import { vaultDevice } from './vault-key.ts'
-import { clearDocumentCache, exportDownload, fileDownload } from './files.ts'
+import { clearDocumentCache, exportDownload, fileDownload, phoneSaveFile } from './files.ts'
+import { emergencyCard } from './emergency-card.ts'
 import { phonePush } from './push.ts'
 
 const SERVER_KEY = 'familyhub.server'
@@ -135,6 +138,7 @@ export function MobileGate({ version }: { version: string }) {
     // Notifications stop on a phone that is signed out.
     await push?.disable().catch(() => undefined)
     await vaultDevice.forget().catch(() => undefined)
+    await emergencyCard.clear().catch(() => undefined)
     clearDocumentCache()
     await api.logout().catch(() => undefined)
     await DeviceAuth.deleteKey().catch(() => undefined)
@@ -217,6 +221,8 @@ export function MobileGate({ version }: { version: string }) {
         forgetDevice,
         downloadFile: fileDownload(api),
         saveExport: exportDownload(api),
+        saveFile: phoneSaveFile,
+        emergencyCard,
         vaultDevice,
         push,
         deviceLabel: read(DEVICE_NAME_KEY) || 'This phone',
@@ -374,7 +380,37 @@ function UnlockScreen({ api, notice, onUnlocked, onForget }: { api: Api; notice?
         <Button busy={busy} onClick={() => void unlock()}>
           Unlock
         </Button>
+        <EmergencyCardButton />
       </div>
     </AuthLayout>
+  )
+}
+
+/** The offline emergency card: opens with a fingerprint or face, without the server. */
+function EmergencyCardButton() {
+  const [updatedAt] = useState(() => emergencyCard.updatedAt())
+  const [cards, setCards] = useState<EmergencyCard[] | null>(null)
+  const open = useAction(async () => {
+    try {
+      const opened = await emergencyCard.open()
+      if (!opened) throw new Error('There is no emergency card on this phone yet. It is made when you open Health with the family vault open.')
+      setCards(opened)
+    } catch (e) {
+      const code = (e as { code?: string }).code
+      if (code === CANCELLED) return
+      if (code === INVALIDATED) throw new Error('Your fingerprints or face changed, so the emergency card was removed. It is made again the next time you open Health.')
+      throw e
+    }
+  })
+  if (cards) return <EmergencyCardView cards={cards} onClose={() => setCards(null)} />
+  if (!updatedAt) return null
+  return (
+    <div className="stack-sm emergency-entry">
+      <Button variant="secondary" icon={<HeartPulse size={18} aria-hidden />} busy={open.busy} onClick={() => void open.run()}>
+        Emergency card
+      </Button>
+      <p className="muted small">Works without a signal. Updated {new Date(updatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}.</p>
+      {open.error && <Banner kind="error">{open.error}</Banner>}
+    </div>
   )
 }

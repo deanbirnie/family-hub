@@ -2,6 +2,7 @@
  * What the shared interface needs from the app around it. The web app and
  * the Android app each provide one.
  */
+import type { EmergencyCard } from './health/reports.ts'
 import type { Api } from './api.ts'
 
 export interface UpdateInfo {
@@ -69,6 +70,22 @@ export interface Platform {
   deviceLabel?: string
   /** Native Android: saves an export from the API (e.g. a vCard file) where the person chooses. */
   saveExport?: (path: string, name: string) => Promise<void>
+  /** Saves or shares a file made on this device (a PDF report). Without it, the browser downloads it or offers its share sheet. */
+  saveFile?: (file: { name: string; bytes: Uint8Array }, action: 'save' | 'share') => Promise<void>
+  /**
+   * Android: the offline emergency card. Made whenever the family vault is
+   * open (no fingerprint needed to update it); opening it needs a fingerprint
+   * or face check but no network.
+   */
+  emergencyCard?: {
+    save(cards: EmergencyCard[]): Promise<void>
+    /** The cards, after a fingerprint or face check; null if there are none on this phone. */
+    open(): Promise<EmergencyCard[] | null>
+    /** When the cards were last updated (ms), or null if there are none. Readable without unlocking. */
+    updatedAt(): number | null
+    /** Removes the cards and their key (when the phone is signed out). */
+    clear(): Promise<void>
+  }
   /** Native Android save/open, using the already-unlocked session. */
   downloadFile?: (file: { id: string; name: string; mediaType: string }, action: 'save' | 'open') => Promise<void>
 }

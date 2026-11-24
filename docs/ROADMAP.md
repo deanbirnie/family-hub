@@ -422,7 +422,7 @@ in the family sees them (name and day only).
       always accept, changed and cancelled events) and clean-up.
 - [x] One-off `.ics` import through the inbox.
 
-## Phase 5 — Health ← next
+## Phase 5 — Health ✅ (some items later)
 
 A health record for each family member, kept by the parents. Agreed with the
 owner in the phase 5 planning pull request.
@@ -562,9 +562,9 @@ then save or share.
 
 **5d. Reports and the emergency card**
 
-- [ ] The built-in PDF writer; the visit summary; episode handover report
+- [x] The built-in PDF writer; the visit summary; episode handover report
       and full record.
-- [ ] The offline emergency card on the phone.
+- [x] The offline emergency card on the phone.
 
 **Later**
 
@@ -572,7 +572,7 @@ then save or share.
 - [ ] End-to-end encrypted health documents, if ever wanted.
 - [ ] Daily reminders for long-term medicines outside an episode.
 
-## Phase 6 — Household admin
+## Phase 6 — Household admin ← next
 
 - [ ] **Bills and renewals:** due dates, amounts and reminders for
       subscriptions, insurance, rates, school fees; who pays what. No bank
