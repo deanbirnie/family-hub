@@ -254,15 +254,16 @@ login (those are never stored). Each sealed item is bound to its own ID.
 | Reminder notification text | Generic ("A bill is due. Tap to see.", "A renewal deadline is coming up.", "A free trial ends soon.", "An invoice is overdue.", "A vehicle service is due soon.", "A roadworthy is due soon.", "Home maintenance is due.", "A warranty ends soon.", "Time to plan next month’s budget.") | Encrypted to the device (RFC 8291) | ✅ |
 | Household events (added, changed, removed with the kind of item; later imports with counts; never details) | `audit_log` | P | ✅ |
 
-### School hub (phase 7; agreed in the planning pull request, to build)
+### School hub (phase 7; agreed, being built)
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Each child's school for each year: school, grade or class, teachers (Contacts links), timetable, homework and projects, forms and permission slips (what, deadline, done), uniform, stationery and "what to bring" lists | One sealed record per item, tagged with the child | S | 🔜 7 |
-| School dates | Calendar events tagged to the child and "school" (phase 4 rows) | S | 🔜 7 |
-| Fees and school costs | Bills and planned expenses (phase 6 rows), tagged "school" and the child | S | 🔜 7 |
-| Reports, letters and forms (the files) | Files, in a School folder with a folder per child; parents-only to start (the children's own access decided with kids' accounts) | S, over https | 🔜 7 |
-| Reminders (form deadlines, things to bring) | Worked out from the sealed items; delivery records only; generic text ("A school reminder is due.") | P (delivery records) | 🔜 7 |
+| Each child's school years (school, grade or class, terms and their dates, the fees bill, notes); school contacts (a Contacts link, role, note, for one child or all); extra-murals (activity, who runs it, Contacts links, where, days and times, dates and term, number to cancel or postpone, cost, links to a bill, invoice or planned expense, the calendar events); reminders (what, date, how far ahead, notes, done) | One sealed record per item in `school`; plain: the kind of item and which child (none for "all children") | S | ✅ |
+| Forms and permission slips (what, deadline, done), uniform, stationery and "what to bring" lists, timetable, homework and projects | One sealed record per item in `school` | S | 🔜 7b–7c |
+| School dates | Calendar events tagged to the child (phase 4 rows); the extra-murals' weekly events too | S | ✅ |
+| Fees and school costs | Bills and planned expenses (phase 6 rows), tagged "school" and the child | S | ✅ |
+| Reports, letters and forms (the files) | Files, in a School folder with a folder per child; parents-only to start (the children's own access decided with kids' accounts) | S, over https | ✅ |
+| Reminders (things to plan for or take to school; later form deadlines) | Worked out from the sealed items; delivery records only; generic text ("A school reminder is due. Tap to see.") | P (delivery records) | ✅ |
 
 ### Wishlists and the gift planner (phase 8; agreed, to build)
 

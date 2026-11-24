@@ -18,6 +18,7 @@ import { applicableLead, daysBetween, localNow, nextOccurrence, yearsAt, zonedTo
 import { eventOccurrences, FAMILY } from './routes/calendar.ts'
 import { contactDates, openContact, REMIND, type Contact, type ImportantDate } from './routes/contacts.ts'
 import { budgetItems } from './budget.ts'
+import { schoolItems } from './school.ts'
 import { homeCareItems } from './home-care.ts'
 import { householdItems } from './household.ts'
 import { generateVapidKeys, sendPush, type PushKeys, type PushMessage, type SendOutcome, type VapidKeys } from './webpush.ts'
@@ -41,11 +42,13 @@ export interface NotificationSettings {
   household: boolean
   /** Home and car: services, roadworthies, maintenance, warranties. */
   home: boolean
+  /** School reminders. */
+  school: boolean
   /** Hour of the day (family time zone) from which reminders are sent. */
   sendHour: number
 }
 
-export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, dates: true, touch: true, events: true, health: true, household: true, home: true, sendHour: 8 }
+export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, dates: true, touch: true, events: true, health: true, household: true, home: true, school: true, sendHour: 8 }
 
 export function getSettings(s: Services, userId: string): NotificationSettings {
   const row = s.db.prepare('SELECT settings FROM notification_settings WHERE user_id = ?').get(userId) as { settings: string } | undefined
@@ -61,6 +64,7 @@ export function getSettings(s: Services, userId: string): NotificationSettings {
       health: typeof raw.health === 'boolean' ? raw.health : DEFAULT_SETTINGS.health,
       household: typeof raw.household === 'boolean' ? raw.household : DEFAULT_SETTINGS.household,
       home: typeof raw.home === 'boolean' ? raw.home : DEFAULT_SETTINGS.home,
+      school: typeof raw.school === 'boolean' ? raw.school : DEFAULT_SETTINGS.school,
       sendHour: Number.isInteger(raw.sendHour) && raw.sendHour! >= 0 && raw.sendHour! <= 23 ? raw.sendHour! : DEFAULT_SETTINGS.sendHour,
     }
   } catch {
@@ -158,7 +162,7 @@ export const subscriptionsOf = (s: Services, userId: string) =>
 
 // ---- what can be due --------------------------------------------------------------------
 
-export type Category = 'expiry' | 'dates' | 'touch' | 'health' | 'household' | 'home'
+export type Category = 'expiry' | 'dates' | 'touch' | 'health' | 'household' | 'home' | 'school'
 
 export interface ReminderItem {
   /** Stable across runs: which reminder this is. */
@@ -414,7 +418,7 @@ export function eventReminders(s: Services, nowMs: number): EventReminder[] {
 
 /** Every reminder there is. */
 export function allItems(s: Services): ReminderItem[] {
-  return [...quickInfoItems(s), ...contactDateItems(s), ...healthItems(s), ...householdItems(s), ...homeCareItems(s), ...budgetItems(s)]
+  return [...quickInfoItems(s), ...contactDateItems(s), ...healthItems(s), ...householdItems(s), ...homeCareItems(s), ...budgetItems(s), ...schoolItems(s)]
 }
 
 export interface DueNow {

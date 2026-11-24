@@ -2225,3 +2225,10 @@ progress {
   white-space: nowrap;
   text-align: left;
 }
+
+/* ---- School ---- */
+
+.school-date-row .qi-search:first-child {
+  flex: 2;
+  min-width: 10em;
+}

@@ -31,6 +31,7 @@ export interface FileRow {
 
 const HEALTH_FOLDER_SETTING = 'health_folder_id'
 const HOUSEHOLD_FOLDER_SETTING = 'household_folder_id'
+const SCHOOL_FOLDER_SETTING = 'school_folder_id'
 
 /** Whether an item is in (or is) a parents-only folder. */
 export function isParentsOnly(s: Services, id: string): boolean {
@@ -62,10 +63,28 @@ function parentsFolder(s: Services, userId: string, setting: string, base: strin
 export const healthFolder = (s: Services, userId: string) => parentsFolder(s, userId, HEALTH_FOLDER_SETTING, 'Health')
 /** Invoices, receipts, warranties and manuals (phase 6). */
 export const householdFolder = (s: Services, userId: string) => parentsFolder(s, userId, HOUSEHOLD_FOLDER_SETTING, 'Household')
+/** Reports, letters and forms (phase 7): a School folder, parents only. */
+export const schoolFolder = (s: Services, userId: string) => parentsFolder(s, userId, SCHOOL_FOLDER_SETTING, 'School')
+
+/** A child's folder inside the School folder, made on first use (and again if it was deleted). */
+export function childSchoolFolder(s: Services, userId: string, profileId: string, name: string): string {
+  const parent = schoolFolder(s, userId)
+  const setting = `school_folder:${profileId}`
+  const stored = (s.db.prepare('SELECT value FROM settings WHERE key = ?').get(setting) as { value: string } | undefined)?.value
+  if (stored && s.db.prepare('SELECT 1 FROM files WHERE id = ? AND parent_id = ? AND deleted_at IS NULL').get(stored, parent)) return stored
+  let folderName = name.replace(/[\x00-\x1f\x7f/\\]/g, ' ').trim().slice(0, 100) || 'Child'
+  const base = folderName
+  for (let i = 2; s.db.prepare('SELECT 1 FROM files WHERE parent_id = ? AND name = ? AND deleted_at IS NULL').get(parent, folderName); i++) folderName = `${base} (${i})`
+  const id = randomUUID()
+  const now = s.now()
+  s.db.prepare("INSERT INTO files (id, parent_id, name, kind, created_by, created_at, updated_at, parents_only) VALUES (?, ?, ?, 'folder', ?, ?, ?, 1)").run(id, parent, folderName, userId, now, now)
+  s.db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value').run(setting, id)
+  return id
+}
 
 /** The Health or Household folder: kept where it is, under its name. */
 const isKeptFolder = (s: Services, id: string) =>
-  (s.db.prepare('SELECT 1 FROM settings WHERE key IN (?, ?) AND value = ?').get(HEALTH_FOLDER_SETTING, HOUSEHOLD_FOLDER_SETTING, id) as object | undefined) !== undefined
+  (s.db.prepare('SELECT 1 FROM settings WHERE key IN (?, ?, ?) AND value = ?').get(HEALTH_FOLDER_SETTING, HOUSEHOLD_FOLDER_SETTING, SCHOOL_FOLDER_SETTING, id) as object | undefined) !== undefined
 
 export const fileInfo = (f: FileRow) => ({
   id: f.id, parentId: f.parent_id, name: f.name, kind: f.kind,

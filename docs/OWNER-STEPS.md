@@ -383,6 +383,20 @@ On each parent's phone, once it has the app version with notifications
 - [ ] 4. Export overlapping dates without worrying: transactions already in
       the hub are skipped.
 
+## 26. School (after the 7a pull request is merged and deployed)
+
+- [ ] 1. Add the teachers, the school office, aftercare, coaches and the
+      lift club to **Contacts** first.
+- [ ] 2. **School → Add a child** for each child at school, with the school,
+      the class and the term dates. Add the fees as a bill in **Bills &
+      budget** and link it (Edit).
+- [ ] 3. Link the school contacts with their roles, add the extra-murals
+      (they go on the calendar weekly for their term) and any reminders.
+- [ ] 4. **Plan a school cost** for what you know is coming (camp, uniform,
+      photos), and **Add dates from school** each time the school sends
+      them.
+- [ ] 5. **Settings → Notifications:** keep **School reminders** ticked.
+
 ## Later steps (added as features land)
 
 - Nothing yet.
