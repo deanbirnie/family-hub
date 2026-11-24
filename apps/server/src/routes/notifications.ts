@@ -116,7 +116,7 @@ export function notificationRoutes(api: Api, s: Services): void {
     const body = await readJson(ctx.req)
     const current = getSettings(s, ctx.user.id)
     const next = { ...current }
-    for (const key of ['enabled', 'expiry', 'dates', 'touch', 'events', 'health', 'household', 'home'] as const) {
+    for (const key of ['enabled', 'expiry', 'dates', 'touch', 'events', 'health', 'household', 'home', 'school'] as const) {
       if (body[key] === undefined) continue
       if (typeof body[key] !== 'boolean') throw new HttpError(400, `"${key}" must be true or false.`, 'invalid')
       next[key] = body[key]

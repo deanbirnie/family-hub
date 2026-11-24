@@ -431,6 +431,22 @@ const MIGRATIONS: string[] = [
     created_at INTEGER NOT NULL
   );
   `,
+  // 20: School (phase 7, routes/school.ts): each child's school years,
+  // school contacts, extra-murals, reminders (and later forms, lists,
+  // homework), sealed with the server key. Plain: the kind and whose it is.
+  `
+  CREATE TABLE school (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL CHECK (kind IN ('year', 'contact', 'activity', 'reminder', 'form', 'list', 'homework', 'timetable')),
+    profile_id TEXT REFERENCES family_profiles(id) ON DELETE CASCADE,
+    sealed TEXT NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
+  );
+  CREATE INDEX school_profile ON school (profile_id);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

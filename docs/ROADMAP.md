@@ -771,8 +771,19 @@ with the child and "school". Agreed with the owner in the phases 7–10
 planning pull request. The children are at a private pre-school now; the
 design allows for primary and high school later.
 
-- **Per child, per year:** the school, grade or class, teacher(s) and the
-  school office (from Contacts), and the term.
+- **Per child, per year:** the school, grade or class, and the terms with
+  their dates.
+- **School contacts,** linked from Contacts with their role (teacher,
+  assistant, principal, office, aftercare, coach, lift club), for one child
+  or all the children, with a call button and a note.
+- **Extra-murals by term** (added with the owner): the activity, who runs it
+  (linked to Contacts), where, which days and times, the term or dates,
+  the number to call (or contact) to cancel or postpone, the cost and what
+  it is per, and where it is paid (a bill, an invoice or a planned
+  expense). Each goes on the family calendar weekly for its dates.
+- **Reminders** for the irregular things to plan for or take to school (a
+  costume, money for a cake sale, book week), for one child or all, with
+  how far ahead to remind, ticked when done (added with the owner).
 - **School dates as they come:** a quick "new dates from school" form to add
   several at once (open day, sports day, concert, closing day, photo day),
   each a calendar event tagged to the child. Private schools send dates a
@@ -798,8 +809,9 @@ design allows for primary and high school later.
 
 ### Build order
 
-- [ ] 7a. The child's school page, the School folder, quick dates to the
-      calendar, fees and costs linked from Bills & budget.
+- [x] 7a. The child's school page, the School folder, quick dates to the
+      calendar, fees and costs linked from Bills & budget; school contacts,
+      extra-murals by term and reminders.
 - [ ] 7b. Forms and permission slips; uniform, stationery and "what to
       bring" lists; "plan the year".
 - [ ] 7c. Timetable and homework (when needed).

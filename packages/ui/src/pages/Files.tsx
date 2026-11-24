@@ -1,6 +1,7 @@
 import { Download, FileText, FolderOpen, FolderPlus, Trash2, Upload } from 'lucide-react'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { HubContext } from '../Shell.tsx'
+import { usePath } from '../router.ts'
 import { Banner, Button, Card, Dialog, PageHeader, Spinner, errorText, useAction, useLoad } from '../ui.tsx'
 import { MoveDialog, NameDialog, type FileList } from './FileDialogs.tsx'
 
@@ -34,6 +35,12 @@ export function FilesPage({ ctx }: { ctx: HubContext }) {
   const files = useLoad(() => api.get<FileList>(`/api/files?${new URLSearchParams({ parent: folder, q: query })}`), [api, folder, query])
   const data = files.data?.parentId === (folder || null) && files.data.query === query ? files.data : null
   const browse = (id: string) => { setFolder(id); setQuery(''); setSearch(''); setError(''); setNotice('') }
+  // A link to a folder (/files/<id>, e.g. a child's School folder) opens it.
+  const path = usePath()
+  useEffect(() => {
+    const m = /^\/files\/([A-Za-z0-9-]{1,64})$/.exec(path)
+    if (m) browse(m[1]!)
+  }, [path]) // eslint-disable-line react-hooks/exhaustive-deps
   const input = useRef<HTMLInputElement>(null)
   const controller = useRef<AbortController | null>(null)
   const [uploading, setUploading] = useState(false)
