@@ -228,7 +228,7 @@ database shows at most how many records each person has. Reminders reveal
 only that a health reminder for that person is due at a time (the owner
 chose this over phone-only dose alarms so reminders also work in browsers).
 
-### Household admin (phase 6; agreed with the owner, being built)
+### Household admin (phase 6)
 
 The owner chose the server key (S) for money: the server works out reminders
 and totals itself, and nothing here is an account number, card number or bank
@@ -254,15 +254,57 @@ login (those are never stored). Each sealed item is bound to its own ID.
 | Reminder notification text | Generic ("A bill is due. Tap to see.", "A renewal deadline is coming up.", "A free trial ends soon.", "An invoice is overdue.", "A vehicle service is due soon.", "A roadworthy is due soon.", "Home maintenance is due.", "A warranty ends soon.", "Time to plan next month’s budget.") | Encrypted to the device (RFC 8291) | ✅ |
 | Household events (added, changed, removed with the kind of item; later imports with counts; never details) | `audit_log` | P | ✅ |
 
+### School hub (phase 7; agreed in the planning pull request, to build)
+
+| Data | Where | Tier | Status |
+|---|---|---|---|
+| Each child's school for each year: school, grade or class, teachers (Contacts links), timetable, homework and projects, forms and permission slips (what, deadline, done), uniform, stationery and "what to bring" lists | One sealed record per item, tagged with the child | S | 🔜 7 |
+| School dates | Calendar events tagged to the child and "school" (phase 4 rows) | S | 🔜 7 |
+| Fees and school costs | Bills and planned expenses (phase 6 rows), tagged "school" and the child | S | 🔜 7 |
+| Reports, letters and forms (the files) | Files, in a School folder with a folder per child; parents-only to start (the children's own access decided with kids' accounts) | S, over https | 🔜 7 |
+| Reminders (form deadlines, things to bring) | Worked out from the sealed items; delivery records only; generic text ("A school reminder is due.") | P (delivery records) | 🔜 7 |
+
+### Wishlists and the gift planner (phase 8; agreed, to build)
+
+| Data | Where | Tier | Status |
+|---|---|---|---|
+| Wishlist items: what, link, rough price, how much wanted, size or colour, notes | One sealed record per item, with whose list it is | S | 🔜 8 |
+| "I'm getting this": who, and for shared gifts how much | Sealed with the item; never sent to the list's owner (the server leaves it out for them) | S, hidden by access rules | 🔜 8 |
+| Share links for a child's wishlist | A random token, stored hashed; can be turned off | H | 🔜 8 |
+| What a share-link visitor enters (their name, what they are getting) | Sealed with the item | S | 🔜 8 |
+| Sizes card per family member | One sealed record per person | S | 🔜 8 |
+| Gift planner: status of each idea (idea, bought, wrapped, given), amount, link to a planned expense | Sealed with the Contacts gift idea (phase 3 row) | S | 🔜 8 |
+
+### In case of emergency (phase 9; agreed, to build)
+
+| Data | Where | Tier | Status |
+|---|---|---|---|
+| Trusted parties: name, email, role (guardian or to inform) | One sealed record per party | S | 🔜 9 |
+| The parents' written instructions | Encrypted on a parent's device with the family key | E2E (family key) | 🔜 9 |
+| The pack: a PDF of the instructions and what the hub knows (health summaries, IDs, medical aid, contacts, school, policies, bills, documents list) | Made on a parent's device when the vault is open, locked there with the letter's password (PDF AES-256); the server stores only the locked file and cannot open it | E2E (the letter's password) | 🔜 9 |
+| The letter's password | Never stored on the server; in the parents' password manager and the printed letters | Not stored | 🔜 9 |
+| Request links, one per trusted party | A random token, stored hashed | H | 🔜 9 |
+| Release settings (waiting periods, check-in timing) and the state of a request or check-in (started when, by which party, warnings sent, cancelled) | Settings and a release record; the party is a link to their sealed record | P (settings, times), S (who) | 🔜 9 |
+| Last activity of each parent (for the inactivity backstop) | Worked out from sign-ins and unlocks already recorded | P | 🔜 9 |
+| The email account the hub sends from (address, server, app password) | The server's environment (like the server key's location), never in the database | Configuration | 🔜 9 |
+| Emails sent (to trusted parties and parents) | Plain text with no details; the pack attached locked; a pointer to the password, never the password | Sent over TLS to the mail server | 🔜 9 |
+
+### Safety: home safe, arrived and SOS (phase 10; agreed in outline)
+
+| Data | Where | Tier | Status |
+|---|---|---|---|
+| Check-ins (home safe, arrived) and who was told | One record per check-in | S | 🔜 10 |
+| Location shared with "Arrived" | Sealed with the check-in; deleted after 24 hours | S, deleted after 24 hours | 🔜 10 |
+| SOS: when, the track of locations, how it ended ("Whoops", "I'm safe now", …) | Sealed; locations deleted 24 hours after the SOS ends | S, deleted after 24 hours | 🔜 10 |
+| Notification text | "Sam is home safe.", "Sam arrived.", "SOS from Sam. Tap to see." (names in these are wanted: they go only to the family) | Encrypted to the device (RFC 8291) | 🔜 10 |
+
 ### Later phases (proposed; confirm at the start of each phase)
 
 | Phase | Data | Proposed tier | Why |
 |---|---|---|---|
-| 7 Lists, chores, noticeboard | Items, chores, notices | S suggested (was P) | Posts and to-dos can hold things like "key under the mat"; decide with the phase. |
-| 8 Meals | Plans, recipes | P | Not personal. Allergies come from Health, not stored here. |
+| 11 Lists, chores, noticeboard | Items, chores, notices | S suggested (was P) | Posts and to-dos can hold things like "key under the mat"; decide with the phase. |
+| 12 Meals | Plans, recipes | P | Not personal. Allergies come from Health, not stored here. |
 | Later: home loan | Balance, rate, extra payments | S (as the other debts) | Decide with the feature. |
-| 9 Wishlists | A family member's own wishlist, and ideas others add for them | S | Hidden from the recipient by access rules, not encryption. (Gift ideas for friends and family are in phase 3.) |
-| 9 In case of emergency | Instructions for a trusted person | ❓ | Released after a waiting period, which needs either server access (S) or key escrow to the trusted person (E2E). Decide with the phase. |
 
 ## When building a phase
 

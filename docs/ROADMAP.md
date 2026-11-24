@@ -572,7 +572,7 @@ then save or share.
 - [ ] End-to-end encrypted health documents, if ever wanted.
 - [ ] Daily reminders for long-term medicines outside an episode.
 
-## Phase 6 — Household admin ← next
+## Phase 6 — Household admin ✅ (bank presets to come)
 
 Bills, subscriptions and invoices; home and car upkeep; and a monthly budget
 with debt payoff. For parents only. Agreed with the owner in the phase 6
@@ -762,7 +762,152 @@ bank connections of any kind.
       reminders, the vet as a provider, episodes), plus species, breed,
       microchip number, insurance, food, and deworming and tick schedules.
 
-## Phase 7 — Lists, chores and noticeboard
+## Phase 7 — School hub ← next
+
+School touches the calendar, the budget, files, contacts and reminders. The
+school hub is **a page per child that brings these together without keeping
+its own copies**: what is added from it lives in its proper place, tagged
+with the child and "school". Agreed with the owner in the phases 7–10
+planning pull request. The children are at a private pre-school now; the
+design allows for primary and high school later.
+
+- **Per child, per year:** the school, grade or class, teacher(s) and the
+  school office (from Contacts), and the term.
+- **School dates as they come:** a quick "new dates from school" form to add
+  several at once (open day, sports day, concert, closing day, photo day),
+  each a calendar event tagged to the child. Private schools send dates a
+  term at a time, so this is the main way in; a school's calendar link can
+  be subscribed to (phase 4) where there is one.
+- **Fees:** a bill (6a), linked from the child's page.
+- **School costs:** planned expenses (6c), tagged "school" and for the
+  child: camp, tours, uniform, stationery, photos, the concert costume;
+  each saved for over the months before it is needed.
+- **Forms and permission slips:** what to sign or pay, with a deadline and a
+  reminder; ticked when done.
+- **Documents:** reports, letters and forms in Files, in a folder per child
+  under a School folder.
+- **Lists:** uniform, stationery and kit lists, grade by grade, ticked as
+  bought and kept for the next child or next year; "what to bring" for the
+  day (swimming bag on Tuesdays, library book on Fridays).
+- **Timetable and homework** (for when they are older): the weekly
+  timetable, and homework and projects with due dates.
+- **"Plan the year":** a checklist at the start of each year or term: add
+  the dates, the fees, the planned costs, the stationery list.
+- **The children's own view** comes later, with kids' accounts (phase 13);
+  the design allows each child to see their own page.
+
+### Build order
+
+- [ ] 7a. The child's school page, the School folder, quick dates to the
+      calendar, fees and costs linked from Bills & budget.
+- [ ] 7b. Forms and permission slips; uniform, stationery and "what to
+      bring" lists; "plan the year".
+- [ ] 7c. Timetable and homework (when needed).
+
+## Phase 8 — Wishlists and the gift planner
+
+- **Wishlists** for everyone with an account, kept by themselves: what, a
+  link, a rough price, how much they want it, size or colour, notes.
+  Parents keep the wishlists of young children without accounts.
+- **"I'm getting this":** others mark an item as theirs (or share it, for a
+  bigger gift); **the owner never sees who, or that it is taken**, so
+  surprises survive.
+- **Share links for the children's wishlists**, for grandparents and
+  friends without accounts: they see the list and can mark what they are
+  getting (with their name), hidden from the child. A link can be turned off.
+- **Sizes card** per family member (clothes, shoes, ring), kept up to date,
+  for whoever is buying.
+- **The gift planner:** one view of the occasions coming up (birthdays and
+  anniversaries from Contacts, Christmas, the family's own) with the gift
+  ideas for each person (the Contacts gift ideas from phase 3, extended):
+  idea → bought → wrapped → given, an amount, and an optional planned
+  expense (6c) so December is in the budget. Only the contacts that matter
+  get ideas; any contact can start mattering later.
+
+### Build order
+
+- [ ] 8a. Wishlists, "I'm getting this" hidden from the owner, sizes.
+- [ ] 8b. Share links for the children's wishlists.
+- [ ] 8c. The gift planner across Contacts, with planned expenses.
+
+## Phase 9 — In case of emergency
+
+If something happens to both parents, everything the people taking over the
+children need is **taken out of the hub and sent to them as a PDF by
+email**, because the hub (on a home server) may not be kept running.
+
+- **Trusted parties, chosen by the parents:** name, email, and role:
+  **guardian** (receives the pack; several can be named, since who legally
+  takes the children cannot be known in advance) or **to inform** (told the
+  pack has gone to the guardians).
+- **The letter:** the hub makes a short letter for each trusted party, to
+  print and give them now: what this is, the link to use if something has
+  happened, and **the password for the pack**. The parents keep the
+  password in their password manager. It is never stored on the server.
+- **The pack,** made on a parent's device whenever the family vault is open
+  (like the emergency card), so it can include everything, end-to-end
+  encrypted parts too: the parents' instructions (children's routines and
+  care, school, who to call, where the will and policies are, debit orders
+  to cancel, the password manager's emergency access, wishes), each child's
+  health summary, allergies and medicines, ID numbers, medical aid,
+  doctors, emergency contacts, school details, insurance policies, bills
+  and accounts (bank and nickname), and the list of documents in Files. It
+  is a **password-protected PDF** (AES-256), locked on the device with the
+  letter's password; the server stores only the locked file and cannot
+  open it. It shows when it was last refreshed, and can be downloaded to
+  keep with the will (with a yearly reminder to refresh the printed copy).
+- **The instructions** are written in the hub and end-to-end encrypted.
+- **Release on request** (settings chosen by the parents; the owner's choice
+  shown):
+  1. A trusted party opens the link from their letter. Both parents are
+     told at once (notification and email) and can cancel.
+  2. After the waiting period (**3 days**), a **second confirmation** goes to
+     the parents; if neither cancels within its time (24 hours suggested),
+     the pack is sent to the guardians, and those to inform are told.
+- **Release when nobody is there** (a backstop):
+  1. After **7 days** with no activity on the hub from either parent, each
+     parent gets a check-in each day ("Are you all right? Tap to confirm.")
+     by notification and email.
+  2. If **3 days** of check-ins go unanswered, the trusted parties get an
+     email asking whether all is well, with a link to request the pack if
+     not, and a link to say all is well.
+  3. If nobody answers (no parent, and no trusted party saying all is well)
+     within a further period (3 days suggested), the pack is sent anyway.
+  Any parent's activity, or a trusted party's "all is well", stops it.
+- **The email:** plain and universal, with the PDF attached and a pointer to
+  the password ("the password is in the letter we gave you"), never the
+  password itself.
+- **Email from the hub:** the hub learns to send email (no new
+  dependencies), through an account the owner gives it (for example Gmail
+  with an app password).
+
+### Build order
+
+- [ ] 9a. Email from the hub; trusted parties; the letters.
+- [ ] 9b. The pack: instructions, the password-protected PDF made on the
+      device, refreshed when the vault is open; downloading it.
+- [ ] 9c. Release on request, the second confirmation, the inactivity
+      check-ins and the trusted parties' email.
+
+## Phase 10 — Safety: home safe, arrived and SOS (Android)
+
+Agreed in outline; to be detailed when the phase starts.
+
+- On the phone's home page: a **Home safe** button (tells the family, no
+  location), with a menu beside it for **Arrived** (tells the family and
+  shares the location at that moment: "Mom arrived at gymnastics").
+- An **SOS** button beside them: a full red screen; the family is alerted
+  with the location, then the location is sent **every 2 minutes, or every
+  5 when the battery is low, in the background**, until it is cancelled.
+  Cancelling asks why: "Whoops" (sent by mistake), "Emergency services have
+  been and gone", "I'm safe now", so the family knows how worried to be.
+- Locations from check-ins are deleted after 24 hours; an SOS track 24 hours
+  after the SOS ends.
+- To decide then: whether SOS works from the locked screen without a
+  fingerprint (suggested, as it only sends an alert), a home-screen widget,
+  and an optional "expect me by …" timer.
+
+## Phase 11 — Lists, chores and noticeboard
 
 - [ ] **Shopping lists** that update live on every phone, with
       categories (aisle order) and "who's at the shop" mode.
@@ -787,7 +932,7 @@ chores; who may set up chores and mark pocket money paid; an offline copy of
 shopping lists on the phone; replies or reactions on posts; anything missing
 (e.g. lend and borrow).
 
-## Phase 8 — Meals
+## Phase 12 — Meals
 
 - [ ] Weekly meal planner (drag recipes onto days).
 - [ ] Recipe box: ingredients, steps, photos, tags; import from a recipe
@@ -795,7 +940,7 @@ shopping lists on the phone; replies or reactions on posts; anything missing
 - [ ] "Add this week's ingredients to the shopping list", merging duplicates.
 - [ ] Dietary notes per person (allergies from Health when available).
 
-## Phase 9 — Family life extras (pick and choose)
+## Phase 13 — Family life extras (pick and choose)
 
 - [ ] **Kids' accounts:** a `child` role that sees chosen modules only (lists,
       chores, calendar), with a simpler home page. Keep Quick Info and Health
@@ -804,17 +949,8 @@ shopping lists on the phone; replies or reactions on posts; anything missing
       with access to chosen items only (the emergency card, the calendar).
 - [ ] **Trips:** itinerary, bookings and documents (from Files and Quick
       info), packing lists per person, shared expenses.
-- [ ] **School hub:** term dates, timetables, homework, uniform and kit lists,
-      teacher contacts.
-- [ ] **Wishlists:** family members with accounts keep their own wishlist;
-      ideas others add for them stay hidden from them. (Gift ideas for
-      friends and family are in phase 3.)
-- [ ] **"I'm home safe" check-ins:** one tap to tell the family you arrived
-      (no location tracking).
 - [ ] **Memories:** explore showing an "on this day" view from Immich on the
       home page. Immich remains the family photo library.
-- [ ] **In case of emergency:** instructions and where things are kept, for a
-      trusted person, released after a waiting period an admin can cancel.
 
 ## Cross-cutting work (slot in where it fits)
 

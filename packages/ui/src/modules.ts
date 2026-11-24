@@ -13,6 +13,8 @@ import {
   ListChecks,
   Megaphone,
   PiggyBank,
+  GraduationCap,
+  Gift,
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
@@ -86,7 +88,7 @@ export const MODULES: HubModule[] = [
     icon: ListChecks,
     description: 'Shopping lists, to-dos and a chore rota everyone can tick off.',
     status: 'planned',
-    phase: 7,
+    phase: 11,
   },
   {
     id: 'meals',
@@ -95,7 +97,7 @@ export const MODULES: HubModule[] = [
     icon: ChefHat,
     description: 'Plan the week’s meals, keep favourite recipes, and send ingredients to the shopping list.',
     status: 'planned',
-    phase: 8,
+    phase: 12,
   },
   {
     id: 'board',
@@ -104,7 +106,7 @@ export const MODULES: HubModule[] = [
     icon: Megaphone,
     description: 'Announcements and notes for the whole family, with push notifications.',
     status: 'planned',
-    phase: 7,
+    phase: 11,
   },
   {
     id: 'money',
@@ -125,5 +127,24 @@ export const MODULES: HubModule[] = [
     status: 'ready',
     phase: 6,
     parentsOnly: true,
+  },
+  {
+    id: 'school',
+    name: 'School',
+    path: '/school',
+    icon: GraduationCap,
+    description: 'A page per child: school dates, fees and costs, forms, lists and documents, tied into the calendar and budget.',
+    status: 'next',
+    phase: 7,
+    parentsOnly: true,
+  },
+  {
+    id: 'wishlists',
+    name: 'Wishlists',
+    path: '/wishlists',
+    icon: Gift,
+    description: 'Everyone’s wishlist, with “I’m getting this” kept secret from them; share links for the children’s lists; the gift planner.',
+    status: 'planned',
+    phase: 8,
   },
 ]
