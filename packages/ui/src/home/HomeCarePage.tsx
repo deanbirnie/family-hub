@@ -7,7 +7,7 @@
 import { Car, Gauge, Hammer, Home, Pencil, Phone, Plus, ThumbsDown, ThumbsUp, Wrench } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { AttachDocuments, Documents, type DocumentFolder } from '../health/parts.tsx'
-import { Actions, conflict, Labelled } from '../money/MoneyPage.tsx'
+import { Actions, conflict, Labelled } from '../money/form.tsx'
 import { amountText, daysFrom, parseRand, rand, relative, shortDate } from '../money/model.ts'
 import type { Contact } from '../pages/Contacts.tsx'
 import { decryptRecord, type StoredRecord } from '../quickinfo/model.ts'

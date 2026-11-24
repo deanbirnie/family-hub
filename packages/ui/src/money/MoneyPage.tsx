@@ -4,10 +4,11 @@
  * on the server; no account or card numbers anywhere (docs/DATA-PROTECTION.md,
  * "Household admin").
  */
-import { AlertTriangle, CheckCircle2, CreditCard, FileText, Landmark, Pencil, Plus, Receipt, Repeat, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ApiError } from '../api.ts'
+import { AlertTriangle, CheckCircle2, CreditCard, FileText, Landmark, Pencil, Plus, Receipt, Repeat } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AttachDocuments, Documents, type DocumentFolder } from '../health/parts.tsx'
+import { Actions, conflict, Labelled } from './form.tsx'
+import { BudgetTab, DebtTab, PlannedTab } from './Budget.tsx'
 import type { Contact } from '../pages/Contacts.tsx'
 import { decryptRecord, type StoredRecord } from '../quickinfo/model.ts'
 import type { HubContext } from '../Shell.tsx'
@@ -43,12 +44,15 @@ const dayAfter = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86_4
 
 const HOUSEHOLD: DocumentFolder = { path: '/api/money/folder', name: 'Household' }
 
-type Tab = 'overview' | 'bills' | 'subscriptions' | 'invoices' | 'accounts'
+type Tab = 'overview' | 'budget' | 'bills' | 'subscriptions' | 'invoices' | 'planned' | 'debt' | 'accounts'
 const TABS: [Tab, string][] = [
   ['overview', 'Overview'],
+  ['budget', 'Budget'],
   ['bills', 'Bills'],
   ['subscriptions', 'Subscriptions'],
   ['invoices', 'Invoices'],
+  ['planned', 'Planned'],
+  ['debt', 'Debt'],
   ['accounts', 'Accounts'],
 ]
 
@@ -125,7 +129,7 @@ function MoneyBody({ ctx }: { ctx: HubContext }) {
 
   return (
     <div className="page">
-      <PageHeader title="Bills & budget" subtitle="Bills, subscriptions and invoices: what is due, what is late, and what renews when. For parents only." />
+      <PageHeader title="Bills & budget" subtitle="Bills, subscriptions and invoices; the monthly budget, planned expenses and debt. For parents only." />
       <div className="row chips" role="tablist" aria-label="Money">
         {TABS.map(([t, label]) => (
           <button key={t} role="tab" aria-selected={tab === t} className={`chip ${tab === t ? 'chip-on' : ''}`} onClick={() => setTab(t)}>
@@ -143,6 +147,9 @@ function MoneyBody({ ctx }: { ctx: HubContext }) {
           {tab === 'subscriptions' && <Bills money={money} type="subscription" edit={setEditing} ctx={ctx} reload={load} />}
           {tab === 'invoices' && <Invoices ctx={ctx} money={money} edit={setEditing} />}
           {tab === 'accounts' && <Accounts money={money} edit={setEditing} />}
+          {tab === 'budget' && <BudgetTab ctx={ctx} />}
+          {tab === 'planned' && <PlannedTab ctx={ctx} />}
+          {tab === 'debt' && <DebtTab ctx={ctx} />}
         </>
       )}
       {money && editing?.what === 'account' && <AccountDialog ctx={ctx} account={editing.account} onClose={done} />}
@@ -554,39 +561,6 @@ function Accounts({ money, edit }: { money: Money; edit: (e: Editing) => void })
 }
 
 // ---- dialogs ---------------------------------------------------------------------------------
-
-export function Labelled({ id, label, hint, children }: { id: string; label: string; hint?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
-      {children}
-      {hint && <div className="field-hint">{hint}</div>}
-    </div>
-  )
-}
-
-export function Actions({ busy, onCancel, onDelete, deleting, submit = 'Save' }: { busy: boolean; onCancel: () => void; onDelete?: () => void; deleting?: boolean; submit?: string }) {
-  return (
-    <div className="row">
-      <Button type="submit" busy={busy}>
-        {submit}
-      </Button>
-      <Button type="button" variant="ghost" onClick={onCancel}>
-        Cancel
-      </Button>
-      {onDelete && (
-        <Button type="button" variant="danger" icon={<Trash2 size={16} aria-hidden />} busy={deleting} onClick={onDelete}>
-          Delete
-        </Button>
-      )}
-    </div>
-  )
-}
-
-export const conflict = (e: unknown) => {
-  if (e instanceof ApiError && e.code === 'edit_conflict') throw new Error(`${e.message} Your changes were not saved.`)
-  throw e
-}
 
 function AccountDialog({ ctx, account, onClose }: { ctx: HubContext; account?: Account; onClose: (changed?: boolean) => void }) {
   const [bank, setBank] = useState(account?.bank ?? 'Capitec')
