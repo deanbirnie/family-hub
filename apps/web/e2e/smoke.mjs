@@ -1026,7 +1026,7 @@ try {
   await page.getByRole('button', { name: 'Add someone' }).click()
   await page.getByLabel('Name', { exact: true }).fill('Aunt Mary')
   await page.getByLabel('Email', { exact: true }).fill('mary@example.org')
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click()
   await page.getByRole('dialog').waitFor({ state: 'hidden' })
   await page.getByText('no letter yet').waitFor()
   // The pack: open the vault, choose its password (kept only encrypted with the family key), write instructions.
@@ -1052,7 +1052,9 @@ try {
   await page.getByText(/Last changed/).waitFor()
   // The letter carries the stored password, opened on this device.
   await page.getByRole('button', { name: 'Letter', exact: true }).click()
+  const letterMade = page.waitForResponse((r) => r.url().endsWith('/letter') && r.request().method() === 'POST')
   await page.getByRole('button', { name: 'Make the letter' }).click()
+  const letterSecret = (await (await letterMade).json()).secret
   await page.getByText('The letter is ready.').waitFor()
   const letterDownload = page.waitForEvent('download')
   await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click()
@@ -1084,6 +1086,33 @@ try {
   // Neither the password nor the instructions reached the server readable.
   const served = await page.evaluate(async () => (await fetch('/api/emergency')).text())
   if (served.includes(packPassword) || served.includes('blue blanket')) throw new Error('the server can read the password or the instructions')
+
+  // Releasing the pack: Alex's email for warnings; Aunt Mary asks with her letter's link; Alex sees it everywhere and cancels.
+  await page.getByLabel('Your email, for these warnings').fill('alex@example.com')
+  await page.locator('section.card', { has: page.getByRole('heading', { name: 'When the pack is sent' }) }).getByRole('button', { name: 'Save', exact: true }).click()
+  await page.getByText('Saved.').waitFor()
+  const mary = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage()
+  mary.on('pageerror', (e) => errors.push(e.message))
+  await mary.goto(`${base}/emergency/${letterSecret}`)
+  await mary.getByRole('heading', { name: 'The Testers: in case of emergency' }).waitFor()
+  await mary.getByLabel('What has happened (optional)').fill('There was a car accident.')
+  await mary.getByRole('button', { name: 'Ask for the emergency pack' }).click()
+  await mary.getByText('Tick the box to confirm.').waitFor()
+  await mary.getByText('I believe something has happened to both of them').click()
+  await mary.getByRole('button', { name: 'Ask for the emergency pack' }).click()
+  await mary.getByText('The parents have been told.').waitFor()
+  await shot(mary, '06t-emergency-request')
+  if (!mailbox.some((m) => m.includes('To: alex@example.com') && m.includes('Subject: Family Hub: Aunt Mary asked for the emergency pack'))) throw new Error('the parent was not emailed about the request')
+  await page.goto(`${base}/`)
+  await page.getByText('Someone has asked for the emergency pack.').waitFor()
+  await page.getByRole('link', { name: 'Open In case of emergency' }).click()
+  await page.getByText('There was a car accident.', { exact: false }).waitFor()
+  await shot(page, '06u-emergency-release')
+  await page.getByRole('button', { name: 'All is well: cancel it' }).click()
+  await page.getByText(/Stopped .*a parent said all is well/).waitFor()
+  if (!mailbox.some((m) => m.includes('To: mary@example.org') && m.includes('all is well'))) throw new Error('Aunt Mary was not told all is well')
+  await mary.reload()
+  await mary.getByRole('button', { name: 'Ask for the emergency pack' }).waitFor()
 
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)

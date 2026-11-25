@@ -32,6 +32,7 @@ import { schoolRoutes } from './routes/school.ts'
 import { wishlistRoutes } from './routes/wishlists.ts'
 import { giftRoutes } from './routes/gifts.ts'
 import { emergencyRoutes } from './routes/emergency.ts'
+import { runEmergency } from './emergency-release.ts'
 import { calendarSyncRoutes, syncDue } from './routes/calendar-sync.ts'
 import { fetchIcs, type IcsFetcher } from './fetch-ics.ts'
 import { runReminders } from './notifications.ts'
@@ -184,6 +185,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   // Reminders: checked every minute (calendar reminders are to the minute), each sent once (notifications.ts).
   const remind = setInterval(() => {
     void runReminders(services).catch((e) => console.error('Sending reminders failed', e))
+    void runEmergency(services).catch((e) => console.error('The emergency release check failed', e))
   }, 60_000)
   remind.unref()
   server.on('close', () => {

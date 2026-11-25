@@ -520,6 +520,35 @@ const MIGRATIONS: string[] = [
     downloaded_at INTEGER
   );
   `,
+  // 25: releasing the pack (phase 9c, emergency-release.ts): one release at
+  // a time (a trusted party's request, or the inactivity backstop), the
+  // one-time links in the emails asking trusted parties whether all is well
+  // (hashed), and each parent's email for warnings (sealed).
+  `
+  CREATE TABLE emergency_release (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL CHECK (kind IN ('request', 'inactive')),
+    party_id TEXT REFERENCES trusted_parties(id) ON DELETE SET NULL,
+    stage TEXT NOT NULL CHECK (stage IN ('waiting', 'confirming', 'checkin', 'asking', 'sending', 'sent', 'cancelled')),
+    started_at INTEGER NOT NULL,
+    next_at INTEGER,
+    checkins INTEGER NOT NULL DEFAULT 0,
+    ended_at INTEGER,
+    ended_by TEXT,
+    ended_reason TEXT,
+    note_sealed TEXT
+  );
+  CREATE INDEX emergency_release_open ON emergency_release (stage);
+  CREATE TABLE emergency_asks (
+    token_hash TEXT PRIMARY KEY,
+    release_id TEXT NOT NULL REFERENCES emergency_release(id) ON DELETE CASCADE,
+    party_id TEXT NOT NULL REFERENCES trusted_parties(id) ON DELETE CASCADE
+  );
+  CREATE TABLE emergency_parent_email (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    sealed TEXT NOT NULL
+  );
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

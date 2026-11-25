@@ -107,6 +107,11 @@ export function learnOrigin(s: Services, origin: string | undefined): void {
   if (setting(s, LEARNT_ORIGIN) !== origin) putSetting(s, LEARNT_ORIGIN, origin)
 }
 
+/** The hub's https address, for links in emails; empty if not known yet. */
+export function hubAddress(s: Services): string {
+  return s.config.publicUrl || setting(s, LEARNT_ORIGIN) || ''
+}
+
 /** Who push services are told the messages are from. */
 export function vapidSubject(s: Services): string {
   return s.config.publicUrl || setting(s, LEARNT_ORIGIN) || 'mailto:family-hub@localhost'

@@ -493,6 +493,18 @@ so the app password cannot read your own mail.
 - [ ] 4. Nothing else to do: whenever one of you opens the vault, the pack
       is remade (at most once a day).
 
+## 33. Releasing the pack (after the 9c pull request is merged and deployed)
+
+- [ ] 1. **Settings → In case of emergency → When the pack is sent:** each
+      of you adds your own email for warnings, and you choose the waiting
+      times together (or keep 3 days, 24 hours, 7 days, 3 days and 3 days).
+- [ ] 2. Make sure each parent's phone has notifications on: a request or
+      a check-in also comes as a notification.
+- [ ] 3. Make and give the letters now (step 31.5): their links work.
+- [ ] 4. Try it once: open a guardian's link from their letter on another
+      device, ask for the pack, check you are both told, and cancel it
+      ("All is well"). The guardian is emailed that all is well.
+
 ## Later steps (added as features land)
 
 - Nothing yet.
