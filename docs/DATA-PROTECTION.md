@@ -297,14 +297,21 @@ login (those are never stored). Each sealed item is bound to its own ID.
 | A test email from Settings → In case of emergency | Sent to the address the parent types, which is not kept; it says only that the hub can send email | Sent over TLS to the mail server | ✅ 9a |
 | Emergency events (someone added, changed or removed with their role, a letter made, a test email sent or failed; never names or addresses) | `audit_log` | P | ✅ 9a |
 
-### Safety: home safe, arrived and SOS (phase 10; agreed in outline)
+### Safety: home safe, arrived and SOS (phase 10; planning)
+
+Everyone with an account in the family is told; nobody outside it.
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Check-ins (home safe, arrived) and who was told | One record per check-in | S | 🔜 10 |
-| Location shared with "Arrived" | Sealed with the check-in; deleted after 24 hours | S, deleted after 24 hours | 🔜 10 |
-| SOS: when, the track of locations, how it ended ("Whoops", "I'm safe now", …) | Sealed; locations deleted 24 hours after the SOS ends | S, deleted after 24 hours | 🔜 10 |
-| Notification text | "Sam is home safe.", "Sam arrived.", "SOS from Sam. Tap to see." (names in these are wanted: they go only to the family) | Encrypted to the device (RFC 8291) | 🔜 10 |
+| Check-ins (home safe, arrived): who, when, an optional word on where | One sealed record per check-in | S | 🔜 10a |
+| Location shared with "Arrived" (coordinates and accuracy) | Sealed with the check-in; deleted after 24 hours | S, deleted after 24 hours | 🔜 10a |
+| SOS: who, when, the track of locations (coordinates, accuracy, time, battery low or not), how it ended and the reason given | Sealed; locations deleted 24 hours after the SOS ends | S, deleted after 24 hours | 🔜 10b |
+| Locations waiting on the phone with no connection | The app's private storage on that phone only, until sent (then deleted) | On the device | 🔜 10b |
+| Notification text | "Jo is home safe.", "Jo arrived.", "SOS from Jo. Tap to see." (names are wanted: they go only to the family) | Encrypted to the device (RFC 8291) | 🔜 10a |
+| The family's phone numbers, for the SMS fallback | Kept on each phone in the app's storage, encrypted with a key in the phone's keystore, refreshed when the app opens (from the family's own Contacts entries) | On the device (keystore) | 🔜 10c |
+| SMS sent with no data: "SOS from Jo", coordinates and a Google Maps link | Sent by the phone over the mobile network; not encrypted (SMS cannot be) | Plain, to the family's phones only | 🔜 10c |
+| Emergency contact and medical details on the SOS screen | The phone's existing offline emergency card (phase 5d, keystore, fingerprint for the medical details) | E2E (family key) / keystore | 🔜 10c |
+| A tap on "Open in Google Maps" | Google learns the coordinates of that one location, only when someone taps it | Google | 🔜 10a |
 
 ### Later phases (proposed; confirm at the start of each phase)
 

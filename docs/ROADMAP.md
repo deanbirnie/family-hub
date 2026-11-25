@@ -902,23 +902,53 @@ email**, because the hub (on a home server) may not be kept running.
 - [x] 9c. Release on request, the second confirmation, the inactivity
       check-ins and the trusted parties' email.
 
-## Phase 10 — Safety: home safe, arrived and SOS (Android) ← next (to detail with the owner first)
+## Phase 10 — Safety: home safe, arrived and SOS (Android) ← planning
 
-Agreed in outline; to be detailed when the phase starts.
+Detailed with the owner (planning pull request). Everyone in the family
+with an account is told: parents and children alike. The trusted parties
+of phase 9 are not part of this.
 
-- On the phone's home page: a **Home safe** button (tells the family, no
-  location), with a menu beside it for **Arrived** (tells the family and
-  shares the location at that moment: "Mom arrived at gymnastics").
-- An **SOS** button beside them: a full red screen; the family is alerted
-  with the location, then the location is sent **every 2 minutes, or every
-  5 when the battery is low, in the background**, until it is cancelled.
-  Cancelling asks why: "Whoops" (sent by mistake), "Emergency services have
-  been and gone", "I'm safe now", so the family knows how worried to be.
+- **Home safe** on the phone's home page tells the family, with no
+  location: "Jo is home safe."
+- **Arrived** (in a menu beside it) tells the family and shares the
+  location at that moment, with an optional word on where: "Jo arrived
+  (gymnastics)". The family sees the coordinates and an **Open in Google
+  Maps** link; no map service is built in, so nothing outside the hub and
+  Google (only when someone taps the link) learns the location.
+- **SOS** beside them: a full red screen that stays up until it is
+  cancelled. No call button, no sound, no vibration.
+  - The family is alerted at once with the location, then the location is
+    sent **every 2 minutes, or every 5 when the battery is low**, in the
+    background, even with the screen off, until it is cancelled.
+  - **Cancelling asks why:** "Whoops" (sent by mistake), "Emergency
+    services have been and gone", "I'm safe now", or a few words, so the
+    family knows how worried to be.
+  - **Under the SOS:** the emergency contact ("Emergency: Dean – 07…"),
+    then blood type, allergies, medicines and conditions, from the phone's
+    offline emergency card (phase 5). The medical details need a
+    fingerprint, as the emergency card already does.
+- **No signal:** each location is kept on the phone and sent when the
+  connection is back: **one clean retry, never a burst**. Waiting
+  locations go up together in one request, and the family gets one alert
+  with the latest, not one per missed point. If there is still no data
+  after a minute, the phone **sends an SMS** with the latest coordinates
+  and a Google Maps link to the family's phone numbers, then at most one
+  SMS every 15 minutes while it stays offline. (Needs the SMS permission,
+  asked for when SOS is first set up.)
+- **In the app, for the family:** the latest check-ins on the home page,
+  and a live SOS view (who, since when, each location with its time and
+  Google Maps link, and how it ended).
 - Locations from check-ins are deleted after 24 hours; an SOS track 24 hours
   after the SOS ends.
-- To decide then: whether SOS works from the locked screen without a
-  fingerprint (suggested, as it only sends an alert), a home-screen widget,
-  and an optional "expect me by …" timer.
+
+### Build order
+
+- [ ] 10a. Home safe and Arrived, the family's notifications and the
+      home-page panel.
+- [ ] 10b. SOS: the red screen, locations in the background every 2 (or 5)
+      minutes, the clean retry, cancelling with a reason, the live view.
+- [ ] 10c. With no data: the SMS fallback; the emergency contact and
+      medical details on the SOS screen.
 
 ## Phase 11 — Lists, chores and noticeboard
 
