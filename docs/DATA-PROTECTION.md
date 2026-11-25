@@ -310,7 +310,8 @@ Everyone with an account in the family is told; nobody outside it.
 | Notification text | "Jo is home safe.", "Jo arrived.", "SOS from Jo. Tap to see." (names are wanted: they go only to the family) | Encrypted to the device (RFC 8291) | 🔜 10a |
 | The family's phone numbers, for the SMS fallback | Kept on each phone in the app's storage, encrypted with a key in the phone's keystore, refreshed when the app opens (from the family's own Contacts entries) | On the device (keystore) | 🔜 10c |
 | SMS sent with no data: "SOS from Jo", coordinates and a Google Maps link | Sent by the phone over the mobile network; not encrypted (SMS cannot be) | Plain, to the family's phones only | 🔜 10c |
-| Emergency contact and medical details on the SOS screen | The phone's existing offline emergency card (phase 5d, keystore, fingerprint for the medical details) | E2E (family key) / keystore | 🔜 10c |
+| Emergency contact and medical details on the SOS screen | A copy of the phone's offline emergency card (phase 5d) kept for the SOS screen only, encrypted with a keystore key that needs **no fingerprint** (the owner's choice), so it shows at once, also from the lock screen. Anyone holding the phone can see it by starting an SOS (which alerts the family) | On the device (keystore, no fingerprint) | 🔜 10c |
+| The SOS key: lets a locked phone start an SOS, send its locations and end it, and nothing else | A second non-exportable keystore key per phone, usable without a fingerprint; the server keeps its public key and refuses it for anything but SOS | On the device (keystore); public key P | 🔜 10c |
 | A tap on "Open in Google Maps" | Google learns the coordinates of that one location, only when someone taps it | Google | 🔜 10a |
 
 ### Later phases (proposed; confirm at the start of each phase)

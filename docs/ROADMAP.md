@@ -923,18 +923,25 @@ of phase 9 are not part of this.
   - **Cancelling asks why:** "Whoops" (sent by mistake), "Emergency
     services have been and gone", "I'm safe now", or a few words, so the
     family knows how worried to be.
-  - **Under the SOS:** the emergency contact ("Emergency: Dean – 07…"),
-    then blood type, allergies, medicines and conditions, from the phone's
-    offline emergency card (phase 5). The medical details need a
-    fingerprint, as the emergency card already does.
+  - **Under the SOS, all at once and with no fingerprint** (the owner's
+    choice: the quickest way to life-saving information): the emergency
+    contact ("Emergency: Dean – 07…"), then blood type, allergies,
+    medicines and conditions, from a copy of the phone's emergency card
+    kept for this screen only.
+  - **From the lock screen too:** a Quick Settings tile ("SOS") starts it
+    without unlocking the phone, as does the button in the app. A second
+    key on the phone, usable without a fingerprint, lets the server accept
+    an SOS (start, locations, end) and nothing else (see
+    docs/SECURITY.md).
 - **No signal:** each location is kept on the phone and sent when the
   connection is back: **one clean retry, never a burst**. Waiting
   locations go up together in one request, and the family gets one alert
   with the latest, not one per missed point. If there is still no data
   after a minute, the phone **sends an SMS** with the latest coordinates
   and a Google Maps link to the family's phone numbers, then at most one
-  SMS every 15 minutes while it stays offline. (Needs the SMS permission,
-  asked for when SOS is first set up.)
+  SMS every 15 minutes while it stays offline, to each person's number in
+  their own Contacts entry. (Needs the SMS permission, asked for when SOS
+  is first set up.)
 - **In the app, for the family:** the latest check-ins on the home page,
   and a live SOS view (who, since when, each location with its time and
   Google Maps link, and how it ended).
@@ -948,7 +955,7 @@ of phase 9 are not part of this.
 - [ ] 10b. SOS: the red screen, locations in the background every 2 (or 5)
       minutes, the clean retry, cancelling with a reason, the live view.
 - [ ] 10c. With no data: the SMS fallback; the emergency contact and
-      medical details on the SOS screen.
+      medical details on the SOS screen; SOS from the lock screen.
 
 ## Phase 11 — Lists, chores and noticeboard
 
