@@ -59,6 +59,25 @@ Settings (or an admin's two-factor reset) ends its sessions and stops it
 unlocking. The app's window is `FLAG_SECURE` (no screenshots, blank in the
 recent-apps list), backups are off, and plain-http traffic is refused.
 
+### Planned (phase 10c): SOS from the lock screen
+
+The one exception to "a fingerprint every time", asked for by the owner:
+an SOS can be started from the lock screen (a Quick Settings tile), and its
+red screen shows the emergency contact, blood type, allergies, medicines and
+conditions with no fingerprint, so a first responder can read them.
+
+- Each phone gets a **second keystore key, the SOS key**: non-exportable,
+  usable without a fingerprint. The server stores its public key and
+  accepts its signatures (one-time challenge, as for unlocking) for three
+  things only: start an SOS, add a location to it, end it. It opens no
+  session and reads nothing.
+- The details on the red screen come from a copy of the phone's emergency
+  card encrypted with a keystore key that needs no fingerprint, used only
+  by that screen.
+- So someone holding the phone can raise an SOS (the family is alerted at
+  once, and can see it was cancelled) and read those details, and nothing
+  more. Removing the phone in Settings removes its SOS key too.
+
 ## Slowing down guessing
 
 - 30 sign-in requests per 15 minutes per address (password, code, device
