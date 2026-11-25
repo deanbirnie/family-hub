@@ -44,6 +44,30 @@ interface Data {
   instructions: Secret | null
   password: Secret | null
   pack: { size: number; madeAt: number; madeBy: string | null; downloadedAt: number | null } | null
+  settings: Settings
+  release: Release | null
+  lastActivity: number
+  myEmail: string
+}
+interface Settings {
+  requestWaitDays: number
+  confirmHours: number
+  backstop: boolean
+  inactiveDays: number
+  checkinDays: number
+  partyWaitDays: number
+}
+interface Release {
+  id: string
+  kind: 'request' | 'inactive'
+  stage: 'waiting' | 'confirming' | 'checkin' | 'asking' | 'sending' | 'sent' | 'cancelled'
+  startedAt: number
+  nextAt: number | null
+  checkins: number
+  endedAt: number | null
+  endedReason: string | null
+  by: string | null
+  note: string
 }
 
 const ROLE: Record<Party['role'], string> = { guardian: 'Guardian', inform: 'To inform' }
@@ -103,6 +127,7 @@ function Emergency({ ctx }: { ctx: HubContext }) {
         }
       />
 
+      {data.release && <ReleaseCard ctx={ctx} release={data.release} settings={data.settings} onChanged={() => void load()} />}
       <MailCard ctx={ctx} mail={data.mail} />
       <PackCard ctx={ctx} data={data} onChanged={() => void load()} />
 
@@ -147,6 +172,7 @@ function Emergency({ ctx }: { ctx: HubContext }) {
       </Card>
 
       <InstructionsCard ctx={ctx} data={data} onChanged={() => void load()} />
+      <ReleaseSettingsCard ctx={ctx} data={data} onChanged={() => void load()} />
 
       <Card
         title={
@@ -158,7 +184,7 @@ function Emergency({ ctx }: { ctx: HubContext }) {
         <ul className="small">
           <li>Each trusted party gets a printed letter now, with a link to use if something has happened (and, for guardians, the password of the pack). The password is chosen here, kept in your password manager, and stored only encrypted with the family key: the server cannot read it.</li>
           <li>The pack (your instructions and what the hub knows) is made on a parent’s device whenever the vault is open, and locked there with that password. The server keeps only the locked file and cannot open it.</li>
-          <li>When someone uses their link, you are both told and can cancel; only after a waiting period and a second check is the pack sent. If neither of you uses the hub for a long time, it checks in with you first. Coming after the pack.</li>
+          <li>When someone uses their link, you are both told and can cancel; only after a waiting period and a second check is the pack sent. If neither of you uses the hub for a long time, it checks in with you first, then asks your trusted parties. The times are yours to choose (below).</li>
         </ul>
       </Card>
 
@@ -350,6 +376,120 @@ function InstructionsCard({ ctx, data, onChanged }: { ctx: HubContext; data: Dat
         </form>
       )}
       {open.error && <Banner kind="error">{open.error}</Banner>}
+    </Card>
+  )
+}
+
+const at = (ms: number | null) => (ms ? new Date(ms).toLocaleString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '')
+
+/** A release under way (or one that just ended): what happened, what comes next, and "all is well". */
+function ReleaseCard({ ctx, release: r, settings, onChanged }: { ctx: HubContext; release: Release; settings: Settings; onChanged: () => void }) {
+  const cancel = useAction(async () => {
+    await ctx.platform.api.post('/api/emergency/release/cancel', {})
+    onChanged()
+  })
+  const open = !['sent', 'cancelled'].includes(r.stage)
+  const what =
+    r.kind === 'request'
+      ? `${r.by ?? 'A trusted party'} asked for the emergency pack ${at(r.startedAt)}${r.note ? `: “${r.note}”` : '.'}`
+      : `Neither of you had used the hub for ${settings.inactiveDays} days, so it started checking in ${at(r.startedAt)}.`
+  const next =
+    r.stage === 'waiting'
+      ? `On ${at(r.nextAt)} you are asked once more; then it is sent ${settings.confirmHours} hours later unless one of you says all is well.`
+      : r.stage === 'confirming'
+        ? `It will be sent to the guardians on ${at(r.nextAt)} unless one of you says all is well.`
+        : r.stage === 'checkin'
+          ? `${r.checkins} check-in${r.checkins === 1 ? '' : 's'} sent. After ${settings.checkinDays}, your trusted parties are asked whether all is well.`
+          : r.stage === 'asking'
+            ? `Your trusted parties have been asked whether all is well. If nobody answers, it is sent on ${at(r.nextAt)}.`
+            : r.stage === 'sending'
+              ? 'The pack is being sent to the guardians now.'
+              : r.stage === 'sent'
+                ? `The pack was sent to the guardians ${at(r.endedAt)}.`
+                : `Stopped ${at(r.endedAt)}: ${r.endedReason ?? 'cancelled'}.`
+  return (
+    <Card
+      className={open ? 'card-alert' : ''}
+      title={
+        <>
+          <ShieldAlert size={18} aria-hidden /> {open ? 'The emergency pack has been asked for' : 'The last release'}
+        </>
+      }
+    >
+      {open ? <Banner kind="error">{what}</Banner> : <p className="small">{what}</p>}
+      <p className="small">{next}</p>
+      {open && r.stage !== 'sending' && (
+        <div className="row">
+          <Button busy={cancel.busy} onClick={() => void cancel.run()}>
+            All is well: cancel it
+          </Button>
+        </div>
+      )}
+      {cancel.error && <Banner kind="error">{cancel.error}</Banner>}
+    </Card>
+  )
+}
+
+/** When the pack goes out: the waiting periods, the backstop, and this parent's email for warnings. */
+function ReleaseSettingsCard({ ctx, data, onChanged }: { ctx: HubContext; data: Data; onChanged: () => void }) {
+  const [f, setF] = useState(data.settings)
+  const [email, setEmail] = useState(data.myEmail)
+  const [saved, setSaved] = useState(false)
+  const num = (k: keyof Omit<Settings, 'backstop'>, v: string) => setF({ ...f, [k]: Number(v) })
+  const save = useAction(async () => {
+    setSaved(false)
+    await ctx.platform.api.request('PUT', '/api/emergency/settings', { settings: f })
+    await ctx.platform.api.request('PUT', '/api/emergency/my-email', { email })
+    setSaved(true)
+    onChanged()
+  })
+  return (
+    <Card
+      title={
+        <>
+          <ShieldAlert size={18} aria-hidden /> When the pack is sent
+        </>
+      }
+    >
+      <form className="stack" onSubmit={(e) => (e.preventDefault(), void save.run())}>
+        <p className="small"><strong>When a trusted party asks for it,</strong> you are both told at once (a notification, and an email to the address below) and either of you can cancel.</p>
+        <div className="row">
+          <Labelled id="rs-wait" label="Days before the second check">
+            <input id="rs-wait" className="qi-search" type="number" min={1} max={30} value={f.requestWaitDays} onChange={(e) => num('requestWaitDays', e.target.value)} />
+          </Labelled>
+          <Labelled id="rs-confirm" label="Then hours to cancel">
+            <input id="rs-confirm" className="qi-search" type="number" min={1} max={168} value={f.confirmHours} onChange={(e) => num('confirmHours', e.target.value)} />
+          </Labelled>
+        </div>
+        <label className="check">
+          <input type="checkbox" checked={f.backstop} onChange={(e) => setF({ ...f, backstop: e.target.checked })} />
+          <span><strong>If neither of us uses the hub for a while,</strong> check in with us, then ask our trusted parties, then send the pack</span>
+        </label>
+        {f.backstop && (
+          <div className="row">
+            <Labelled id="rs-quiet" label="Days without use">
+              <input id="rs-quiet" className="qi-search" type="number" min={3} max={90} value={f.inactiveDays} onChange={(e) => num('inactiveDays', e.target.value)} />
+            </Labelled>
+            <Labelled id="rs-checkins" label="Days of check-ins">
+              <input id="rs-checkins" className="qi-search" type="number" min={1} max={14} value={f.checkinDays} onChange={(e) => num('checkinDays', e.target.value)} />
+            </Labelled>
+            <Labelled id="rs-parties" label="Days for them to answer">
+              <input id="rs-parties" className="qi-search" type="number" min={1} max={30} value={f.partyWaitDays} onChange={(e) => num('partyWaitDays', e.target.value)} />
+            </Labelled>
+          </div>
+        )}
+        {data.lastActivity > 0 && <p className="muted small">Last used by one of you: {at(data.lastActivity)}. Using the hub (any page) counts.</p>}
+        <Labelled id="rs-email" label="Your email, for these warnings" hint="Each parent sets their own. Without one, you get only the app’s notification.">
+          <input id="rs-email" className="qi-search" type="email" maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} />
+        </Labelled>
+        {saved && <Banner kind="success">Saved.</Banner>}
+        {save.error && <Banner kind="error">{save.error}</Banner>}
+        <div className="row">
+          <Button type="submit" busy={save.busy}>
+            Save
+          </Button>
+        </div>
+      </form>
     </Card>
   )
 }

@@ -843,7 +843,7 @@ design allows for primary and high school later.
 - [x] 8b. Share links for the children's wishlists.
 - [x] 8c. The gift planner across Contacts, with planned expenses.
 
-## Phase 9 — In case of emergency ← next
+## Phase 9 — In case of emergency ✅
 
 If something happens to both parents, everything the people taking over the
 children need is **taken out of the hub and sent to them as a PDF by
@@ -899,10 +899,10 @@ email**, because the hub (on a home server) may not be kept running.
 - [x] 9a. Email from the hub; trusted parties; the letters.
 - [x] 9b. The pack: instructions, the password-protected PDF made on the
       device, refreshed when the vault is open; downloading it.
-- [ ] 9c. Release on request, the second confirmation, the inactivity
+- [x] 9c. Release on request, the second confirmation, the inactivity
       check-ins and the trusted parties' email.
 
-## Phase 10 — Safety: home safe, arrived and SOS (Android)
+## Phase 10 — Safety: home safe, arrived and SOS (Android) ← next (to detail with the owner first)
 
 Agreed in outline; to be detailed when the phase starts.
 

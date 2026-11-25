@@ -71,6 +71,7 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
   const [user, setUser] = useState(session.user)
   const [familyName, setFamilyName] = useState(session.familyName)
   const [lowCodes, setLowCodes] = useState<number | null>(null)
+  const [emergency, setEmergency] = useState<{ active: boolean; kind: string | null } | null>(null)
   const [serverKeySaved, setServerKeySaved] = useState<boolean | null>(null)
   const update = useUpdates(platform.updates)
 
@@ -89,6 +90,12 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
       () => undefined,
     )
   }, [platform.api])
+
+  // A release of the emergency pack under way is shown to parents on every page (checked when the page changes).
+  useEffect(() => {
+    if (user.role !== 'admin') return
+    platform.api.get<{ active: boolean; kind: string | null }>('/api/emergency/status').then(setEmergency, () => undefined)
+  }, [platform.api, user.role, path])
 
   // Whenever a parent opens the family vault, the emergency pack is remade here if it is due (at most daily).
   useEffect(() => {
@@ -215,6 +222,15 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
                   Save it now
                 </Button>
               </div>
+            </Banner>
+          )}
+          {emergency?.active && path !== '/emergency' && (
+            <Banner kind="error">
+              {emergency.kind === 'request' ? 'Someone has asked for the emergency pack.' : 'The hub is checking that you are all right.'}{' '}
+              <a href={href('/emergency')} onClick={(e) => (e.preventDefault(), navigate('/emergency'))}>
+                Open In case of emergency
+              </a>{' '}
+              to see it, and cancel it if all is well.
             </Banner>
           )}
           {lowCodes !== null && (

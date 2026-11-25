@@ -2307,3 +2307,8 @@ progress {
   grid-template-columns: repeat(auto-fill, minmax(8em, 1fr));
   gap: 0 1rem;
 }
+
+/* In case of emergency: a release under way stands out. */
+.card-alert {
+  border: 2px solid var(--danger);
+}

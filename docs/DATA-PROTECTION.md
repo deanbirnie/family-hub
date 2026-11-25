@@ -277,7 +277,7 @@ login (those are never stored). Each sealed item is bound to its own ID.
 | Sizes card per family member | `wishlist` (kind sizes), one sealed record per person | S | ✅ 8a |
 | Gift planner: status of each idea (idea, bought, wrapped, given), amount, the day it is for, link to a planned expense | Inside the sealed Contacts gift idea (`contact_gifts.sealed`, phase 3 row); the occasions are worked out each time from the sealed contacts and never stored; the planned expense is the budget's own sealed record | S | ✅ 8c |
 
-### In case of emergency (phase 9; 9a and 9b built, the release to build)
+### In case of emergency (phase 9; built)
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
@@ -286,12 +286,14 @@ login (those are never stored). Each sealed item is bound to its own ID.
 | The pack: a PDF of the instructions and what the hub knows (health summaries, IDs, medical aid, contacts, school, policies, bills, documents list) | Made on a parent's device when the vault is open, locked there with the letter's password (PDF AES-256); the server stores only the locked file (`emergency_pack`, refused unless it is locked with AES-256) and cannot open it; made again at most daily while a parent's vault is open | E2E (the letter's password) | ✅ 9b |
 | The pack's password (the letters' password) | In the parents' password manager and the guardians' letters; on the hub only as `emergency_secrets` (password), sealed with the family key on a parent's device, so the pack can be remade whenever the vault is open. The server cannot read it. (Was "not stored" in 9a; moved to end-to-end encrypted with the owner's agreement, so the pack stays up to date.) | E2E (family key) | ✅ 9b |
 | Request links, one per trusted party | `trusted_parties.request_hash`: a random 256-bit token kept as a SHA-256 hash, shown once when the letter is made (a new letter replaces it); when the last letter was made | H (the link), P (when) | ✅ 9a |
-| Release settings (waiting periods, check-in timing) and the state of a request or check-in (started when, by which party, warnings sent, cancelled) | Settings and a release record; the party is a link to their sealed record | P (settings, times), S (who) | 🔜 9 |
-| Last activity of each parent (for the inactivity backstop) | Worked out from sign-ins and unlocks already recorded | P | 🔜 9 |
+| Release settings (waiting periods, check-in timing) and the state of a request or check-in (started when, stage, next step, check-ins sent, how it ended) | `settings` (emergency_settings) and `emergency_release`; the party is a link to their sealed record; a requester's note is sealed | P (settings, times), S (who, the note) | ✅ 9c |
+| Last activity of either parent (for the inactivity backstop) | Worked out from the parents' sessions (last seen), with the latest kept in `settings` so expiring sessions do not forget it | P | ✅ 9c |
 | The email account the hub sends from (address, server, app password) | The server's environment, or a password file (a Docker secret); never in the database or the repository. Mail is sent only over TLS (plain SMTP only to the same machine) | Configuration | ✅ 9a |
-| Emails sent (to trusted parties and parents) | Plain text with no details; the pack attached locked; a pointer to the password, never the password | Sent over TLS to the mail server | 🔜 9 |
+| Emails sent (to trusted parties and parents) | Plain text with no details beyond names and dates; the pack attached locked; a pointer to the password ("in the letter"), never the password | Sent over TLS to the mail server | ✅ 9c |
 | When the pack was made, by whom, its size and when it was last downloaded (for the yearly reminder to print a fresh copy) | `emergency_pack` | P | ✅ 9b |
 | The list of documents in the pack (names and folders) | Read from Files on the parent's device for the pack; nothing new stored | (pack) | ✅ 9b |
+| Each parent's email for warnings (a request, the second check, check-ins) | `emergency_parent_email`, sealed with the server key, bound to the parent | S | ✅ 9c |
+| "Is all well?" links in the emails to trusted parties (backstop) | `emergency_asks`: a random token per party per release, kept as a hash | H | ✅ 9c |
 | A test email from Settings → In case of emergency | Sent to the address the parent types, which is not kept; it says only that the hub can send email | Sent over TLS to the mail server | ✅ 9a |
 | Emergency events (someone added, changed or removed with their role, a letter made, a test email sent or failed; never names or addresses) | `audit_log` | P | ✅ 9a |
 

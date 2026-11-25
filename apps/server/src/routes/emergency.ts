@@ -12,7 +12,8 @@ import { bad, obj, oneOf, text } from '../household.ts'
 import { HttpError, readJson } from '../http.ts'
 import { isEmail } from '../mail.ts'
 import { hashToken, newId, newToken } from '../secrets.ts'
-import { familyName } from './auth.ts'
+import { familyName, tooMany } from './auth.ts'
+import { cancelRelease, lastParentActivity, lastRelease, openRelease, ownEmail, partyBySecret, partySaysWell, releaseSettings, requestPack, saveReleaseSettings, sealParentEmail, type ReleaseRow } from '../emergency-release.ts'
 import type { ReminderItem } from '../notifications.ts'
 import { localNow } from '../schedule.ts'
 
@@ -84,8 +85,33 @@ export function emergencyRoutes(api: Api, s: Services): void {
     return r ? { ciphertext: r.ciphertext, version: r.version, updatedAt: r.updated_at } : null
   }
 
-  api.authed('GET', '/api/emergency', parents, () => ({
+  /** What the parents see of the current (or last) release. */
+  const releaseInfo = (r: ReleaseRow | undefined) => {
+    if (!r) return null
+    // An ended one shows for a month, then the page is quiet again.
+    if (r.ended_at && s.now() - r.ended_at > 30 * 86_400_000) return null
+    const party = r.party_id ? (db.prepare('SELECT sealed FROM trusted_parties WHERE id = ?').get(r.party_id) as { sealed: string } | undefined) : undefined
+    const note = (db.prepare('SELECT note_sealed FROM emergency_release WHERE id = ?').get(r.id) as { note_sealed: string | null }).note_sealed
+    return {
+      id: r.id,
+      kind: r.kind,
+      stage: r.stage,
+      startedAt: r.started_at,
+      nextAt: r.next_at,
+      checkins: r.checkins,
+      endedAt: r.ended_at,
+      endedReason: r.ended_reason,
+      by: party && r.party_id ? open(r.party_id, party.sealed).name : null,
+      note: note ? s.serverKey.open(note, 'emergency-note', r.id) : '',
+    }
+  }
+
+  api.authed('GET', '/api/emergency', parents, (ctx) => ({
     family: familyName(s),
+    settings: releaseSettings(s),
+    release: releaseInfo(openRelease(s) ?? lastRelease(s)),
+    lastActivity: lastParentActivity(s),
+    myEmail: ownEmail(s, ctx.user.id) ?? '',
     mail: { configured: s.mail.configured, from: s.mail.from },
     // End-to-end encrypted with the family key: opened only on a parent's device.
     instructions: secretInfo('instructions'),
@@ -200,6 +226,79 @@ export function emergencyRoutes(api: Api, s: Services): void {
       return parts.join(' / ')
     }
     return { documents: rows.filter((r) => r.kind === 'file').map(path).sort((a, b) => a.localeCompare(b)) }
+  })
+
+  // ---- releasing the pack (9c) ------------------------------------------------------------
+
+  /** A light check for the warning on every page: is a release under way? */
+  api.authed('GET', '/api/emergency/status', parents, () => {
+    const r = openRelease(s)
+    return { active: !!r, stage: r?.stage ?? null, kind: r?.kind ?? null, nextAt: r?.next_at ?? null }
+  })
+
+  api.authed('PUT', '/api/emergency/settings', parents, async (ctx) => {
+    try {
+      const settings = saveReleaseSettings(s, obj((await readJson(ctx.req)).settings))
+      s.audit('emergency.settings_changed', ctx, ctx.user.id)
+      return { settings }
+    } catch (e) {
+      if (e instanceof HttpError) throw e
+      throw new HttpError(400, e instanceof Error ? e.message : 'That does not look right.', 'invalid')
+    }
+  })
+
+  /** This parent's email, for warnings (a request, the second check, the check-ins). Empty clears it. */
+  api.authed('PUT', '/api/emergency/my-email', parents, async (ctx) => {
+    const email = text(obj(await readJson(ctx.req)), 'email', 254, 'Your email').toLowerCase()
+    if (email && !isEmail(email)) bad('That email address does not look right.')
+    if (email) db.prepare('INSERT INTO emergency_parent_email (user_id, sealed) VALUES (?, ?) ON CONFLICT (user_id) DO UPDATE SET sealed = excluded.sealed').run(ctx.user.id, sealParentEmail(s, ctx.user.id, email))
+    else db.prepare('DELETE FROM emergency_parent_email WHERE user_id = ?').run(ctx.user.id)
+    s.audit('emergency.email_changed', ctx, ctx.user.id)
+    return { email }
+  })
+
+  /** "All is well": stops a request or a check-in. */
+  api.authed('POST', '/api/emergency/release/cancel', parents, async (ctx) => {
+    if (!(await cancelRelease(s, ctx.user.id, ctx.user.displayName))) throw new HttpError(409, 'There is nothing to cancel (or the pack is already being sent).', 'nothing_to_cancel')
+    s.audit('emergency.release_cancelled', ctx, ctx.user.id)
+    return { cancelled: true }
+  })
+
+  // The trusted parties' links (from their letter, or an "is all well?" email): no account, so limited per address.
+  const linked = (ctx: { ip: string; params: Record<string, string | undefined> }) => {
+    if (!s.limits.open.hit(`ip:${ctx.ip}`)) throw tooMany()
+    const found = partyBySecret(s, ctx.params.secret ?? '')
+    if (!found) throw new HttpError(404, 'This link is not working. It may have been replaced by a newer letter.', 'not_found')
+    return found
+  }
+  const publicState = () => {
+    const r = openRelease(s)
+    if (!r) return { stage: 'none' as const, sendAt: null }
+    if (r.stage === 'waiting') return { stage: 'requested' as const, sendAt: (r.next_at ?? 0) + releaseSettings(s).confirmHours * 3_600_000 }
+    if (r.stage === 'confirming') return { stage: 'requested' as const, sendAt: r.next_at }
+    if (r.stage === 'checkin') return { stage: 'none' as const, sendAt: null }
+    if (r.stage === 'asking') return { stage: 'asking' as const, sendAt: r.next_at }
+    return { stage: 'sending' as const, sendAt: null }
+  }
+
+  api.open('GET', '/api/emergency/link/:secret', (ctx) => {
+    const { party } = linked(ctx)
+    return { family: familyName(s), name: party.name, role: party.role, ...publicState() }
+  })
+
+  api.open('POST', '/api/emergency/link/:secret/request', async (ctx) => {
+    const { party } = linked(ctx)
+    const note = text(obj((await readJson(ctx.req)) ?? {}), 'note', 500, 'A note')
+    const r = await requestPack(s, party, note)
+    s.audit('emergency.requested', ctx, null, party.role)
+    return { status: r.status, ...publicState() }
+  })
+
+  api.open('POST', '/api/emergency/link/:secret/well', async (ctx) => {
+    const { party } = linked(ctx)
+    if (!(await partySaysWell(s, party))) throw new HttpError(409, 'Nothing is waiting for an answer right now. Thank you.', 'nothing_to_answer')
+    s.audit('emergency.all_is_well', ctx, null, party.role)
+    return { ...publicState() }
   })
 
   /** A test message, so the parents know the hub's email works before it matters. */
