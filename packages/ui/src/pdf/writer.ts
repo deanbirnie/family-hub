@@ -9,6 +9,7 @@
  * covers English and Afrikaans. Anything else is replaced, never dropped
  * silently: accents are stripped and other characters become "?".
  */
+import { aes256 } from './encrypt.ts'
 
 export type Rgb = [number, number, number]
 
@@ -154,40 +155,115 @@ export class PdfDocument {
 
   /** The finished file. */
   toBytes(): Uint8Array {
-    const objects: string[] = []
-    const add = (body: string) => objects.push(body) // object number = index + 1
+    const objects = this.objects()
+    return assemble(
+      objects.map((o) => (typeof o === 'string' ? o : concatBytes(ascii(`<< /Length ${o.stream.length} >>\nstream\n`), o.stream, ascii('\nendstream')))),
+      '%PDF-1.4',
+      '',
+    )
+  }
+
+  /**
+   * The finished file, locked: it opens only with `password` (AES-256, see
+   * encrypt.ts). Made on this device; the password goes nowhere else.
+   */
+  async toLockedBytes(password: string): Promise<Uint8Array> {
+    const e = await aes256(password)
+    const bodies: (string | Uint8Array)[] = []
+    for (const o of this.objects()) {
+      if (typeof o === 'string') {
+        bodies.push(o)
+        continue
+      }
+      const data = await e.encrypt(o.stream)
+      bodies.push(concatBytes(ascii(`<< /Length ${data.length} >>\nstream\n`), data, ascii('\nendstream')))
+    }
+    // The document information: its strings are encrypted like the rest.
+    const info = bodies.length - 1
+    const strings = this.infoStrings()
+    let infoBody = '<<'
+    for (const [k, v] of strings) infoBody += ` /${k} ${e.hex(await e.encrypt(utf16(v)))}`
+    bodies[info] = `${infoBody} >>`
+    bodies.push(e.dictionary)
+    // AES-256 is PDF 2.0 (and Adobe's extension level 8 of 1.7, which older readers know).
+    bodies[0] = '<< /Type /Catalog /Pages 2 0 R /Extensions << /ADBE << /BaseVersion /1.7 /ExtensionLevel 8 >> >> >>'
+    const id = e.hex(e.id)
+    return assemble(bodies, '%PDF-1.7', ` /Encrypt ${bodies.length} 0 R /ID [${id} ${id}]`)
+  }
+
+  private infoStrings(): [string, string][] {
+    return [['Title', this.info.title], ...(this.info.author ? ([['Author', this.info.author]] as [string, string][]) : []), ['Producer', 'Family Hub']]
+  }
+
+  /** The objects in order (object number = index + 1); streams kept apart so they can be encrypted. The last is the document information. */
+  private objects(): (string | { stream: Uint8Array })[] {
+    const objects: (string | { stream: Uint8Array })[] = []
+    const add = (body: string | { stream: Uint8Array }) => objects.push(body)
     add('') // 1: catalog (filled in below)
     add('') // 2: pages
     add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>') // 3
     add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>') // 4
     const kids: number[] = []
     for (const ops of this.pages) {
-      const content = ops.join('\n')
-      add(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`)
+      add({ stream: ascii(ops.join('\n')) })
       const contentId = objects.length
       add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${num(A4.width)} ${num(A4.height)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`)
       kids.push(objects.length)
     }
     objects[0] = '<< /Type /Catalog /Pages 2 0 R >>'
     objects[1] = `<< /Type /Pages /Kids [${kids.map((k) => `${k} 0 R`).join(' ')}] /Count ${kids.length} >>`
-    add(`<< /Title ${literal(this.info.title)}${this.info.author ? ` /Author ${literal(this.info.author)}` : ''} /Producer (Family Hub) >>`)
-    const infoId = objects.length
-
-    // Everything is ASCII, so string length is byte length.
-    let out = '%PDF-1.4\n%âãÏÓ\n'
-    const offsets: number[] = []
-    objects.forEach((body, i) => {
-      offsets.push(out.length)
-      out += `${i + 1} 0 obj\n${body}\nendobj\n`
-    })
-    const xref = out.length
-    out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
-    for (const o of offsets) out += `${String(o).padStart(10, '0')} 00000 n \n`
-    out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info ${infoId} 0 R >>\nstartxref\n${xref}\n%%EOF\n`
-    const bytes = new Uint8Array(out.length)
-    for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 0xff
-    return bytes
+    add(`<<${this.infoStrings().map(([k, v]) => ` /${k} ${hexString(utf16(v))}`).join('')} >>`)
+    return objects
   }
+}
+
+/** Text outside the pages (the title, author): UTF-16BE with its byte-order mark, which every reader decodes. */
+function utf16(text: string): Uint8Array {
+  const out = [0xfe, 0xff]
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i)
+    out.push(c >> 8, c & 0xff)
+  }
+  return Uint8Array.from(out)
+}
+const hexString = (b: Uint8Array) => `<${Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')}>`
+
+/** Bytes of a string made only of one-byte characters (the page operators are ASCII). */
+const ascii = (s: string) => Uint8Array.from(s, (c) => c.charCodeAt(0) & 0xff)
+
+function concatBytes(...parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
+  let at = 0
+  for (const p of parts) {
+    out.set(p, at)
+    at += p.length
+  }
+  return out
+}
+
+/** Writes the objects out with the cross-reference table; the last object is the document information. */
+function assemble(bodies: (string | Uint8Array)[], version: string, trailerExtra: string): Uint8Array {
+  const chunks: Uint8Array[] = [ascii(`${version}\n%\xe2\xe3\xcf\xd3\n`)]
+  let length = chunks[0]!.length
+  const push = (b: Uint8Array) => {
+    chunks.push(b)
+    length += b.length
+  }
+  const offsets: number[] = []
+  // The document information is the last object before any /Encrypt dictionary.
+  const infoId = trailerExtra ? bodies.length - 1 : bodies.length
+  bodies.forEach((body, i) => {
+    offsets.push(length)
+    push(ascii(`${i + 1} 0 obj\n`))
+    push(typeof body === 'string' ? ascii(body) : body)
+    push(ascii('\nendobj\n'))
+  })
+  const xref = length
+  let tail = `xref\n0 ${bodies.length + 1}\n0000000000 65535 f \n`
+  for (const o of offsets) tail += `${String(o).padStart(10, '0')} 00000 n \n`
+  tail += `trailer\n<< /Size ${bodies.length + 1} /Root 1 0 R /Info ${infoId} 0 R${trailerExtra} >>\nstartxref\n${xref}\n%%EOF\n`
+  push(ascii(tail))
+  return concatBytes(...chunks)
 }
 
 // ---- flowing layout ----------------------------------------------------------------------------
@@ -410,11 +486,24 @@ export class Report {
 
   /** The finished PDF, with page numbers. */
   finish(footer: string): Uint8Array {
+    this.stampFooter(footer)
+    return this.doc.toBytes()
+  }
+
+  /** The same, locked with a password (AES-256): the emergency pack. */
+  finishLocked(footer: string, password: string): Promise<Uint8Array> {
+    this.stampFooter(footer)
+    return this.doc.toLockedBytes(password)
+  }
+
+  private stamped = false
+  private stampFooter(footer: string) {
+    if (this.stamped) return
+    this.stamped = true
     const n = this.doc.pages.length
     for (let i = 0; i < n; i++) {
       this.doc.text(i, this.margin, A4.height - 36, footer, { size: 8, color: MUTED })
       this.doc.text(i, A4.width - this.margin, A4.height - 36, `Page ${i + 1} of ${n}`, { size: 8, color: MUTED, align: 'right' })
     }
-    return this.doc.toBytes()
   }
 }

@@ -277,19 +277,21 @@ login (those are never stored). Each sealed item is bound to its own ID.
 | Sizes card per family member | `wishlist` (kind sizes), one sealed record per person | S | ✅ 8a |
 | Gift planner: status of each idea (idea, bought, wrapped, given), amount, the day it is for, link to a planned expense | Inside the sealed Contacts gift idea (`contact_gifts.sealed`, phase 3 row); the occasions are worked out each time from the sealed contacts and never stored; the planned expense is the budget's own sealed record | S | ✅ 8c |
 
-### In case of emergency (phase 9; 9a built, the rest to build)
+### In case of emergency (phase 9; 9a and 9b built, the release to build)
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
 | Trusted parties: name, email, role (guardian or to inform), who they are, phone, notes | `trusted_parties`, one sealed record per party bound to its ID | S | ✅ 9a |
-| The parents' written instructions | Encrypted on a parent's device with the family key | E2E (family key) | 🔜 9 |
-| The pack: a PDF of the instructions and what the hub knows (health summaries, IDs, medical aid, contacts, school, policies, bills, documents list) | Made on a parent's device when the vault is open, locked there with the letter's password (PDF AES-256); the server stores only the locked file and cannot open it | E2E (the letter's password) | 🔜 9 |
-| The letter's password | Typed (or suggested) on the parent's device and put straight into the letter PDF there; never sent to the server. In the parents' password manager and the printed letters | Not stored | ✅ 9a |
+| The parents' written instructions | `emergency_secrets` (instructions): sealed on a parent's device with the family key, bound to what it is; the server keeps only the ciphertext | E2E (family key) | ✅ 9b |
+| The pack: a PDF of the instructions and what the hub knows (health summaries, IDs, medical aid, contacts, school, policies, bills, documents list) | Made on a parent's device when the vault is open, locked there with the letter's password (PDF AES-256); the server stores only the locked file (`emergency_pack`, refused unless it is locked with AES-256) and cannot open it; made again at most daily while a parent's vault is open | E2E (the letter's password) | ✅ 9b |
+| The pack's password (the letters' password) | In the parents' password manager and the guardians' letters; on the hub only as `emergency_secrets` (password), sealed with the family key on a parent's device, so the pack can be remade whenever the vault is open. The server cannot read it. (Was "not stored" in 9a; moved to end-to-end encrypted with the owner's agreement, so the pack stays up to date.) | E2E (family key) | ✅ 9b |
 | Request links, one per trusted party | `trusted_parties.request_hash`: a random 256-bit token kept as a SHA-256 hash, shown once when the letter is made (a new letter replaces it); when the last letter was made | H (the link), P (when) | ✅ 9a |
 | Release settings (waiting periods, check-in timing) and the state of a request or check-in (started when, by which party, warnings sent, cancelled) | Settings and a release record; the party is a link to their sealed record | P (settings, times), S (who) | 🔜 9 |
 | Last activity of each parent (for the inactivity backstop) | Worked out from sign-ins and unlocks already recorded | P | 🔜 9 |
 | The email account the hub sends from (address, server, app password) | The server's environment, or a password file (a Docker secret); never in the database or the repository. Mail is sent only over TLS (plain SMTP only to the same machine) | Configuration | ✅ 9a |
 | Emails sent (to trusted parties and parents) | Plain text with no details; the pack attached locked; a pointer to the password, never the password | Sent over TLS to the mail server | 🔜 9 |
+| When the pack was made, by whom, its size and when it was last downloaded (for the yearly reminder to print a fresh copy) | `emergency_pack` | P | ✅ 9b |
+| The list of documents in the pack (names and folders) | Read from Files on the parent's device for the pack; nothing new stored | (pack) | ✅ 9b |
 | A test email from Settings → In case of emergency | Sent to the address the parent types, which is not kept; it says only that the hub can send email | Sent over TLS to the mail server | ✅ 9a |
 | Emergency events (someone added, changed or removed with their role, a letter made, a test email sent or failed; never names or addresses) | `audit_log` | P | ✅ 9a |
 

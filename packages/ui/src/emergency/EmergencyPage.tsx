@@ -5,7 +5,7 @@
  * the password of the pack. The pack itself and how it is released follow
  * (9b, 9c).
  */
-import { FileDown, Mail, Pencil, Plus, Printer, Share2, ShieldAlert, UserCheck, Users } from 'lucide-react'
+import { BookOpen, Eye, FileDown, KeyRound, Lock, Mail, Package, Pencil, Plus, Printer, RefreshCw, Share2, ShieldAlert, UserCheck, Users } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { canShareFile, saveMadeFile } from '../download.ts'
 import { reportFileName } from '../health/ReportDialogs.tsx'
@@ -14,6 +14,10 @@ import { navigate } from '../router.ts'
 import type { HubContext } from '../Shell.tsx'
 import { Badge, Banner, Button, Card, Dialog, PageHeader, Spinner, errorText, useAction } from '../ui.tsx'
 import { makeLetter, passwordProblem, suggestPassword } from './letter.ts'
+import { INSTRUCTION_SECTIONS, openSecret, sealSecret, type Instructions } from './pack.ts'
+import { refreshPack } from './refresh.ts'
+import { useVaultUnlocked, VaultCard } from '../vault/VaultCard.tsx'
+import { vault } from '../vault/store.ts'
 
 const PdfPreview = lazy(() => import('../pages/DocumentPreview.tsx').then((m) => ({ default: m.PdfPreview })))
 
@@ -28,10 +32,18 @@ interface Party {
   notes: string
   letterAt: number | null
 }
+interface Secret {
+  ciphertext: string
+  version: number
+  updatedAt: number
+}
 interface Data {
   family: string
   mail: { configured: boolean; from: string }
   parties: Party[]
+  instructions: Secret | null
+  password: Secret | null
+  pack: { size: number; madeAt: number; madeBy: string | null; downloadedAt: number | null } | null
 }
 
 const ROLE: Record<Party['role'], string> = { guardian: 'Guardian', inform: 'To inform' }
@@ -92,6 +104,7 @@ function Emergency({ ctx }: { ctx: HubContext }) {
       />
 
       <MailCard ctx={ctx} mail={data.mail} />
+      <PackCard ctx={ctx} data={data} onChanged={() => void load()} />
 
       <Card
         title={
@@ -133,6 +146,8 @@ function Emergency({ ctx }: { ctx: HubContext }) {
         </ul>
       </Card>
 
+      <InstructionsCard ctx={ctx} data={data} onChanged={() => void load()} />
+
       <Card
         title={
           <>
@@ -141,15 +156,201 @@ function Emergency({ ctx }: { ctx: HubContext }) {
         }
       >
         <ul className="small">
-          <li>Each trusted party gets a printed letter now, with a link to use if something has happened (and, for guardians, the password of the pack). The password is chosen here and never stored on the server: keep it in your password manager.</li>
-          <li>The pack (your instructions and what the hub knows) is made on a parent’s device and locked with that password. Coming next.</li>
+          <li>Each trusted party gets a printed letter now, with a link to use if something has happened (and, for guardians, the password of the pack). The password is chosen here, kept in your password manager, and stored only encrypted with the family key: the server cannot read it.</li>
+          <li>The pack (your instructions and what the hub knows) is made on a parent’s device whenever the vault is open, and locked there with that password. The server keeps only the locked file and cannot open it.</li>
           <li>When someone uses their link, you are both told and can cancel; only after a waiting period and a second check is the pack sent. If neither of you uses the hub for a long time, it checks in with you first. Coming after the pack.</li>
         </ul>
       </Card>
 
       {editing && <PartyDialog ctx={ctx} party={editing.party} onClose={(c) => (setEditing(null), c && void load())} />}
-      {letter && <LetterDialog ctx={ctx} family={data.family} party={letter} onClose={(c) => (setLetter(null), c && void load())} />}
+      {letter && <LetterDialog ctx={ctx} family={data.family} party={letter} password={data.password} onClose={(c) => (setLetter(null), c && void load())} />}
     </div>
+  )
+}
+
+const kb = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`)
+
+/** The pack's password (end-to-end encrypted) and the pack itself: when it was made, refreshing it, downloading it. */
+function PackCard({ ctx, data, onChanged }: { ctx: HubContext; data: Data; onChanged: () => void }) {
+  const unlocked = useVaultUnlocked()
+  const [setting, setSetting] = useState(false)
+  const [shown, setShown] = useState('')
+  const refresh = useAction(async () => {
+    await refreshPack(ctx.platform.api, ctx.user.displayName, { force: true })
+    onChanged()
+  })
+  const download = useAction(async () => {
+    const blob = await ctx.platform.api.blob('/api/emergency/pack')
+    await saveMadeFile(ctx.platform, { name: reportFileName('Emergency pack', data.family, new Date().toISOString().slice(0, 10)), bytes: new Uint8Array(await blob.arrayBuffer()) }, 'save')
+    onChanged()
+  })
+  const show = useAction(async () => {
+    const key = vault.use()
+    if (!key || !data.password) return
+    setShown(await openSecret<string>(key, 'password', data.password.ciphertext))
+  })
+  return (
+    <Card
+      title={
+        <>
+          <Package size={18} aria-hidden /> The pack
+        </>
+      }
+      actions={data.pack ? <Badge tone="success">Made {longDate(new Date(data.pack.madeAt))}</Badge> : <Badge tone="warning">Not made yet</Badge>}
+    >
+      <p className="muted small">
+        Your instructions and what the hub knows (each of you and the children, health, ID numbers, medical aid, school, the household, money, important contacts, and the list of documents), as a PDF locked with the pack’s password. It is remade on a parent’s device whenever the vault is open (at
+        most daily); the server keeps only the locked file.
+      </p>
+      {data.pack && (
+        <p className="small">
+          Last made {new Date(data.pack.madeAt).toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })}
+          {data.pack.madeBy && ` by ${data.pack.madeBy}`} · {kb(data.pack.size)}
+          {data.pack.downloadedAt && ` · last downloaded ${longDate(new Date(data.pack.downloadedAt))}`}
+        </p>
+      )}
+      {!unlocked ? (
+        <>
+          <p className="small">Open the family vault to set the password, see it, or refresh the pack.</p>
+          <VaultCard ctx={ctx} />
+        </>
+      ) : !data.password ? (
+        <>
+          <Banner kind="warning">Choose the pack’s password first: the pack is locked with it, and the guardians’ letters carry it.</Banner>
+          <Button icon={<KeyRound size={16} aria-hidden />} onClick={() => setSetting(true)}>
+            Choose the password
+          </Button>
+        </>
+      ) : (
+        <div className="row">
+          <Button icon={<RefreshCw size={16} aria-hidden />} busy={refresh.busy} onClick={() => void refresh.run()}>
+            Refresh now
+          </Button>
+          {data.pack && (
+            <Button variant="secondary" icon={<FileDown size={16} aria-hidden />} busy={download.busy} onClick={() => void download.run()}>
+              Download, to keep with the will
+            </Button>
+          )}
+          <Button variant="ghost" icon={<Eye size={16} aria-hidden />} onClick={() => (shown ? setShown('') : void show.run())}>
+            {shown ? 'Hide the password' : 'Show the password'}
+          </Button>
+          <Button variant="ghost" icon={<KeyRound size={16} aria-hidden />} onClick={() => setSetting(true)}>
+            Change the password
+          </Button>
+        </div>
+      )}
+      {shown && (
+        <div className="secret" aria-label="The pack’s password">
+          {shown}
+        </div>
+      )}
+      {data.pack && <p className="muted small">Print it and keep it with your will; you are reminded a year after downloading it to print a fresh one.</p>}
+      {(refresh.error || download.error || show.error) && <Banner kind="error">{refresh.error || download.error || show.error}</Banner>}
+      {setting && (
+        <PasswordDialog
+          ctx={ctx}
+          current={data.password}
+          guardiansWithLetters={data.parties.filter((p) => p.role === 'guardian' && p.letterAt).map((p) => p.name)}
+          onClose={(changed) => {
+            setSetting(false)
+            setShown('')
+            if (changed) void refreshPack(ctx.platform.api, ctx.user.displayName, { force: true }).finally(onChanged)
+          }}
+        />
+      )}
+    </Card>
+  )
+}
+
+function PasswordDialog({ ctx, current, guardiansWithLetters, onClose }: { ctx: HubContext; current: Secret | null; guardiansWithLetters: string[]; onClose: (changed?: boolean) => void }) {
+  const [password, setPassword] = useState(() => suggestPassword())
+  const [saved, setSaved] = useState(false)
+  const save = useAction(async () => {
+    const problem = passwordProblem(password)
+    if (problem) throw new Error(problem)
+    if (!saved) throw new Error('Save it in your password manager first.')
+    const key = vault.use()
+    if (!key) throw new Error('The vault locked: open it again.')
+    await ctx.platform.api.request('PUT', '/api/emergency/secrets/password', { baseVersion: current?.version ?? null, ciphertext: await sealSecret(key, 'password', password.trim()) }).catch(conflict)
+    onClose(true)
+  })
+  return (
+    <Dialog open title={current ? 'Change the pack’s password' : 'The pack’s password'} onClose={() => onClose()}>
+      <form className="stack" onSubmit={(e) => (e.preventDefault(), void save.run())}>
+        <p className="small">The pack is locked with it, and each guardian’s letter carries it. The hub keeps it encrypted with the family key: the server cannot read it.</p>
+        {current && guardiansWithLetters.length > 0 && (
+          <Banner kind="warning">The letters you gave {guardiansWithLetters.join(', ')} have the old password: give them new letters after changing it.</Banner>
+        )}
+        <Labelled id="pack-password" label="Password">
+          <div className="row">
+            <input id="pack-password" className="qi-search" autoComplete="off" spellCheck={false} maxLength={100} value={password} onChange={(e) => setPassword(e.target.value)} />
+            <Button type="button" variant="ghost" onClick={() => setPassword(suggestPassword())}>
+              Suggest another
+            </Button>
+          </div>
+        </Labelled>
+        <label className="check">
+          <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
+          <span>It is saved in our password manager (both of us can reach it)</span>
+        </label>
+        {save.error && <Banner kind="error">{save.error}</Banner>}
+        <Actions busy={save.busy} onCancel={() => onClose()} />
+      </form>
+    </Dialog>
+  )
+}
+
+/** The parents' instructions, end-to-end encrypted: written here, read only in the pack. */
+function InstructionsCard({ ctx, data, onChanged }: { ctx: HubContext; data: Data; onChanged: () => void }) {
+  const unlocked = useVaultUnlocked()
+  const [editing, setEditing] = useState<Instructions | null>(null)
+  const open = useAction(async () => {
+    const key = vault.use()
+    if (!key) return
+    setEditing(data.instructions ? await openSecret<Instructions>(key, 'instructions', data.instructions.ciphertext) : {})
+  })
+  const save = useAction(async () => {
+    const key = vault.use()
+    if (!key || !editing) throw new Error('The vault locked: open it again (your text is still here).')
+    await ctx.platform.api.request('PUT', '/api/emergency/secrets/instructions', { baseVersion: data.instructions?.version ?? null, ciphertext: await sealSecret(key, 'instructions', editing) }).catch(conflict)
+    setEditing(null)
+    void refreshPack(ctx.platform.api, ctx.user.displayName, { force: true }).finally(onChanged)
+    onChanged()
+  })
+  return (
+    <Card
+      title={
+        <>
+          <BookOpen size={18} aria-hidden /> Our instructions
+        </>
+      }
+      actions={
+        unlocked &&
+        !editing && (
+          <Button variant="ghost" icon={<Pencil size={16} aria-hidden />} busy={open.busy} onClick={() => void open.run()}>
+            {data.instructions ? 'Edit' : 'Write them'}
+          </Button>
+        )
+      }
+    >
+      <p className="muted small">
+        <Lock size={12} aria-hidden /> What the people taking over need to know from you, in your words. End-to-end encrypted: only the two of you (and the pack) can read it.
+        {data.instructions && ` Last changed ${longDate(new Date(data.instructions.updatedAt))}.`}
+      </p>
+      {!unlocked && <p className="small">Open the family vault (above) to read or write them.</p>}
+      {editing && (
+        <form className="stack" onSubmit={(e) => (e.preventDefault(), void save.run())}>
+          {INSTRUCTION_SECTIONS.map(([k, title, hint]) => (
+            <Labelled key={k} id={`ins-${k}`} label={title} hint={hint || undefined}>
+              <textarea id={`ins-${k}`} className="qi-search" rows={4} maxLength={20_000} value={editing[k] ?? ''} onChange={(e) => setEditing({ ...editing, [k]: e.target.value })} />
+            </Labelled>
+          ))}
+          {save.error && <Banner kind="error">{save.error}</Banner>}
+          <Actions busy={save.busy} onCancel={() => setEditing(null)} />
+        </form>
+      )}
+      {open.error && <Banner kind="error">{open.error}</Banner>}
+    </Card>
   )
 }
 
@@ -242,19 +443,21 @@ function PartyDialog({ ctx, party, onClose }: { ctx: HubContext; party?: Party; 
   )
 }
 
-function LetterDialog({ ctx, family, party, onClose }: { ctx: HubContext; family: string; party: Party; onClose: (changed?: boolean) => void }) {
+function LetterDialog({ ctx, family, party, password: stored, onClose }: { ctx: HubContext; family: string; party: Party; password: Secret | null; onClose: (changed?: boolean) => void }) {
   const guardian = party.role === 'guardian'
   const [from, setFrom] = useState(ctx.user.displayName)
-  const [password, setPassword] = useState('')
-  const [saved, setSaved] = useState(false)
+  const unlocked = useVaultUnlocked()
   const [bytes, setBytes] = useState<Uint8Array | null>(null)
   const blob = useMemo(() => (bytes ? new Blob([bytes as BlobPart], { type: 'application/pdf' }) : null), [bytes])
   const fileName = reportFileName('Letter', party.name, new Date().toISOString().slice(0, 10))
   const make = useAction(async () => {
+    // A guardian's letter carries the pack's password, opened here from its end-to-end encrypted copy.
+    let password: string | null = null
     if (guardian) {
-      const problem = passwordProblem(password)
-      if (problem) throw new Error(problem)
-      if (!saved) throw new Error('Save the password in your password manager first: the hub does not keep it.')
+      const key = vault.use()
+      if (!key) throw new Error('Open the family vault first.')
+      if (!stored) throw new Error('Choose the pack’s password first (The pack, above).')
+      password = await openSecret<string>(key, 'password', stored.ciphertext)
     }
     if (party.letterAt && !window.confirm(`The link in ${party.name}’s earlier letter stops working. Make a new letter?`)) return
     const r = await ctx.platform.api.post<{ secret: string }>(`/api/emergency/parties/${party.id}/letter`, {})
@@ -264,7 +467,7 @@ function LetterDialog({ ctx, family, party, onClose }: { ctx: HubContext; family
         from: from.trim() || ctx.user.displayName,
         party,
         link: requestLink(ctx, r.secret),
-        password: guardian ? password.trim() : null,
+        password,
         date: longDate(new Date()),
       }),
     )
@@ -284,22 +487,8 @@ function LetterDialog({ ctx, family, party, onClose }: { ctx: HubContext; family
             <Labelled id="letter-from" label="Signed by">
               <input id="letter-from" className="qi-search" maxLength={100} placeholder="e.g. Alex and Jo" value={from} onChange={(e) => setFrom(e.target.value)} />
             </Labelled>
-            {guardian && (
-              <>
-                <Labelled id="letter-password" label="The pack’s password" hint="The same for every guardian. It is put in the letter here and never sent to the server.">
-                  <div className="row">
-                    <input id="letter-password" className="qi-search" autoComplete="off" spellCheck={false} maxLength={100} value={password} onChange={(e) => setPassword(e.target.value)} />
-                    <Button type="button" variant="ghost" onClick={() => setPassword(suggestPassword())}>
-                      Suggest one
-                    </Button>
-                  </div>
-                </Labelled>
-                <label className="check">
-                  <input type="checkbox" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
-                  <span>This password is saved in our password manager (both of us can reach it)</span>
-                </label>
-              </>
-            )}
+            {guardian && !stored && <Banner kind="warning">Choose the pack’s password first (The pack, above): a guardian’s letter carries it.</Banner>}
+            {guardian && !unlocked && <Banner kind="warning">Open the family vault first (The pack, above): the password is kept encrypted with the family key.</Banner>}
             {make.error && <Banner kind="error">{make.error}</Banner>}
             <div className="row">
               <Button type="submit" icon={<UserCheck size={16} aria-hidden />} busy={make.busy}>

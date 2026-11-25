@@ -21,6 +21,7 @@ import { budgetItems } from './budget.ts'
 import { schoolItems } from './school.ts'
 import { homeCareItems } from './home-care.ts'
 import { householdItems } from './household.ts'
+import { emergencyItems } from './routes/emergency.ts'
 import { generateVapidKeys, sendPush, type PushKeys, type PushMessage, type SendOutcome, type VapidKeys } from './webpush.ts'
 
 // ---- settings --------------------------------------------------------------------------
@@ -418,7 +419,7 @@ export function eventReminders(s: Services, nowMs: number): EventReminder[] {
 
 /** Every reminder there is. */
 export function allItems(s: Services): ReminderItem[] {
-  return [...quickInfoItems(s), ...contactDateItems(s), ...healthItems(s), ...householdItems(s), ...homeCareItems(s), ...budgetItems(s), ...schoolItems(s)]
+  return [...quickInfoItems(s), ...contactDateItems(s), ...healthItems(s), ...householdItems(s), ...homeCareItems(s), ...budgetItems(s), ...schoolItems(s), ...emergencyItems(s)]
 }
 
 export interface DueNow {

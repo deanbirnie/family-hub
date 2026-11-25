@@ -19,6 +19,7 @@ import { SchoolPage } from './school/SchoolPage.tsx'
 import { WishlistsPage } from './wishlists/WishlistsPage.tsx'
 import { GiftPlanner } from './wishlists/GiftPlanner.tsx'
 import { EmergencyPage } from './emergency/EmergencyPage.tsx'
+import { refreshPack } from './emergency/refresh.ts'
 import { HomePage } from './pages/Home.tsx'
 import { MembersPage } from './pages/Members.tsx'
 import { SettingsPage } from './pages/Settings.tsx'
@@ -88,6 +89,16 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
       () => undefined,
     )
   }, [platform.api])
+
+  // Whenever a parent opens the family vault, the emergency pack is remade here if it is due (at most daily).
+  useEffect(() => {
+    if (user.role !== 'admin') return
+    const check = () => {
+      if (vault.unlocked) void refreshPack(platform.api, user.displayName).catch(() => undefined)
+    }
+    check()
+    return vault.subscribe(check)
+  }, [platform.api, user.role, user.displayName])
 
   // If this device already has notifications on, make sure the server has its current address.
   // A phone also checks for due reminders whenever the app is opened.
