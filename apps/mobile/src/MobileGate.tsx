@@ -39,6 +39,7 @@ import { createUpdates } from './updates.ts'
 import { vaultDevice } from './vault-key.ts'
 import { clearDocumentCache, exportDownload, fileDownload, phoneSaveFile } from './files.ts'
 import { emergencyCard } from './emergency-card.ts'
+import { location } from './location.ts'
 import { phonePush } from './push.ts'
 
 const SERVER_KEY = 'familyhub.server'
@@ -223,6 +224,7 @@ export function MobileGate({ version }: { version: string }) {
         saveExport: exportDownload(api),
         saveFile: phoneSaveFile,
         emergencyCard,
+        location,
         vaultDevice,
         push,
         deviceLabel: read(DEVICE_NAME_KEY) || 'This phone',

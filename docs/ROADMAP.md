@@ -902,7 +902,7 @@ email**, because the hub (on a home server) may not be kept running.
 - [x] 9c. Release on request, the second confirmation, the inactivity
       check-ins and the trusted parties' email.
 
-## Phase 10 — Safety: home safe, arrived and SOS (Android) ← planning
+## Phase 10 — Safety: home safe, arrived and SOS (Android) ← in progress
 
 Detailed with the owner (planning pull request). Everyone in the family
 with an account is told: parents and children alike. The trusted parties
@@ -950,7 +950,7 @@ of phase 9 are not part of this.
 
 ### Build order
 
-- [ ] 10a. Home safe and Arrived, the family's notifications and the
+- [x] 10a. Home safe and Arrived, the family's notifications and the
       home-page panel.
 - [ ] 10b. SOS: the red screen, locations in the background every 2 (or 5)
       minutes, the clean retry, cancelling with a reason, the live view.

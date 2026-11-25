@@ -41,6 +41,28 @@ export interface PushSupport {
   checkNow?: () => Promise<void>
 }
 
+/** A device's position: degrees, and how far off it may be in metres. */
+export interface Position {
+  latitude: number
+  longitude: number
+  accuracy: number | null
+}
+
+/** The browser's location, where it has one. */
+export function browserLocation(): Platform['location'] {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return undefined
+  return {
+    current: () =>
+      new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(
+          (p) => resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: Number.isFinite(p.coords.accuracy) ? p.coords.accuracy : null }),
+          (e) => reject(new Error(e.code === e.PERMISSION_DENIED ? 'Location is blocked for this site. Allow it in the browser to share where you are.' : 'This device could not find where it is. Try again.')),
+          { enableHighAccuracy: true, timeout: 30_000, maximumAge: 60_000 },
+        ),
+      ),
+  }
+}
+
 export interface Platform {
   kind: 'web' | 'android'
   /** This build's version. */
@@ -86,6 +108,8 @@ export interface Platform {
     /** Removes the cards and their key (when the phone is signed out). */
     clear(): Promise<void>
   }
+  /** Where this device is now (phase 10: "Arrived"); asks permission the first time. Rejects with a readable reason. */
+  location?: { current(): Promise<Position> }
   /** Native Android save/open, using the already-unlocked session. */
   downloadFile?: (file: { id: string; name: string; mediaType: string }, action: 'save' | 'open') => Promise<void>
 }

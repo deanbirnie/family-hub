@@ -45,11 +45,13 @@ export interface NotificationSettings {
   home: boolean
   /** School reminders. */
   school: boolean
+  /** Home safe and Arrived from the rest of the family (phase 10); SOS always comes. */
+  safety: boolean
   /** Hour of the day (family time zone) from which reminders are sent. */
   sendHour: number
 }
 
-export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, dates: true, touch: true, events: true, health: true, household: true, home: true, school: true, sendHour: 8 }
+export const DEFAULT_SETTINGS: NotificationSettings = { enabled: true, expiry: true, dates: true, touch: true, events: true, health: true, household: true, home: true, school: true, safety: true, sendHour: 8 }
 
 export function getSettings(s: Services, userId: string): NotificationSettings {
   const row = s.db.prepare('SELECT settings FROM notification_settings WHERE user_id = ?').get(userId) as { settings: string } | undefined
@@ -66,6 +68,7 @@ export function getSettings(s: Services, userId: string): NotificationSettings {
       household: typeof raw.household === 'boolean' ? raw.household : DEFAULT_SETTINGS.household,
       home: typeof raw.home === 'boolean' ? raw.home : DEFAULT_SETTINGS.home,
       school: typeof raw.school === 'boolean' ? raw.school : DEFAULT_SETTINGS.school,
+      safety: typeof raw.safety === 'boolean' ? raw.safety : DEFAULT_SETTINGS.safety,
       sendHour: Number.isInteger(raw.sendHour) && raw.sendHour! >= 0 && raw.sendHour! <= 23 ? raw.sendHour! : DEFAULT_SETTINGS.sendHour,
     }
   } catch {

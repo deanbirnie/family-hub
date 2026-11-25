@@ -549,6 +549,17 @@ const MIGRATIONS: string[] = [
     sealed TEXT NOT NULL
   );
   `,
+  // 26: Safety (phase 10a, routes/safety.ts): "Home safe" and "Arrived"
+  // check-ins, sealed (with the location, for Arrived), deleted after 24 hours.
+  `
+  CREATE TABLE safety_checkins (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sealed TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX safety_checkins_at ON safety_checkins (created_at);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

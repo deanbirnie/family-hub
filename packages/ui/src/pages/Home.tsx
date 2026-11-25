@@ -7,6 +7,7 @@ import { Badge, Card, useLoad } from '../ui.tsx'
 import { ComingUpCard } from '../notify/ComingUp.tsx'
 import { TodayCard } from '../calendar/TodayCard.tsx'
 import { OpenEpisodesCard } from '../health/Episodes.tsx'
+import { SafetyCard } from '../safety/SafetyCard.tsx'
 
 interface Member {
   id: string
@@ -32,6 +33,7 @@ export function HomePage({ ctx }: { ctx: HubContext }) {
       </div>
 
       {ctx.user.role === 'admin' && <OpenEpisodesCard ctx={ctx} />}
+      <SafetyCard ctx={ctx} />
       <TodayCard ctx={ctx} />
       {ctx.user.role === 'admin' && <ComingUpCard ctx={ctx} />}
 

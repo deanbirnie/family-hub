@@ -30,6 +30,7 @@ export interface NotificationSettings {
   household: boolean
   home: boolean
   school: boolean
+  safety: boolean
   sendHour: number
 }
 
