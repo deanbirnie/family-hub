@@ -33,6 +33,7 @@ import { wishlistRoutes } from './routes/wishlists.ts'
 import { giftRoutes } from './routes/gifts.ts'
 import { emergencyRoutes } from './routes/emergency.ts'
 import { runEmergency } from './emergency-release.ts'
+import { pruneCheckins, safetyRoutes } from './routes/safety.ts'
 import { calendarSyncRoutes, syncDue } from './routes/calendar-sync.ts'
 import { fetchIcs, type IcsFetcher } from './fetch-ics.ts'
 import { runReminders } from './notifications.ts'
@@ -156,6 +157,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
   wishlistRoutes(api, services)
   giftRoutes(api, services)
   emergencyRoutes(api, services)
+  safetyRoutes(api, services)
 
   const handle = (req: IncomingMessage, res: ServerResponse) => {
     void dispatch(services, router, req, res)
@@ -175,6 +177,7 @@ export function createApp(opts: AppOptions): { server: Server; services: Service
       services.limits.signIn.prune()
       services.limits.open.prune()
       services.limits.accounts.prune()
+      pruneCheckins(services)
       void maintainFiles(services).catch((e) => console.error('Document cleanup failed', e))
       void syncDue(services).catch((e) => console.error('Calendar subscriptions failed', e))
     } catch {

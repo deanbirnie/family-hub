@@ -303,16 +303,16 @@ Everyone with an account in the family is told; nobody outside it.
 
 | Data | Where | Tier | Status |
 |---|---|---|---|
-| Check-ins (home safe, arrived): who, when, an optional word on where | One sealed record per check-in | S | 🔜 10a |
-| Location shared with "Arrived" (coordinates and accuracy) | Sealed with the check-in; deleted after 24 hours | S, deleted after 24 hours | 🔜 10a |
+| Check-ins (home safe, arrived): who, when, an optional word on where | `safety_checkins`, one sealed record per check-in bound to its ID; the whole check-in is deleted after 24 hours | S, deleted after 24 hours | ✅ 10a |
+| Location shared with "Arrived" (coordinates to 6 decimals and accuracy in metres) | Sealed with the check-in; deleted with it after 24 hours. Taken on the device when "Arrived" is tapped (Android's location service, or the browser's), never in the background | S, deleted after 24 hours | ✅ 10a |
 | SOS: who, when, the track of locations (coordinates, accuracy, time, battery low or not), how it ended and the reason given | Sealed; locations deleted 24 hours after the SOS ends | S, deleted after 24 hours | 🔜 10b |
 | Locations waiting on the phone with no connection | The app's private storage on that phone only, until sent (then deleted) | On the device | 🔜 10b |
-| Notification text | "Jo is home safe.", "Jo arrived.", "SOS from Jo. Tap to see." (names are wanted: they go only to the family) | Encrypted to the device (RFC 8291) | 🔜 10a |
+| Notification text | "Jo is home safe.", "Jo arrived.", "SOS from Jo. Tap to see." (names are wanted: they go only to the family). Home safe and Arrived can be turned off per person in Settings → Notifications; SOS cannot | Encrypted to the device (RFC 8291) | ✅ 10a (home safe, arrived) |
 | The family's phone numbers, for the SMS fallback | Kept on each phone in the app's storage, encrypted with a key in the phone's keystore, refreshed when the app opens (from the family's own Contacts entries) | On the device (keystore) | 🔜 10c |
 | SMS sent with no data: "SOS from Jo", coordinates and a Google Maps link | Sent by the phone over the mobile network; not encrypted (SMS cannot be) | Plain, to the family's phones only | 🔜 10c |
 | Emergency contact and medical details on the SOS screen | A copy of the phone's offline emergency card (phase 5d) kept for the SOS screen only, encrypted with a keystore key that needs **no fingerprint** (the owner's choice), so it shows at once, also from the lock screen. Anyone holding the phone can see it by starting an SOS (which alerts the family) | On the device (keystore, no fingerprint) | 🔜 10c |
 | The SOS key: lets a locked phone start an SOS, send its locations and end it, and nothing else | A second non-exportable keystore key per phone, usable without a fingerprint; the server keeps its public key and refuses it for anything but SOS | On the device (keystore); public key P | 🔜 10c |
-| A tap on "Open in Google Maps" | Google learns the coordinates of that one location, only when someone taps it | Google | 🔜 10a |
+| A tap on "Open in Google Maps" | Google learns the coordinates of that one location, only when someone taps it | Google | ✅ 10a |
 
 ### Later phases (proposed; confirm at the start of each phase)
 

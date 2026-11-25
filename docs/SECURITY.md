@@ -97,7 +97,8 @@ conditions with no fingerprint, so a first responder can read them.
   (`https://localhost`, Capacitor's), and never with credentials.
 - Every response: `X-Content-Type-Options`, `X-Frame-Options: DENY`,
   `Referrer-Policy: no-referrer`, `Cross-Origin-Opener-Policy`, a tight
-  `Permissions-Policy`, and HSTS over https. The page has a strict CSP
+  `Permissions-Policy` (camera, microphone, payment and USB off; location
+  only for the hub's own pages, for "Arrived"), and HSTS over https. The page has a strict CSP
   (`script-src 'self'`, nothing from other origins, no framing).
 - API responses are `Cache-Control: no-store`.
 - JSON bodies are limited to 64 KiB; headers must arrive within 20 s, and a

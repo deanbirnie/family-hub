@@ -505,6 +505,16 @@ so the app password cannot read your own mail.
       device, ask for the pack, check you are both told, and cancel it
       ("All is well"). The guardian is emailed that all is well.
 
+## 34. Home safe and Arrived (after the 10a pull request is merged and deployed)
+
+- [ ] 1. Update the app on both phones (and the children's, if they have
+      the app). The first **Arrived** asks to use the location: allow it
+      "while using the app".
+- [ ] 2. Check each phone has notifications on and a push app (Settings →
+      Notifications shows it): without one, a phone only checks once a day,
+      too late for "home safe".
+- [ ] 3. Try it: tap **Home safe** on one phone and check the other is told.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

@@ -219,6 +219,10 @@ export function NotificationsCard({ ctx }: { ctx: HubContext }) {
                 <input type="checkbox" checked={data.settings.school} disabled={!data.settings.enabled} onChange={(e) => void save.run({ school: e.target.checked })} />
                 <span>School reminders (things to plan for or take to school)</span>
               </label>
+              <label className="check">
+                <input type="checkbox" checked={data.settings.safety} disabled={!data.settings.enabled} onChange={(e) => void save.run({ safety: e.target.checked })} />
+                <span>Home safe and Arrived from the family</span>
+              </label>
               <div className="field">
                 <label htmlFor="send-hour">Send date and expiry reminders from</label>
                 <select id="send-hour" className="select" value={data.settings.sendHour} disabled={!data.settings.enabled} onChange={(e) => void save.run({ sendHour: Number(e.target.value) })}>

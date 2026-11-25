@@ -142,7 +142,7 @@ export function securityHeaders(res: ServerResponse, secure: boolean): void {
   res.setHeader('Referrer-Policy', 'no-referrer')
   res.setHeader('X-Frame-Options', 'DENY')
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()')
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self), payment=(), usb=()')
   if (secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000')
 }
 

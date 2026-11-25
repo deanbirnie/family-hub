@@ -114,7 +114,8 @@ for (let i = 0; ; i++) {
 const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {})
 let failed = false
 try {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: shots ? 2 : 1 })
+  // Somewhere in Cape Town, for "Arrived" (phase 10).
+  const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, deviceScaleFactor: shots ? 2 : 1, geolocation: { latitude: -33.9249, longitude: 18.4241, accuracy: 15 }, permissions: ['geolocation'] })
   const page = await context.newPage()
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
@@ -1113,6 +1114,25 @@ try {
   if (!mailbox.some((m) => m.includes('To: mary@example.org') && m.includes('all is well'))) throw new Error('Aunt Mary was not told all is well')
   await mary.reload()
   await mary.getByRole('button', { name: 'Ask for the emergency pack' }).waitFor()
+
+  // Safety: Alex arrived (with the location); Sam sees it; Sam is home safe and Alex sees that.
+  await page.goto(`${base}/`)
+  const safety = page.locator('section.card', { has: page.getByRole('heading', { name: 'Safety' }) })
+  await safety.getByRole('button', { name: 'Arrived' }).click()
+  await safety.getByLabel('Where (optional)').fill('gymnastics')
+  await safety.getByRole('button', { name: 'Send with my location' }).click()
+  await safety.getByText('You arrived (gymnastics)').waitFor()
+  await safety.getByText('-33.92490, 18.42410 (within 15 m)').waitFor()
+  const maps = await safety.getByRole('link', { name: 'Open in Google Maps' }).getAttribute('href')
+  if (maps !== 'https://www.google.com/maps/search/?api=1&query=-33.9249,18.4241') throw new Error(`odd maps link: ${maps}`)
+  await shot(page, '06v-safety')
+  await sam.goto(`${base}/`)
+  const samSafety = sam.locator('section.card', { has: sam.getByRole('heading', { name: 'Safety' }) })
+  await samSafety.getByText('Alex Tester arrived (gymnastics)').waitFor()
+  await samSafety.getByRole('button', { name: 'Home safe' }).click()
+  await samSafety.getByText('You are home safe').waitFor()
+  await page.reload()
+  await safety.getByText('Sam Tester is home safe').waitFor()
 
   // Settings, then sign out and back in with password and a fresh code.
   await page.goto(`${base}/settings`)
