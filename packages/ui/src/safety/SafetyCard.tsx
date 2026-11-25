@@ -4,7 +4,7 @@
  * shares where this device is at that moment: shown as coordinates with a
  * link to open them in Google Maps (no map is built in).
  */
-import { ChevronDown, Home as HomeIcon, MapPin, ShieldCheck } from 'lucide-react'
+import { ChevronDown, Home as HomeIcon, MapPin, ShieldAlert, ShieldCheck } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import type { HubContext } from '../Shell.tsx'
 import { Banner, Button, Card, errorText, useAction } from '../ui.tsx'
@@ -19,6 +19,22 @@ interface Checkin {
   location: { latitude: number; longitude: number; accuracy: number | null } | null
 }
 
+interface Sos {
+  id: string
+  userId: string
+  name: string
+  startedAt: number
+  endedAt: number | null
+  end: { reason: 'whoops' | 'services' | 'safe' | 'other' | 'stale'; note: string } | null
+  points: { latitude: number; longitude: number; accuracy: number | null; at: number; batteryLow: boolean }[]
+}
+const END_WORDS: Record<string, string> = {
+  whoops: 'Whoops: sent by mistake',
+  services: 'Emergency services have been and gone',
+  safe: 'I’m safe now',
+  stale: 'it ended by itself (no location for a day)',
+}
+
 export const mapsLink = (l: { latitude: number; longitude: number }) => `https://www.google.com/maps/search/?api=1&query=${l.latitude},${l.longitude}`
 export const coords = (l: { latitude: number; longitude: number; accuracy: number | null }) =>
   `${l.latitude.toFixed(5)}, ${l.longitude.toFixed(5)}${l.accuracy !== null ? ` (within ${l.accuracy < 1000 ? `${l.accuracy} m` : `${(l.accuracy / 1000).toFixed(1)} km`})` : ''}`
@@ -31,6 +47,7 @@ const time = (ms: number) => {
 export function SafetyCard({ ctx }: { ctx: HubContext }) {
   const { api } = ctx.platform
   const [checkins, setCheckins] = useState<Checkin[] | null>(null)
+  const [sos, setSos] = useState<Sos[]>([])
   const [error, setError] = useState('')
   const [arriving, setArriving] = useState(false)
   const [where, setWhere] = useState('')
@@ -38,7 +55,9 @@ export function SafetyCard({ ctx }: { ctx: HubContext }) {
 
   const load = useCallback(async () => {
     try {
-      setCheckins((await api.get<{ checkins: Checkin[] }>('/api/safety')).checkins)
+      const r = await api.get<{ checkins: Checkin[]; sos: Sos[] }>('/api/safety')
+      setCheckins(r.checkins)
+      setSos(r.sos)
       setError('')
     } catch (e) {
       setError(errorText(e))
@@ -47,6 +66,21 @@ export function SafetyCard({ ctx }: { ctx: HubContext }) {
   useEffect(() => {
     void load()
   }, [load])
+  // This phone's SOS starting or ending shows here at once.
+  useEffect(() => ctx.platform.sos?.subscribe(() => void load()), [ctx.platform.sos, load])
+  // While someone's SOS is on, the view follows it.
+  const live = sos.some((x) => x.endedAt === null)
+  useEffect(() => {
+    if (!live) return
+    const timer = setInterval(() => void load(), 30_000)
+    return () => clearInterval(timer)
+  }, [live, load])
+  const sosNow = useAction(async () => {
+    if (!ctx.platform.sos) return
+    const r = await api.post<{ sos: { id: string }; pass: string }>('/api/safety/sos', {})
+    await ctx.platform.sos.start({ id: r.sos.id, pass: r.pass })
+    await load()
+  })
 
   const send = async (checkin: Record<string, unknown>) => {
     const r = await api.post<{ told: number }>('/api/safety/checkins', { checkin })
@@ -79,7 +113,55 @@ export function SafetyCard({ ctx }: { ctx: HubContext }) {
             Arrived
           </Button>
         )}
+        {ctx.platform.sos && (
+          <Button variant="danger" icon={<ShieldAlert size={16} aria-hidden />} busy={sosNow.busy} onClick={() => void sosNow.run()}>
+            SOS
+          </Button>
+        )}
       </div>
+      {sosNow.error && <Banner kind="error">{sosNow.error}</Banner>}
+      {sos.map((x) => {
+        const last = x.points.at(-1)
+        const mine = x.userId === ctx.user.id
+        return (
+          <div key={x.id} className={x.endedAt === null ? 'sos-alert' : 'sos-ended'}>
+            <div>
+              <strong>{x.endedAt === null ? `SOS from ${mine ? 'you' : x.name}` : `${mine ? 'Your' : `${x.name}’s`} SOS ended`}</strong>
+              <span className="muted"> · since {time(x.startedAt)}</span>
+              {x.end && <span>: {x.end.reason === 'other' ? x.end.note || 'ended' : END_WORDS[x.end.reason]}</span>}
+            </div>
+            {last ? (
+              <div className="small">
+                Last location {time(last.at)}: {coords(last)} ·{' '}
+                <a href={mapsLink(last)} target="_blank" rel="noopener noreferrer">
+                  Open in Google Maps
+                </a>
+                {last.batteryLow && ' · battery low'}
+              </div>
+            ) : (
+              <div className="small">No location yet.</div>
+            )}
+            {x.points.length > 1 && (
+              <details className="small">
+                <summary>All {x.points.length} locations</summary>
+                <ul>
+                  {x.points
+                    .slice()
+                    .reverse()
+                    .map((p, i) => (
+                      <li key={i}>
+                        {time(p.at)}: {coords(p)} ·{' '}
+                        <a href={mapsLink(p)} target="_blank" rel="noopener noreferrer">
+                          Open in Google Maps
+                        </a>
+                      </li>
+                    ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )
+      })}
       {arriving && (
         <form className="row" onSubmit={(e) => (e.preventDefault(), void arrived.run())}>
           <input className="qi-search" aria-label="Where (optional)" placeholder="Where (optional), e.g. gymnastics" maxLength={60} value={where} onChange={(e) => setWhere(e.target.value)} />

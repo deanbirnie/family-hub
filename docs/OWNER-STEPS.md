@@ -515,6 +515,17 @@ so the app password cannot read your own mail.
       too late for "home safe".
 - [ ] 3. Try it: tap **Home safe** on one phone and check the other is told.
 
+## 35. SOS (after the 10b pull request is merged and deployed)
+
+- [ ] 1. Update the app on the phones. The first **SOS** asks for the
+      location (allow it); it shows "SOS is on" as a notification while it
+      runs.
+- [ ] 2. On some phones (Samsung, Xiaomi, Huawei) battery saving stops
+      apps in the background: Settings → Apps → Family Hub → Battery →
+      **Unrestricted**, so an SOS keeps sending with the screen off.
+- [ ] 3. Try it once together: press **SOS**, check the other phone is
+      alerted and sees the location, then **End the SOS → Whoops**.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

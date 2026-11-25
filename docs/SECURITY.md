@@ -59,6 +59,15 @@ Settings (or an admin's two-factor reset) ends its sessions and stops it
 unlocking. The app's window is `FLAG_SECURE` (no screenshots, blank in the
 recent-apps list), backups are off, and plain-http traffic is refused.
 
+### SOS: sending once the app has locked (phase 10b)
+
+An SOS is started in the unlocked app. The hub answers with a **pass for
+that SOS only** (256 random bits; the server keeps its hash). The phone's
+SOS service uses it to add locations to that SOS and to end it, after the
+app has locked (2 minutes in the background), with no session. It does
+nothing else, and stops working the moment the SOS ends; starting the SOS
+again from the app replaces it.
+
 ### Planned (phase 10c): SOS from the lock screen
 
 The one exception to "a fingerprint every time", asked for by the owner:

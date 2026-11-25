@@ -63,6 +63,26 @@ export function browserLocation(): Platform['location'] {
   }
 }
 
+/** An SOS on this phone, as the native service sees it. */
+export interface SosStatus {
+  active: boolean
+  id: string | null
+  /** Locations kept while there was no signal. */
+  waiting: number
+  lastSentAt: number | null
+  lastFixAt: number | null
+}
+
+export interface SosSupport {
+  /** Starts sending, with the pass the hub gave for this SOS. */
+  start(args: { id: string; pass: string }): Promise<void>
+  status(): Promise<SosStatus>
+  /** Ends it with why; rejects (and keeps it on) with no connection. */
+  end(reason: 'whoops' | 'services' | 'safe' | 'other', note: string): Promise<void>
+  /** Told when it starts or ends here. */
+  subscribe(listener: () => void): () => void
+}
+
 export interface Platform {
   kind: 'web' | 'android'
   /** This build's version. */
@@ -108,6 +128,8 @@ export interface Platform {
     /** Removes the cards and their key (when the phone is signed out). */
     clear(): Promise<void>
   }
+  /** Android: an SOS's background sending (phase 10b): locations every 2 (or 5) minutes, kept and sent later with no signal. */
+  sos?: SosSupport
   /** Where this device is now (phase 10: "Arrived"); asks permission the first time. Rejects with a readable reason. */
   location?: { current(): Promise<Position> }
   /** Native Android save/open, using the already-unlocked session. */

@@ -16,6 +16,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(PushPlugin.class);
     registerPlugin(EmergencyCardPlugin.class);
     registerPlugin(LocationPlugin.class);
+    registerPlugin(SosPlugin.class);
     super.onCreate(savedInstanceState);
     // Family information (and later ID numbers) must not show in the recent-apps
     // preview or in screenshots and screen recordings taken by other apps.

@@ -2312,3 +2312,86 @@ progress {
 .card-alert {
   border: 2px solid var(--danger);
 }
+
+/* The SOS screen: full red, over everything, large and plain. */
+.sos-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow-y: auto;
+  background: #b3121b;
+  color: #fff;
+  padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sos-screen h1 {
+  font-size: 4.5rem;
+  letter-spacing: 0.08em;
+  margin: 8px 0 0;
+  color: #fff;
+}
+.sos-lead {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0;
+}
+.sos-status {
+  opacity: 0.9;
+  font-size: 0.9375rem;
+}
+.sos-screen button {
+  font: inherit;
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+.sos-end,
+.sos-reason {
+  background: #fff;
+  color: #b3121b;
+  font-weight: 700;
+}
+.sos-back {
+  background: transparent;
+  color: #fff;
+}
+.sos-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sos-other {
+  display: flex;
+  gap: 8px;
+}
+.sos-other input {
+  flex: 1;
+  min-width: 0;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  padding: 12px;
+  font: inherit;
+}
+.sos-error {
+  background: #fff;
+  color: #b3121b;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+.sos-alert {
+  border: 2px solid var(--danger);
+  background: var(--danger-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+.sos-ended {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
