@@ -1,10 +1,10 @@
 # Notes for Claude
 
-- Plan, phases and status: `docs/ROADMAP.md`. Dependency and security upkeep:
+- Actionable work and status: GitHub Issues and Projects; follow `docs/WORKFLOW.md`. Architecture and agreed phase design: `docs/ROADMAP.md`. Dependency and security upkeep:
   `docs/MAINTENANCE.md`. How sign-in works and why: `docs/SECURITY.md`.
 - **Owner steps.** `docs/OWNER-STEPS.md` is the owner's checklist of things
   only they can do (keys, secrets, deployment), with exact commands. When a
-  change needs the owner to do something, add or update the step there in
+  change needs the owner to do something, add or update the runbook step and link a separate owner issue in
   the same pull request, and point to it in the pull request and in chat.
   Tick a step only when the owner says it is done.
 - **Data protection is decided before building.** `docs/DATA-PROTECTION.md`
@@ -14,8 +14,7 @@
   the planning pull request. Never store new data without a row, and never
   move data to a weaker tier without asking.
 - Work on a feature branch and open a pull request into `main` when a change
-  is done. One phase item (or a coherent part of one) per pull request; tick
-  it off in `docs/ROADMAP.md` in the same pull request.
+  is done. One phase item (or a coherent part of one) per pull request; link the issue with `Closes #N` if complete, otherwise `Refs #N`.
 - **Releases are made by label.** When the owner says a pull request "will be a
   release" (or similar), add the label `release: minor` to it, or
   `release: patch` if it only fixes things (`release: major` only when asked).
