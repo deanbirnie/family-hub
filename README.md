@@ -186,6 +186,8 @@ old artifacts, releases and images from piling up.
 
 ## Development
 
+Plan and coordinate changes through [Issues](https://github.com/deanbirnie/family-hub/issues) and the [development workflow](docs/WORKFLOW.md).
+
 Node 24.7 or newer.
 
 ```bash

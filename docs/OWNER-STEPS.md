@@ -2,7 +2,7 @@
 
 Things only you (the owner) can do, in order, with exact steps. Claude keeps
 this list current: new steps are added here when a pull request needs one,
-and a step is ticked once you say it is done.
+and a step is ticked once you say it is done. Track actionable owner work in issues #74–77 (bank formats #61); this file is the command-by-command runbook. See [WORKFLOW.md](WORKFLOW.md).
 
 Two things must end up in your **password manager**, each as a secure note:
 

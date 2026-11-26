@@ -2,7 +2,7 @@
 
 The plan for building Family Hub in phases, and the hand-over document for
 work in a fresh session: what exists, what is next, and what was decided.
-**Tick items off here in the pull request that lands them.**
+**GitHub Issues are now the source of truth for actionable work and status.** See [WORKFLOW.md](WORKFLOW.md) for the queue and issue mapping. The phase descriptions below preserve historical design and delivery context; do not add new task checklists here.
 
 Each phase is one or more pull requests into `main`, and usually ends in a
 release (`release: minor`). The order after phase 1 is a proposal: reorder
