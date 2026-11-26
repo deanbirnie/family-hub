@@ -297,7 +297,7 @@ login (those are never stored). Each sealed item is bound to its own ID.
 | A test email from Settings → In case of emergency | Sent to the address the parent types, which is not kept; it says only that the hub can send email | Sent over TLS to the mail server | ✅ 9a |
 | Emergency events (someone added, changed or removed with their role, a letter made, a test email sent or failed; never names or addresses) | `audit_log` | P | ✅ 9a |
 
-### Safety: home safe, arrived and SOS (phase 10; planning)
+### Safety: home safe, arrived and SOS (phase 10; built)
 
 Everyone with an account in the family is told; nobody outside it.
 
@@ -309,10 +309,10 @@ Everyone with an account in the family is told; nobody outside it.
 | Locations waiting on the phone with no connection | A file in the app's private storage on that phone (`sos-queue.json`; backups are off), removed as they are sent and when the SOS ends | On the device | ✅ 10b |
 | Notification text | "Jo is home safe.", "Jo arrived.", "SOS from Jo. Tap to see." (names are wanted: they go only to the family). Home safe and Arrived can be turned off per person in Settings → Notifications; SOS cannot | Encrypted to the device (RFC 8291) | ✅ 10a, 10b (SOS comes whatever the settings) |
 | The SOS pass: lets the phone send locations for that one SOS, and end it, once the app has locked | Given to the phone when the SOS starts (in the unlocked app); kept in the phone's memory and the service's start request; the server keeps a SHA-256 hash; useless once the SOS ends | H | ✅ 10b |
-| The family's phone numbers, for the SMS fallback | Kept on each phone in the app's storage, encrypted with a key in the phone's keystore, refreshed when the app opens (from the family's own Contacts entries) | On the device (keystore) | 🔜 10c |
-| SMS sent with no data: "SOS from Jo", coordinates and a Google Maps link | Sent by the phone over the mobile network; not encrypted (SMS cannot be) | Plain, to the family's phones only | 🔜 10c |
-| Emergency contact and medical details on the SOS screen | A copy of the phone's offline emergency card (phase 5d) kept for the SOS screen only, encrypted with a keystore key that needs **no fingerprint** (the owner's choice), so it shows at once, also from the lock screen. Anyone holding the phone can see it by starting an SOS (which alerts the family) | On the device (keystore, no fingerprint) | 🔜 10c |
-| The SOS key: lets a locked phone start an SOS, send its locations and end it, and nothing else | A second non-exportable keystore key per phone, usable without a fingerprint; the server keeps its public key and refuses it for anything but SOS | On the device (keystore); public key P | 🔜 10c |
+| The family's phone numbers, for the SMS fallback | The mobile number in each other family member's own Contacts entry (the contact linked to their Quick Info person), fetched when the app opens; kept on each phone in a small store encrypted with a keystore key that needs no fingerprint (a locked phone must reach it) | On the device (keystore) | ✅ 10c |
+| SMS sent with no data: "SOS from Jo (Family Hub, no data)", coordinates, a Google Maps link and the time | Sent by the phone after a minute with no data, then at most every 15 minutes while offline; not encrypted (SMS cannot be) | Plain, to the family's phones only | ✅ 10c |
+| Emergency contact and medical details on the SOS screen | The person's own emergency contacts, blood type, allergies, medicines, conditions and care notes (no ID or medical aid numbers), kept when Health is opened with the vault open, in the same keystore-encrypted store that needs **no fingerprint** (the owner's choice), so they show at once, also from the lock screen. Anyone holding the phone can see them by starting an SOS (which alerts the family) | On the device (keystore, no fingerprint) | ✅ 10c |
+| The SOS key: lets a locked phone start an SOS, and nothing else | A second non-exportable keystore key per phone (ECDSA P-256), usable without a fingerprint; the server keeps its public key on the phone's record (`devices.sos_public_key`) and accepts it only, with a one-time challenge, to start an SOS. Removing the phone removes it | On the device (keystore); public key P | ✅ 10c |
 | A tap on "Open in Google Maps" | Google learns the coordinates of that one location, only when someone taps it | Google | ✅ 10a |
 
 ### Later phases (proposed; confirm at the start of each phase)

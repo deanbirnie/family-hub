@@ -210,9 +210,14 @@ try {
 
   // SOS: the red screen over everything, the first location sent at once, ended with a reason.
   await page.getByRole('link', { name: 'Home', exact: true }).click()
+  // Set up once: the SOS key (for the lock-screen tile) and what a locked phone keeps.
+  await page.getByRole('button', { name: 'Set up SOS on this phone' }).click()
+  await page.getByText(/SOS is set up on this phone/).waitFor()
   await page.getByRole('button', { name: 'SOS', exact: true }).click()
   const sos = page.getByRole('alertdialog', { name: 'SOS' })
   await sos.getByText('Your family has been alerted.').waitFor()
+  // The person's own essentials, with no fingerprint (the owner's choice).
+  await sos.getByText(/Severe allergies: Peanuts/).waitFor()
   await sos.getByText(/last sent just now/).waitFor()
   await shot('05-sos')
   await sos.getByRole('button', { name: 'End the SOS' }).click()

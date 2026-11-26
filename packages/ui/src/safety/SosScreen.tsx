@@ -4,7 +4,7 @@
  * family knows how worried to be. No call button, no sound, no vibration.
  */
 import { useEffect, useState } from 'react'
-import type { SosStatus, SosSupport } from '../platform.ts'
+import type { SosCard, SosStatus, SosSupport } from '../platform.ts'
 
 const REASONS: ['whoops' | 'services' | 'safe', string][] = [
   ['whoops', 'Whoops: sent by mistake'],
@@ -23,6 +23,10 @@ export function SosScreen({ sos }: { sos: SosSupport }) {
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [card, setCard] = useState<SosCard | null>(null)
+  useEffect(() => {
+    void sos.card?.().then(setCard, () => undefined)
+  }, [sos])
 
   useEffect(() => {
     let live = true
@@ -60,6 +64,7 @@ export function SosScreen({ sos }: { sos: SosSupport }) {
           {status.waiting > 0 && ` · ${status.waiting} waiting for a signal`}
         </p>
       )}
+      {card && <SosDetails card={card} />}
       {!ending ? (
         <button className="sos-end" onClick={() => setEnding(true)}>
           End the SOS
@@ -85,5 +90,36 @@ export function SosScreen({ sos }: { sos: SosSupport }) {
       )}
       {error && <p className="sos-error" role="alert">{error}</p>}
     </div>
+  )
+}
+
+/** For whoever finds the phone: who to call, then what a medic needs first. (No call button: the owner's choice.) */
+function SosDetails({ card }: { card: SosCard }) {
+  const first = card.contacts.filter((c) => c.label !== 'Doctor')
+  const doctor = card.contacts.find((c) => c.label === 'Doctor')
+  return (
+    <section className="sos-details" aria-label="Emergency information">
+      {first.map((c) => (
+        <p key={`${c.label}${c.phone}`} className="sos-contact">
+          {c.label === 'First call' ? 'Emergency' : c.label}: <strong>{c.name}</strong> – <strong>{c.phone}</strong>
+        </p>
+      ))}
+      <p className="sos-who">{card.name}</p>
+      {card.bloodType && (
+        <p>
+          Blood type: <strong>{card.bloodType}</strong>
+        </p>
+      )}
+      {card.severeAllergies.length > 0 && <p className="sos-severe">Severe allergies: {card.severeAllergies.join('; ')}</p>}
+      {card.otherAllergies.length > 0 && <p>Allergies: {card.otherAllergies.join('; ')}</p>}
+      {card.medicines.length > 0 && <p>Medicines: {card.medicines.join('; ')}</p>}
+      {card.conditions.length > 0 && <p>Conditions: {card.conditions.join('; ')}</p>}
+      {card.careNotes && <p>{card.careNotes}</p>}
+      {doctor && (
+        <p>
+          Doctor: {doctor.name} – {doctor.phone}
+        </p>
+      )}
+    </section>
   )
 }

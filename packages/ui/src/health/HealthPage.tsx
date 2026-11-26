@@ -143,6 +143,14 @@ function HealthBody({ ctx, episodeId }: { ctx: HubContext; episodeId: string | n
       setData(loaded)
       // On the phone, bring the offline emergency card up to date (no fingerprint needed to update it).
       if (ctx.platform.emergencyCard) void ctx.platform.emergencyCard.save(raw.profiles.map((p) => emergencyCard(reportInput(ctx, loaded, p)))).catch(() => undefined)
+      // The SOS screen shows this person's own essentials with no fingerprint (the owner's choice): no ID or medical aid numbers.
+      const me = raw.profiles.find((p) => p.userId === ctx.user.id)
+      if (me && ctx.platform.sos?.saveCard) {
+        const c = emergencyCard(reportInput(ctx, loaded, me))
+        void ctx.platform.sos
+          .saveCard({ name: c.name, contacts: c.contacts, bloodType: c.bloodType, severeAllergies: c.severeAllergies, otherAllergies: c.otherAllergies, medicines: c.medicines, conditions: c.conditions, careNotes: c.careNotes })
+          .catch(() => undefined)
+      }
       // Keep the server's health reminders in step (it learns only person, date and how far ahead).
       void syncHealthReminders(
         api,

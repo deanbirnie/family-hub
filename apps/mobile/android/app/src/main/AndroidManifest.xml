@@ -55,6 +55,18 @@
             android:foregroundServiceType="location"
             android:exported="false" />
 
+        <!-- SOS from the lock screen: a Quick Settings tile (phase 10c). -->
+        <service
+            android:name=".SosTileService"
+            android:icon="@drawable/ic_stat_family_hub"
+            android:label="SOS"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <!-- ...and the daily check, which works without any push service. -->
         <service
             android:name=".DailyCheckJob"
@@ -71,6 +83,8 @@
     <!-- Phase 10b: an SOS keeps sending the location in the background, shown as a notification. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Phase 10c: with no data, an SOS texts the family its location (asked for when SOS is set up). -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Opens Android's installer for a downloaded update; Android still asks the person to confirm. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

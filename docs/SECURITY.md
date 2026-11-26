@@ -68,24 +68,32 @@ app has locked (2 minutes in the background), with no session. It does
 nothing else, and stops working the moment the SOS ends; starting the SOS
 again from the app replaces it.
 
-### Planned (phase 10c): SOS from the lock screen
+### SOS from the lock screen (phase 10c)
 
 The one exception to "a fingerprint every time", asked for by the owner:
 an SOS can be started from the lock screen (a Quick Settings tile), and its
-red screen shows the emergency contact, blood type, allergies, medicines and
-conditions with no fingerprint, so a first responder can read them.
+red screen shows the person's emergency contacts, blood type, allergies,
+medicines and conditions with no fingerprint, so a first responder can read
+them.
 
-- Each phone gets a **second keystore key, the SOS key**: non-exportable,
-  usable without a fingerprint. The server stores its public key and
-  accepts its signatures (one-time challenge, as for unlocking) for three
-  things only: start an SOS, add a location to it, end it. It opens no
-  session and reads nothing.
-- The details on the red screen come from a copy of the phone's emergency
-  card encrypted with a keystore key that needs no fingerprint, used only
-  by that screen.
+- Each phone gets a **second keystore key, the SOS key** (when SOS is set up
+  in the unlocked app): non-exportable, usable without a fingerprint. The
+  server keeps its public key on the phone's record and accepts its
+  signature over `family-hub-sos-start\n<challenge>\n<deviceId>` (a
+  one-time challenge, as for unlocking) for one thing only: starting an SOS,
+  which answers with that SOS's pass. It opens no session and reads nothing;
+  an unlock signed with it is refused.
+- The details on the red screen, the family's mobile numbers (for an SMS
+  with no data), the hub's address and the phone's id are kept in a small
+  store encrypted with a keystore key that needs no fingerprint, used only
+  for SOS. No ID or medical aid numbers go in it.
+- While an SOS is on, the app shows over the lock screen so it can be read
+  and ended there; at any other time it does not, and opening the app still
+  needs a fingerprint.
 - So someone holding the phone can raise an SOS (the family is alerted at
-  once, and can see it was cancelled) and read those details, and nothing
-  more. Removing the phone in Settings removes its SOS key too.
+  once, and sees how it ended) and read those details, and nothing more.
+  Removing the phone in Settings removes its SOS key; signing the phone out
+  deletes the key and the store.
 
 ## Slowing down guessing
 

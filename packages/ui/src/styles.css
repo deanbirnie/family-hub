@@ -2395,3 +2395,27 @@ progress {
   padding: 10px 12px;
   margin: 8px 0;
 }
+.sos-details {
+  background: #fff;
+  color: #1a1a1a;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.sos-details p {
+  margin: 4px 0;
+}
+.sos-details a {
+  color: #b3121b;
+  font-weight: 700;
+}
+.sos-contact {
+  font-size: 1.15rem;
+}
+.sos-who {
+  font-weight: 700;
+  margin-top: 10px !important;
+}
+.sos-severe {
+  color: #b3121b;
+  font-weight: 700;
+}

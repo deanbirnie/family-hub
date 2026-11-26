@@ -27,7 +27,7 @@ const MAX_DEVICES = 10
 /** What the phone signs: fixed context, the challenge and the device id, so a signature is useless anywhere else. */
 export const unlockMessage = (challenge: string, deviceId: string) => Buffer.from(`family-hub-device-unlock\n${challenge}\n${deviceId}`, 'utf8')
 
-function parsePublicKey(base64: string): KeyObject {
+export function parsePublicKey(base64: string): KeyObject {
   let key: KeyObject
   try {
     key = createPublicKey({ key: Buffer.from(base64, 'base64'), format: 'der', type: 'spki' })

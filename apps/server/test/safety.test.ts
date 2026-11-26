@@ -172,3 +172,58 @@ describe('SOS', () => {
     expect(seen.body.sos[0]!.end).toEqual({ reason: 'stale', note: '' })
   })
 })
+
+describe('SOS from the lock screen (10c)', () => {
+  it('a phone’s SOS key starts an SOS with a one-time challenge, and does nothing else', async () => {
+    const { generateKeyPairSync, sign } = await import('node:crypto')
+    const { sosMessage } = await import('../src/routes/safety.ts')
+    const { signedInPhone } = await import('./helpers.ts')
+    const push = pushService()
+    server = await startServer({}, { pushFetch: push.fetcher })
+    const { client: parent, secret } = await setUpAdmin(server)
+    const { client: phone, deviceId } = await signedInPhone(server, secret)
+    const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' })
+    // Only a phone's session can set it, from the unlocked app.
+    expect((await parent.call('PUT', '/api/safety/sos-key', { publicKey: publicKey.export({ format: 'der', type: 'spki' }).toString('base64') })).status).toBe(400)
+    expect((await phone.call('PUT', '/api/safety/sos-key', { publicKey: publicKey.export({ format: 'der', type: 'spki' }).toString('base64') })).status).toBe(200)
+
+    // Locked: no session at all.
+    const locked = new Client(server.url)
+    const start = async (msg = (c: string) => sosMessage(c, deviceId), key = privateKey) => {
+      const c = await locked.post<{ challengeId: string; challenge: string }>('/api/devices/challenge', { deviceId })
+      const signature = sign('sha256', msg(c.body.challenge), { key, dsaEncoding: 'der' }).toString('base64')
+      return locked.post<{ sos: { id: string }; pass: string }>('/api/safety/sos/by-key', { deviceId, challengeId: c.body.challengeId, signature, location: { latitude: -33.9, longitude: 18.4 } })
+    }
+    // A signature for something else, or by another key, does not start one.
+    const { unlockMessage } = await import('../src/routes/devices.ts')
+    expect((await start((c) => unlockMessage(c, deviceId))).status).toBe(401)
+    expect((await start(undefined, generateKeyPairSync('ec', { namedCurve: 'P-256' }).privateKey)).status).toBe(401)
+    const ok = await start()
+    expect(ok.status).toBe(200)
+    expect(ok.body.pass.length).toBeGreaterThan(30)
+    // It opened no session: the family's data stays shut.
+    expect((await locked.get('/api/safety')).status).toBe(401)
+    expect((await parent.get<{ sos: { endedAt: number | null; points: unknown[] }[] }>('/api/safety')).body.sos[0]).toMatchObject({ endedAt: null, points: [{ latitude: -33.9 }] })
+    // The SOS key cannot unlock the phone either.
+    const c = await locked.post<{ challengeId: string; challenge: string }>('/api/devices/challenge', { deviceId })
+    const forged = sign('sha256', unlockMessage(c.body.challenge, deviceId), { key: privateKey, dsaEncoding: 'der' }).toString('base64')
+    expect((await locked.post('/api/devices/unlock', { deviceId, challengeId: c.body.challengeId, signature: forged })).status).toBe(401)
+  })
+
+  it('gives a phone the rest of the family’s mobile numbers, from their own Contacts entries', async () => {
+    server = await startServer()
+    const { client: parent } = await setUpAdmin(server)
+    const invite = await parent.post<{ token: string }>('/api/invites', { displayName: 'Kid' })
+    const kid = new Client(server.url)
+    await kid.post(`/api/invites/redeem/${invite.body.token}`, { username: 'kid', displayName: 'Kid', password: PASSWORD })
+    nextStep(server)
+    await enrollTotp(server, kid)
+    const profiles = (await parent.get<{ profiles: { id: string; userId: string | null; mine: boolean }[] }>('/api/wishlists')).body.profiles
+    const mine = profiles.find((p) => p.mine)!
+    const kids = profiles.find((p) => !p.mine && p.userId)!
+    await parent.post('/api/contacts', { name: 'Parent', profileId: mine.id, phones: [{ label: 'mobile', number: '082 555 0001' }] })
+    await parent.post('/api/contacts', { name: 'Kid', profileId: kids.id, phones: [{ label: 'home', number: '021 555 0002' }, { label: 'mobile', number: '083 555 0002' }] })
+    expect((await kid.get<{ numbers: unknown[] }>('/api/safety/sos-numbers')).body.numbers).toEqual([{ name: 'Parent', phone: '082 555 0001' }])
+    expect((await parent.get<{ numbers: unknown[] }>('/api/safety/sos-numbers')).body.numbers).toEqual([{ name: 'Kid', phone: '083 555 0002' }])
+  })
+})

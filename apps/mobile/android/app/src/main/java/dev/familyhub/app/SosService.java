@@ -1,5 +1,6 @@
 package dev.familyhub.app;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -7,6 +8,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.location.Location;
 import android.location.LocationListener;
@@ -16,8 +18,14 @@ import android.net.Network;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.telephony.SmsManager;
+import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
@@ -43,6 +51,11 @@ import org.json.JSONObject;
  * storage and go up together in one request when the connection is back: a
  * clean retry, never a burst. It stops when the SOS is ended, or when the hub
  * says it has ended.
+ *
+ * <p>Started from the lock screen (SosTileService, phase 10c), it first starts
+ * the SOS itself, with the phone's SOS key. With no data for a minute, it
+ * texts the latest location to the family's mobile numbers, then at most once
+ * every 15 minutes while it stays offline.
  */
 public class SosService extends Service {
 
@@ -51,6 +64,8 @@ public class SosService extends Service {
   private static final long EVERY_MS = 2 * 60_000L;
   private static final long EVERY_LOW_MS = 5 * 60_000L;
   private static final int BATCH = 100;
+  private static final long SMS_AFTER_MS = 60_000L;
+  private static final long SMS_EVERY_MS = 15 * 60_000L;
 
   // What the plugin reads (same process).
   static volatile boolean running;
@@ -60,6 +75,21 @@ public class SosService extends Service {
   static volatile long lastSentAt;
   static volatile long lastFixAt;
   static volatile int waiting;
+  static volatile String deviceId;
+  static volatile String name;
+  static volatile long offlineSince;
+  static volatile long lastSmsAt;
+  private volatile JSONObject latest;
+  private final Handler ticker = new Handler(Looper.getMainLooper());
+  private final Runnable tick =
+      new Runnable() {
+        @Override
+        public void run() {
+          if (sosId == null) flush();
+          maybeSms();
+          ticker.postDelayed(this, 30_000L);
+        }
+      };
 
   private final List<JSONObject> queue = new ArrayList<>();
   private final ExecutorService net = Executors.newSingleThreadExecutor();
@@ -76,15 +106,20 @@ public class SosService extends Service {
 
   @Override
   public int onStartCommand(Intent intent, int flags, int startId) {
-    if (intent != null && intent.getStringExtra("id") != null) {
+    if (intent != null && intent.getStringExtra("server") != null) {
       server = intent.getStringExtra("server");
+      // From the app: the SOS is already started. From the lock screen: this service starts it with the SOS key.
       sosId = intent.getStringExtra("id");
       pass = intent.getStringExtra("pass");
+      deviceId = intent.getStringExtra("deviceId");
+      name = intent.getStringExtra("name");
     }
-    if (sosId == null) {
+    if (server == null || (sosId == null && deviceId == null)) {
       stopSelf();
       return START_NOT_STICKY;
     }
+    ticker.removeCallbacks(tick);
+    ticker.postDelayed(tick, 30_000L);
     showNotification();
     running = true;
     loadQueue();
@@ -153,6 +188,7 @@ public class SosService extends Service {
         queue.add(p);
         saveQueue();
       }
+      latest = p;
       lastFixAt = System.currentTimeMillis();
       if (nowLow != low) watchLocation(false);
     } catch (Exception e) {
@@ -181,6 +217,7 @@ public class SosService extends Service {
     net.execute(
         () -> {
           try {
+            if (sosId == null && !startWithKey()) return;
             JSONArray points = new JSONArray();
             int count;
             synchronized (queue) {
@@ -198,17 +235,94 @@ public class SosService extends Service {
                 saveQueue();
               }
               lastSentAt = System.currentTimeMillis();
+              offlineSince = 0;
             } else if (status == 404 || status == 410) {
               // Ended (from another phone, or by the hub): stop.
               finish();
             }
           } catch (Exception e) {
             // No signal: try again with the next location, or when the connection is back.
+            if (offlineSince == 0) offlineSince = System.currentTimeMillis();
           } finally {
             waiting = queueSize();
             sending.set(false);
           }
         });
+  }
+
+  /** Starts the SOS with the phone's SOS key (from the lock screen): a one-time challenge, signed. */
+  private boolean startWithKey() throws Exception {
+    JSONObject c = postForJson("/api/devices/challenge", new JSONObject().put("deviceId", deviceId));
+    if (c == null) return false;
+    JSONObject body = new JSONObject();
+    body.put("deviceId", deviceId);
+    body.put("challengeId", c.getString("challengeId"));
+    body.put("signature", SosVault.sign(c.getString("challenge"), deviceId));
+    if (latest != null) body.put("location", latest);
+    JSONObject started = postForJson("/api/safety/sos/by-key", body);
+    if (started == null) return false;
+    pass = started.getString("pass");
+    sosId = started.getJSONObject("sos").getString("id");
+    offlineSince = 0;
+    lastSentAt = System.currentTimeMillis();
+    return true;
+  }
+
+  /** Posts JSON and reads the JSON answer; null if the hub said no (throws with no connection). */
+  private static JSONObject postForJson(String path, JSONObject body) throws Exception {
+    HttpURLConnection c = (HttpURLConnection) new URL(server.replaceAll("/+$", "") + path).openConnection();
+    c.setConnectTimeout(20_000);
+    c.setReadTimeout(30_000);
+    c.setRequestMethod("POST");
+    c.setDoOutput(true);
+    c.setRequestProperty("Content-Type", "application/json");
+    c.setRequestProperty("X-Requested-With", "family-hub");
+    try (OutputStream out = c.getOutputStream()) {
+      out.write(body.toString().getBytes(StandardCharsets.UTF_8));
+    }
+    int status = c.getResponseCode();
+    if (status < 200 || status >= 300) {
+      c.disconnect();
+      return null;
+    }
+    try (InputStream in = c.getInputStream()) {
+      // (InputStream.readAllBytes is only on Android 13 and later.)
+      java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+      byte[] buf = new byte[4096];
+      for (int n; (n = in.read(buf)) > 0; ) bytes.write(buf, 0, n);
+      return new JSONObject(bytes.toString("UTF-8"));
+    } finally {
+      c.disconnect();
+    }
+  }
+
+  /** With no data for a minute: the latest location by SMS to the family, at most every 15 minutes while offline. */
+  private void maybeSms() {
+    long now = System.currentTimeMillis();
+    if (offlineSince == 0 || now - offlineSince < SMS_AFTER_MS || now - lastSmsAt < SMS_EVERY_MS) return;
+    if (checkSelfPermission(Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) return;
+    JSONObject store = SosVault.read(this);
+    org.json.JSONArray numbers = store.optJSONArray("numbers");
+    if (numbers == null || numbers.length() == 0) return;
+    String who = name != null ? name : store.optString("name", "Someone");
+    JSONObject p = latest;
+    String where =
+        p == null
+            ? "No location yet."
+            : String.format(Locale.ROOT, "%.5f,%.5f https://www.google.com/maps/search/?api=1&query=%.5f,%.5f (%s)", p.optDouble("latitude"), p.optDouble("longitude"), p.optDouble("latitude"), p.optDouble("longitude"), new SimpleDateFormat("HH:mm", Locale.ROOT).format(new Date(p.optLong("at", now))));
+    String text = "SOS from " + who + " (Family Hub, no data): " + where;
+    SmsManager sms = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ? getSystemService(SmsManager.class) : SmsManager.getDefault();
+    if (sms == null) return;
+    for (int i = 0; i < numbers.length(); i++) {
+      String to = numbers.optJSONObject(i) != null ? numbers.optJSONObject(i).optString("phone", "") : "";
+      if (to.isEmpty()) continue;
+      try {
+        sms.sendMultipartTextMessage(to, null, sms.divideMessage(text), null, null);
+      } catch (Exception e) {
+        // One number failing does not stop the others.
+      }
+    }
+    lastSmsAt = now;
   }
 
   /** Posts JSON to the hub; the status code, or an exception with no connection. */
@@ -292,12 +406,16 @@ public class SosService extends Service {
 
   @Override
   public void onDestroy() {
+    ticker.removeCallbacks(tick);
     if (lm != null && listener != null) lm.removeUpdates(listener);
     ConnectivityManager cm = getSystemService(ConnectivityManager.class);
     if (cm != null && netCallback != null) cm.unregisterNetworkCallback(netCallback);
     running = false;
     sosId = null;
     pass = null;
+    deviceId = null;
+    offlineSince = 0;
+    lastSmsAt = 0;
     waiting = 0;
     instance = null;
     net.shutdown();
