@@ -952,7 +952,7 @@ of phase 9 are not part of this.
 
 - [x] 10a. Home safe and Arrived, the family's notifications and the
       home-page panel.
-- [ ] 10b. SOS: the red screen, locations in the background every 2 (or 5)
+- [x] 10b. SOS: the red screen, locations in the background every 2 (or 5)
       minutes, the clean retry, cancelling with a reason, the live view.
 - [ ] 10c. With no data: the SMS fallback; the emergency contact and
       medical details on the SOS screen; SOS from the lock screen.

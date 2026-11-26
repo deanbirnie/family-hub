@@ -9,7 +9,7 @@ import type { Api, Services } from '../app.ts'
 import { bad, obj, oneOf, text } from '../household.ts'
 import { HttpError, readJson } from '../http.ts'
 import { getSettings, sendTo, subscriptionsOf } from '../notifications.ts'
-import { newId } from '../secrets.ts'
+import { hashToken, newId, newToken } from '../secrets.ts'
 
 const KEEP_MS = 24 * 3_600_000
 
@@ -43,9 +43,78 @@ export function cleanCheckin(raw: unknown): Checkin {
   }
 }
 
-/** Removes check-ins older than a day (run with the server's regular tidy-up, and before each read). */
+/** Removes check-ins older than a day, and SOS tracks a day after they ended (run with the regular tidy-up, and before each read). */
 export function pruneCheckins(s: Services): void {
   s.db.prepare('DELETE FROM safety_checkins WHERE created_at < ?').run(s.now() - KEEP_MS)
+  s.db.prepare('DELETE FROM safety_sos WHERE ended_at IS NOT NULL AND ended_at < ?').run(s.now() - KEEP_MS)
+  // An SOS nobody ended (a phone lost or broken) ends itself after a day without a location.
+  for (const r of s.db.prepare('SELECT id, COALESCE((SELECT MAX(received_at) FROM safety_sos_points p WHERE p.sos_id = safety_sos.id), started_at) AS last FROM safety_sos WHERE ended_at IS NULL').all() as { id: string; last: number }[]) {
+    if (r.last < s.now() - KEEP_MS) endSos(s, r.id, { reason: 'stale', note: '' })
+  }
+}
+
+// ---- SOS (10b) ---------------------------------------------------------------------------
+
+export type EndReason = 'whoops' | 'services' | 'safe' | 'other' | 'stale'
+export const END_WORDS: Record<EndReason, string> = {
+  whoops: 'Whoops: sent by mistake',
+  services: 'Emergency services have been and gone',
+  safe: 'I’m safe now',
+  other: 'Ended',
+  stale: 'Ended by itself: no location for a day',
+}
+const MAX_POINTS = 2000
+
+export interface Point {
+  latitude: number
+  longitude: number
+  accuracy: number | null
+  /** When the phone took it (it may arrive later, after a time with no signal). */
+  at: number
+  batteryLow: boolean
+}
+
+export function cleanPoint(raw: unknown, now: number): Point {
+  const o = obj(raw)
+  const at = typeof o.at === 'number' && Number.isFinite(o.at) ? Math.min(Math.round(o.at), now) : now
+  return {
+    latitude: coordinate(o.latitude, 90, 'The latitude'),
+    longitude: coordinate(o.longitude, 180, 'The longitude'),
+    accuracy: typeof o.accuracy === 'number' && Number.isFinite(o.accuracy) && o.accuracy >= 0 ? Math.min(Math.round(o.accuracy), 100_000) : null,
+    at,
+    batteryLow: o.batteryLow === true,
+  }
+}
+
+const sealPoint = (s: Services, sosId: string, id: string, p: Point) => s.serverKey.seal(JSON.stringify(p), 'sos-point', `${sosId}/${id}`)
+const openPoint = (s: Services, sosId: string, id: string, sealed: string) => JSON.parse(s.serverKey.open(sealed, 'sos-point', `${sosId}/${id}`)) as Point
+
+function endSos(s: Services, id: string, end: { reason: EndReason; note: string }) {
+  s.db.prepare('UPDATE safety_sos SET ended_at = ?, ended_sealed = ? WHERE id = ? AND ended_at IS NULL').run(s.now(), s.serverKey.seal(JSON.stringify(end), 'sos-end', id), id)
+}
+
+/** Everyone else in the family: an SOS always comes, whatever their settings. */
+async function tellFamily(s: Services, exceptUserId: string, body: string, tag: string, url: string): Promise<number> {
+  let told = 0
+  for (const u of s.db.prepare('SELECT id FROM users WHERE disabled = 0 AND id != ?').all(exceptUserId) as { id: string }[]) {
+    for (const route of subscriptionsOf(s, u.id)) if ((await sendTo(s, route, { title: 'Family Hub', body, tag, url }).catch(() => ({ ok: false }))).ok) told++
+  }
+  return told
+}
+
+function storePoints(s: Services, sosId: string, raw: unknown): number {
+  const list = Array.isArray(raw) ? raw.slice(0, 100) : []
+  const have = (s.db.prepare('SELECT COUNT(*) AS n FROM safety_sos_points WHERE sos_id = ?').get(sosId) as { n: number }).n
+  const now = s.now()
+  let added = 0
+  for (const r of list) {
+    if (have + added >= MAX_POINTS) break
+    const p = cleanPoint(r, now)
+    const id = newId()
+    s.db.prepare('INSERT INTO safety_sos_points (id, sos_id, sealed, at, received_at) VALUES (?, ?, ?, ?, ?)').run(id, sosId, sealPoint(s, sosId, id, p), p.at, now)
+    added++
+  }
+  return added
 }
 
 export function safetyRoutes(api: Api, s: Services): void {
@@ -63,7 +132,23 @@ export function safetyRoutes(api: Api, s: Services): void {
       created_at: number
       display_name: string
     }[]
-    return { checkins: rows.map((r) => ({ id: r.id, userId: r.user_id, name: r.display_name, at: r.created_at, ...open(r.id, r.sealed) })) }
+    const sos = (db.prepare('SELECT s.id, s.user_id, s.started_at, s.ended_at, s.ended_sealed, u.display_name FROM safety_sos s JOIN users u ON u.id = s.user_id ORDER BY s.started_at DESC').all() as {
+      id: string
+      user_id: string
+      started_at: number
+      ended_at: number | null
+      ended_sealed: string | null
+      display_name: string
+    }[]).map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      name: r.display_name,
+      startedAt: r.started_at,
+      endedAt: r.ended_at,
+      end: r.ended_sealed ? (JSON.parse(s.serverKey.open(r.ended_sealed, 'sos-end', r.id)) as { reason: EndReason; note: string }) : null,
+      points: (db.prepare('SELECT id, sealed FROM safety_sos_points WHERE sos_id = ? ORDER BY at, rowid').all(r.id) as { id: string; sealed: string }[]).map((p) => openPoint(s, r.id, p.id, p.sealed)),
+    }))
+    return { checkins: rows.map((r) => ({ id: r.id, userId: r.user_id, name: r.display_name, at: r.created_at, ...open(r.id, r.sealed) })), sos }
   })
 
   api.authed('POST', '/api/safety/checkins', signedIn, async (ctx) => {
@@ -87,5 +172,58 @@ export function safetyRoutes(api: Api, s: Services): void {
       }
     }
     return { checkin: { id, userId: ctx.user.id, name: ctx.user.displayName, at: now, ...checkin }, told }
+  })
+
+  /**
+   * Starts an SOS (from the unlocked app), with the first location if there
+   * is one. The family is alerted at once. The answer carries a pass for this
+   * SOS only, so the phone can keep sending locations, and end it, once the
+   * app has locked. Called again while one is on, it hands back a new pass.
+   */
+  api.authed('POST', '/api/safety/sos', signedIn, async (ctx) => {
+    const body = await readJson(ctx.req)
+    const pass = newToken()
+    const open = db.prepare('SELECT id FROM safety_sos WHERE user_id = ? AND ended_at IS NULL').get(ctx.user.id) as { id: string } | undefined
+    if (open) {
+      db.prepare('UPDATE safety_sos SET pass_hash = ? WHERE id = ?').run(hashToken(pass), open.id)
+      if (body.location) storePoints(s, open.id, [body.location])
+      return { sos: { id: open.id }, pass, told: 0 }
+    }
+    const id = newId()
+    db.prepare('INSERT INTO safety_sos (id, user_id, pass_hash, started_at) VALUES (?, ?, ?, ?)').run(id, ctx.user.id, hashToken(pass), s.now())
+    if (body.location) storePoints(s, id, [body.location])
+    s.audit('safety.sos_started', ctx, ctx.user.id)
+    const told = await tellFamily(s, ctx.user.id, `SOS from ${ctx.user.displayName}. Tap to see.`, `sos-${id}`, '/')
+    return { sos: { id }, pass, told }
+  })
+
+  /** The SOS by its pass (the phone, possibly locked): only that SOS, only while it is on. */
+  const byPass = (id: string, pass: unknown) => {
+    const r = db.prepare('SELECT id, user_id, ended_at FROM safety_sos WHERE id = ? AND pass_hash = ?').get(id, hashToken(typeof pass === 'string' ? pass : '')) as { id: string; user_id: string; ended_at: number | null } | undefined
+    if (!r) throw new HttpError(404, 'That SOS is not known here.', 'not_found')
+    if (r.ended_at !== null) throw new HttpError(410, 'That SOS has ended.', 'ended')
+    return r
+  }
+
+  /** Locations, one or several at once (those kept while there was no signal go up together). */
+  api.open('POST', '/api/safety/sos/:id/points', async (ctx) => {
+    const body = await readJson(ctx.req, 64 * 1024)
+    const r = byPass(ctx.params.id!, body.pass)
+    return { added: storePoints(s, r.id, body.points) }
+  })
+
+  /** Ending it, with why: the family is told, so they know how worried to be. */
+  api.open('POST', '/api/safety/sos/:id/end', async (ctx) => {
+    const body = await readJson(ctx.req)
+    const r = byPass(ctx.params.id!, body.pass)
+    const reason = oneOf(body.reason, ['whoops', 'services', 'safe', 'other'] as const, 'Why it ended')
+    const note = text(body, 'note', 200, 'A few words')
+    if (body.points) storePoints(s, r.id, body.points)
+    endSos(s, r.id, { reason, note })
+    const name = (db.prepare('SELECT display_name FROM users WHERE id = ?').get(r.user_id) as { display_name: string }).display_name
+    const why = reason === 'other' ? note || 'Ended' : END_WORDS[reason]
+    await tellFamily(s, r.user_id, `${name} ended the SOS: ${why}.`, `sos-${r.id}`, '/')
+    s.audit('safety.sos_ended', ctx, r.user_id, reason)
+    return { ended: true }
   })
 }

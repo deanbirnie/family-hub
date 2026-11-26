@@ -560,6 +560,29 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX safety_checkins_at ON safety_checkins (created_at);
   `,
+  // 27: SOS (phase 10b, routes/safety.ts): one per person at a time, with
+  // its track of locations (each sealed); a pass for that SOS only (hashed)
+  // lets the phone keep sending once the app has locked. Deleted 24 hours
+  // after it ends.
+  `
+  CREATE TABLE safety_sos (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    pass_hash TEXT NOT NULL UNIQUE,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER,
+    ended_sealed TEXT
+  );
+  CREATE INDEX safety_sos_user ON safety_sos (user_id);
+  CREATE TABLE safety_sos_points (
+    id TEXT PRIMARY KEY,
+    sos_id TEXT NOT NULL REFERENCES safety_sos(id) ON DELETE CASCADE,
+    sealed TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    received_at INTEGER NOT NULL
+  );
+  CREATE INDEX safety_sos_points_sos ON safety_sos_points (sos_id, at);
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

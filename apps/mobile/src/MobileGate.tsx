@@ -24,6 +24,7 @@ import {
   navigate,
   Shell,
   SignInScreen,
+  SosScreen,
   Spinner,
   TotpScreen,
   useAction,
@@ -40,6 +41,7 @@ import { vaultDevice } from './vault-key.ts'
 import { clearDocumentCache, exportDownload, fileDownload, phoneSaveFile } from './files.ts'
 import { emergencyCard } from './emergency-card.ts'
 import { location } from './location.ts'
+import { makeSos } from './sos.ts'
 import { phonePush } from './push.ts'
 
 const SERVER_KEY = 'familyhub.server'
@@ -78,6 +80,20 @@ type State =
 export function MobileGate({ version }: { version: string }) {
   const [server, setServer] = useState(() => read(SERVER_KEY))
   const api = useMemo(() => new Api({ baseUrl: server, client: 'app' }), [server])
+  const sos = useMemo(() => makeSos(server), [server])
+  // An SOS stays on screen when the app locks: ending it needs no fingerprint.
+  const [sosOn, setSosOn] = useState(false)
+  useEffect(() => {
+    const read = () => void sos.status().then((x) => setSosOn(x.active), () => undefined)
+    read()
+    const off = sos.subscribe(read)
+    const onResume = () => document.visibilityState === 'visible' && read()
+    document.addEventListener('visibilitychange', onResume)
+    return () => {
+      off()
+      document.removeEventListener('visibilitychange', onResume)
+    }
+  }, [sos])
   const push = useMemo(() => phonePush(api), [api])
   const updates = useMemo(() => createUpdates(version), [version])
   const [state, setState] = useState<State>(() => (!server ? { kind: 'server' } : read(DEVICE_KEY) ? { kind: 'locked' } : { kind: 'signin' }))
@@ -155,6 +171,8 @@ export function MobileGate({ version }: { version: string }) {
     setState({ kind: 'server' })
   }
 
+  if (sosOn && state.kind !== 'app') return <SosScreen sos={sos} />
+
   switch (state.kind) {
     case 'server':
       return (
@@ -225,6 +243,7 @@ export function MobileGate({ version }: { version: string }) {
         saveFile: phoneSaveFile,
         emergencyCard,
         location,
+        sos,
         vaultDevice,
         push,
         deviceLabel: read(DEVICE_NAME_KEY) || 'This phone',

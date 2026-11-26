@@ -20,6 +20,7 @@ import { WishlistsPage } from './wishlists/WishlistsPage.tsx'
 import { GiftPlanner } from './wishlists/GiftPlanner.tsx'
 import { EmergencyPage } from './emergency/EmergencyPage.tsx'
 import { refreshPack } from './emergency/refresh.ts'
+import { SosScreen } from './safety/SosScreen.tsx'
 import { HomePage } from './pages/Home.tsx'
 import { MembersPage } from './pages/Members.tsx'
 import { SettingsPage } from './pages/Settings.tsx'
@@ -72,6 +73,15 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
   const [familyName, setFamilyName] = useState(session.familyName)
   const [lowCodes, setLowCodes] = useState<number | null>(null)
   const [emergency, setEmergency] = useState<{ active: boolean; kind: string | null } | null>(null)
+  // An SOS on this phone keeps its red screen over everything until it is ended.
+  const [sosOn, setSosOn] = useState(false)
+  useEffect(() => {
+    const sos = platform.sos
+    if (!sos) return
+    const read = () => void sos.status().then((x) => setSosOn(x.active), () => undefined)
+    read()
+    return sos.subscribe(read)
+  }, [platform.sos])
   const [serverKeySaved, setServerKeySaved] = useState<boolean | null>(null)
   const update = useUpdates(platform.updates)
 
@@ -156,6 +166,7 @@ export function Shell({ platform, session, onSignOut }: { platform: Platform; se
 
   return (
     <div className="shell">
+      {sosOn && platform.sos && <SosScreen sos={platform.sos} />}
       <aside className="sidebar">
         <div className="brand">
           <span className="brand-mark" aria-hidden>

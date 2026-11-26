@@ -101,7 +101,7 @@ await new Promise((r) => setTimeout(r, 30000 - (Date.now() % 30000) + 200))
 const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {})
 let failed = false
 try {
-  const page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage()
+  const page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, geolocation: { latitude: -33.9249, longitude: 18.4241, accuracy: 20 }, permissions: ['geolocation'] })).newPage()
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
   const shot = (name) => page.screenshot({ path: join(out, `${name}.png`) })
@@ -207,6 +207,21 @@ try {
   await page.context().setOffline(false)
   await page.getByRole('button', { name: 'Unlock' }).click()
   await page.getByRole('heading', { name: /Good (morning|afternoon|evening), Alex/ }).waitFor()
+
+  // SOS: the red screen over everything, the first location sent at once, ended with a reason.
+  await page.getByRole('link', { name: 'Home', exact: true }).click()
+  await page.getByRole('button', { name: 'SOS', exact: true }).click()
+  const sos = page.getByRole('alertdialog', { name: 'SOS' })
+  await sos.getByText('Your family has been alerted.').waitFor()
+  await sos.getByText(/last sent just now/).waitFor()
+  await shot('05-sos')
+  await sos.getByRole('button', { name: 'End the SOS' }).click()
+  await sos.getByRole('button', { name: 'Whoops: sent by mistake' }).click()
+  await sos.waitFor({ state: 'detached' })
+  const safety = page.locator('section.card', { has: page.getByRole('heading', { name: 'Safety' }) })
+  await safety.getByText('Your SOS ended').waitFor()
+  await safety.getByText(': Whoops: sent by mistake').waitFor()
+  await safety.getByText(/Last location .*-33\.92490, 18\.42410/).waitFor()
 
   // Signing the phone out removes it.
   await page.getByRole('link', { name: 'Settings' }).click()
