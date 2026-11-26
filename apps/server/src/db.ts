@@ -583,6 +583,11 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX safety_sos_points_sos ON safety_sos_points (sos_id, at);
   `,
+  // 28: SOS from the lock screen (phase 10c): each phone's SOS key, usable
+  // without a fingerprint, accepted only to start an SOS.
+  `
+  ALTER TABLE devices ADD COLUMN sos_public_key TEXT;
+  `,
 ]
 
 export const SCHEMA_VERSION = MIGRATIONS.length

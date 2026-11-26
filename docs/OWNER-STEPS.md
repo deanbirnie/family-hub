@@ -526,6 +526,23 @@ so the app password cannot read your own mail.
 - [ ] 3. Try it once together: press **SOS**, check the other phone is
       alerted and sees the location, then **End the SOS → Whoops**.
 
+## 36. SOS from the lock screen, and with no data (after the 10c pull request is merged and deployed)
+
+- [ ] 1. Update the app. In **Safety → Set up SOS on this phone**, allow the
+      location and **SMS**. (Each person does this on their own phone.)
+- [ ] 2. Swipe down twice, tap the pencil (edit), and drag the **SOS** tile
+      into your quick settings.
+- [ ] 3. Open **Health** once with the vault open, so your details are
+      kept for the SOS screen. Check your emergency contact is set in Quick
+      Info (it shows as "Emergency: …").
+- [ ] 4. Make sure each family member's own Contacts entry (the one linked
+      to them) has their mobile number: that is where the SMS goes.
+- [ ] 5. Try it: lock the phone, swipe down, tap **SOS**. The red screen
+      shows over the lock screen with your details; end it with **Whoops**.
+      To try the SMS, first turn off mobile data and Wi-Fi (not aeroplane
+      mode: that stops SMS too), start an SOS and wait a minute (the family
+      gets a text), then turn data back on and end it.
+
 ## Later steps (added as features land)
 
 - Nothing yet.

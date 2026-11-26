@@ -9,9 +9,17 @@ import type { Api, Services } from '../app.ts'
 import { bad, obj, oneOf, text } from '../household.ts'
 import { HttpError, readJson } from '../http.ts'
 import { getSettings, sendTo, subscriptionsOf } from '../notifications.ts'
+import { verify } from 'node:crypto'
 import { hashToken, newId, newToken } from '../secrets.ts'
+import { getUser } from '../sessions.ts'
+import { tooMany } from './auth.ts'
+import { openContact } from './contacts.ts'
+import { parsePublicKey } from './devices.ts'
 
 const KEEP_MS = 24 * 3_600_000
+
+/** What a phone's SOS key signs: fixed context, the challenge and the phone, so a signature is good for nothing else. */
+export const sosMessage = (challenge: string, deviceId: string) => Buffer.from(`family-hub-sos-start\n${challenge}\n${deviceId}`, 'utf8')
 
 export interface Checkin {
   kind: 'home' | 'arrived'
@@ -180,21 +188,75 @@ export function safetyRoutes(api: Api, s: Services): void {
    * SOS only, so the phone can keep sending locations, and end it, once the
    * app has locked. Called again while one is on, it hands back a new pass.
    */
-  api.authed('POST', '/api/safety/sos', signedIn, async (ctx) => {
-    const body = await readJson(ctx.req)
+  const startSos = async (ctx: Parameters<typeof s.audit>[1], user: { id: string; displayName: string }, location: unknown) => {
     const pass = newToken()
-    const open = db.prepare('SELECT id FROM safety_sos WHERE user_id = ? AND ended_at IS NULL').get(ctx.user.id) as { id: string } | undefined
+    const open = db.prepare('SELECT id FROM safety_sos WHERE user_id = ? AND ended_at IS NULL').get(user.id) as { id: string } | undefined
     if (open) {
       db.prepare('UPDATE safety_sos SET pass_hash = ? WHERE id = ?').run(hashToken(pass), open.id)
-      if (body.location) storePoints(s, open.id, [body.location])
+      if (location) storePoints(s, open.id, [location])
       return { sos: { id: open.id }, pass, told: 0 }
     }
     const id = newId()
-    db.prepare('INSERT INTO safety_sos (id, user_id, pass_hash, started_at) VALUES (?, ?, ?, ?)').run(id, ctx.user.id, hashToken(pass), s.now())
-    if (body.location) storePoints(s, id, [body.location])
-    s.audit('safety.sos_started', ctx, ctx.user.id)
-    const told = await tellFamily(s, ctx.user.id, `SOS from ${ctx.user.displayName}. Tap to see.`, `sos-${id}`, '/')
+    db.prepare('INSERT INTO safety_sos (id, user_id, pass_hash, started_at) VALUES (?, ?, ?, ?)').run(id, user.id, hashToken(pass), s.now())
+    if (location) storePoints(s, id, [location])
+    s.audit('safety.sos_started', ctx, user.id)
+    const told = await tellFamily(s, user.id, `SOS from ${user.displayName}. Tap to see.`, `sos-${id}`, '/')
     return { sos: { id }, pass, told }
+  }
+
+  api.authed('POST', '/api/safety/sos', signedIn, async (ctx) => startSos(ctx, ctx.user, (await readJson(ctx.req)).location))
+
+  // ---- SOS from the lock screen (10c) ----------------------------------------------------
+
+  /** Registers this phone's SOS key (from the unlocked app, on a phone's session): it can start an SOS and nothing else. */
+  api.authed('PUT', '/api/safety/sos-key', signedIn, async (ctx) => {
+    if (!ctx.session.deviceId) throw new HttpError(400, 'Only a registered phone has an SOS key.', 'not_a_phone')
+    const publicKey = text(obj(await readJson(ctx.req)), 'publicKey', 400, 'The key', true)
+    parsePublicKey(publicKey)
+    db.prepare('UPDATE devices SET sos_public_key = ? WHERE id = ? AND user_id = ?').run(publicKey, ctx.session.deviceId, ctx.user.id)
+    s.audit('safety.sos_key_set', ctx, ctx.user.id)
+    return { ok: true }
+  })
+
+  /**
+   * Starts an SOS from a locked phone: a one-time challenge (POST
+   * /api/devices/challenge) signed with the phone's SOS key. It answers with
+   * the SOS's pass, as the app's SOS button does, and opens no session.
+   */
+  api.open('POST', '/api/safety/sos/by-key', async (ctx) => {
+    if (!s.limits.signIn.hit(`ip:${ctx.ip}`)) throw tooMany()
+    const body = await readJson(ctx.req)
+    const deviceId = text(body, 'deviceId', 40, 'The phone', true)
+    const challengeId = text(body, 'challengeId', 40, 'The challenge', true)
+    const signature = text(body, 'signature', 200, 'The signature', true)
+    const challenge = db.prepare('DELETE FROM device_challenges WHERE id = ? AND device_id = ? AND expires_at > ? RETURNING challenge').get(challengeId, deviceId, s.now()) as { challenge: string } | undefined
+    const device = db.prepare('SELECT user_id, sos_public_key FROM devices WHERE id = ?').get(deviceId) as { user_id: string; sos_public_key: string | null } | undefined
+    if (!challenge || !device?.sos_public_key) throw new HttpError(401, 'Try again.', 'bad_challenge')
+    const ok = verify('sha256', sosMessage(challenge.challenge, deviceId), { key: parsePublicKey(device.sos_public_key), dsaEncoding: 'der' }, Buffer.from(signature, 'base64'))
+    if (!ok) throw new HttpError(401, 'Try again.', 'bad_signature')
+    const user = getUser(db, device.user_id)
+    if (!user || user.disabled) throw new HttpError(401, 'This account is turned off.', 'disabled')
+    return startSos(ctx, user, body.location)
+  })
+
+  /** What a phone keeps for an SOS with no data: the rest of the family's mobile numbers, from their own Contacts entries. */
+  api.authed('GET', '/api/safety/sos-numbers', signedIn, (ctx) => {
+    const rows = db
+      .prepare(
+        `SELECT c.id, c.sealed, u.display_name FROM users u
+         JOIN family_profiles p ON p.user_id = u.id
+         JOIN contacts c ON c.profile_id = p.id
+         WHERE u.disabled = 0 AND u.id != ?`,
+      )
+      .all(ctx.user.id) as { id: string; sealed: string; display_name: string }[]
+    const numbers = rows
+      .map((r) => {
+        const c = openContact(s, r)
+        const phone = c.phones.find((p) => p.label === 'mobile') ?? c.phones[0]
+        return phone?.number ? { name: r.display_name, phone: phone.number } : null
+      })
+      .filter((x): x is { name: string; phone: string } => x !== null)
+    return { numbers }
   })
 
   /** The SOS by its pass (the phone, possibly locked): only that SOS, only while it is on. */

@@ -41,7 +41,7 @@ import { vaultDevice } from './vault-key.ts'
 import { clearDocumentCache, exportDownload, fileDownload, phoneSaveFile } from './files.ts'
 import { emergencyCard } from './emergency-card.ts'
 import { location } from './location.ts'
-import { makeSos } from './sos.ts'
+import { forgetSos, makeSos } from './sos.ts'
 import { phonePush } from './push.ts'
 
 const SERVER_KEY = 'familyhub.server'
@@ -80,7 +80,7 @@ type State =
 export function MobileGate({ version }: { version: string }) {
   const [server, setServer] = useState(() => read(SERVER_KEY))
   const api = useMemo(() => new Api({ baseUrl: server, client: 'app' }), [server])
-  const sos = useMemo(() => makeSos(server), [server])
+  const sos = useMemo(() => makeSos(server, api, () => read(DEVICE_KEY)), [server, api])
   // An SOS stays on screen when the app locks: ending it needs no fingerprint.
   const [sosOn, setSosOn] = useState(false)
   useEffect(() => {
@@ -89,7 +89,10 @@ export function MobileGate({ version }: { version: string }) {
     const off = sos.subscribe(read)
     const onResume = () => document.visibilityState === 'visible' && read()
     document.addEventListener('visibilitychange', onResume)
+    // An SOS started from the lock screen (the Quick Settings tile) shows here as soon as it is on.
+    const timer = setInterval(read, 3000)
     return () => {
+      clearInterval(timer)
       off()
       document.removeEventListener('visibilitychange', onResume)
     }
@@ -156,6 +159,7 @@ export function MobileGate({ version }: { version: string }) {
     await push?.disable().catch(() => undefined)
     await vaultDevice.forget().catch(() => undefined)
     await emergencyCard.clear().catch(() => undefined)
+    await forgetSos().catch(() => undefined)
     clearDocumentCache()
     await api.logout().catch(() => undefined)
     await DeviceAuth.deleteKey().catch(() => undefined)

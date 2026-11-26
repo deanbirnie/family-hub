@@ -71,6 +71,22 @@ export interface SosStatus {
   waiting: number
   lastSentAt: number | null
   lastFixAt: number | null
+  /** Set up on this phone (10c): the SOS key registered, so it starts from the lock screen too. */
+  ready?: boolean
+  /** Whether it may send an SMS with no data. */
+  sms?: boolean
+}
+
+/** What the SOS screen shows, with no fingerprint (the owner's choice): this person's emergency contacts and medical essentials. */
+export interface SosCard {
+  name: string
+  contacts: { label: string; name: string; phone: string }[]
+  bloodType: string
+  severeAllergies: string[]
+  otherAllergies: string[]
+  medicines: string[]
+  conditions: string[]
+  careNotes: string
 }
 
 export interface SosSupport {
@@ -81,6 +97,14 @@ export interface SosSupport {
   end(reason: 'whoops' | 'services' | 'safe' | 'other', note: string): Promise<void>
   /** Told when it starts or ends here. */
   subscribe(listener: () => void): () => void
+  /** 10c: sets SOS up on this phone (permissions, the SOS key), for the lock screen and the SMS with no data. */
+  setup?(name: string): Promise<{ sms: boolean; location: boolean }>
+  /** 10c: refreshes what a locked phone keeps (the family's numbers, the person's name). */
+  refresh?(name: string): Promise<void>
+  /** 10c: keeps this person's details for the SOS screen. */
+  saveCard?(card: SosCard): Promise<void>
+  /** 10c: the details for the SOS screen, or null. */
+  card?(): Promise<SosCard | null>
 }
 
 export interface Platform {

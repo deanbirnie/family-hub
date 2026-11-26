@@ -75,6 +75,31 @@ export function SafetyCard({ ctx }: { ctx: HubContext }) {
     const timer = setInterval(() => void load(), 30_000)
     return () => clearInterval(timer)
   }, [live, load])
+  // SOS set up on this phone (10c): the lock-screen tile and the SMS with no data.
+  const [ready, setReady] = useState<boolean | null>(null)
+  useEffect(() => {
+    const sos = ctx.platform.sos
+    if (!sos?.setup) return
+    void sos.status().then((x) => {
+      setReady(!!x.ready)
+      // Keeps the family's numbers and this person's name up to date for a locked phone.
+      if (x.ready) void sos.refresh?.(ctx.user.displayName).catch(() => undefined)
+    })
+  }, [ctx.platform.sos, ctx.user.displayName])
+  const [setupNote, setSetupNote] = useState('')
+  const setup = useAction(async () => {
+    const r = await ctx.platform.sos!.setup!(ctx.user.displayName)
+    setReady(true)
+    setSetupNote(
+      [
+        'SOS is set up on this phone. Add the "SOS" tile to your quick settings (swipe down twice, then edit) to start it from the lock screen.',
+        !r.sms && 'SMS was not allowed, so with no data the family will not get a text.',
+        !r.location && 'Location was not allowed, so an SOS cannot say where you are.',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    )
+  })
   const sosNow = useAction(async () => {
     if (!ctx.platform.sos) return
     const r = await api.post<{ sos: { id: string }; pass: string }>('/api/safety/sos', {})
@@ -120,6 +145,16 @@ export function SafetyCard({ ctx }: { ctx: HubContext }) {
         )}
       </div>
       {sosNow.error && <Banner kind="error">{sosNow.error}</Banner>}
+      {ready === false && (
+        <div className="row">
+          <p className="muted small">Set SOS up on this phone once, so it also starts from the lock screen and texts the family when there is no data.</p>
+          <Button variant="ghost" busy={setup.busy} onClick={() => void setup.run()}>
+            Set up SOS on this phone
+          </Button>
+        </div>
+      )}
+      {setupNote && <Banner kind="success">{setupNote}</Banner>}
+      {setup.error && <Banner kind="error">{setup.error}</Banner>}
       {sos.map((x) => {
         const last = x.points.at(-1)
         const mine = x.userId === ctx.user.id
